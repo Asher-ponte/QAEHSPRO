@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress"
 import { Lightbulb, Target } from "lucide-react"
 import Link from 'next/link'
 import { Skeleton } from "@/components/ui/skeleton"
+import { useUser } from "@/hooks/use-user"
 
 interface Course {
   id: string;
@@ -28,6 +29,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+  const { user, isLoading: isUserLoading } = useUser()
   const [courses, setCourses] = useState<Course[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -67,7 +69,13 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold font-headline">Welcome back, John!</h1>
+        <h1 className="text-3xl font-bold font-headline">
+          {isUserLoading ? (
+            <Skeleton className="h-8 w-64" />
+          ) : (
+            `Welcome back, ${user?.username || 'User'}!`
+          )}
+        </h1>
         <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

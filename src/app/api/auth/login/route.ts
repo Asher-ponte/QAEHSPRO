@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
 
 const loginSchema = z.object({
   username: z.string(),
@@ -32,9 +33,15 @@ export async function POST(request: NextRequest) {
     if (!passwordMatch) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
+    
+    cookies().set('session', user.id.toString(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      sameSite: 'lax',
+    });
 
-    // In a real app, you would generate a JWT or session cookie here.
-    return NextResponse.json({ message: 'Login successful' }, { status: 200 });
+    return NextResponse.json({ id: user.id, username: user.username }, { status: 200 });
 
   } catch (error) {
     console.error(error);
