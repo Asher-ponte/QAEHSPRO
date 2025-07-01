@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useForm, useFieldArray, type Control, useWatch } from "react-hook-form"
+import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
@@ -203,13 +203,15 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         control,
     });
     
+    const { getValues, setValue } = useFormContext<CourseFormValues>();
+
     const lessonsInModule = useWatch({
         control,
         name: `modules.${moduleIndex}.lessons`,
     });
     
     const handleTypeChange = (value: string, index: number) => {
-        const currentLesson = control.getValues(`modules.${moduleIndex}.lessons.${index}`);
+        const currentLesson = getValues(`modules.${moduleIndex}.lessons.${index}`);
         const newLesson = { ...currentLesson, type: value as "video" | "document" | "quiz" };
         
         if (value === 'quiz') {
@@ -223,7 +225,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
             newLesson.questions = undefined;
         }
 
-        control.setValue(`modules.${moduleIndex}.lessons.${index}`, newLesson);
+        setValue(`modules.${moduleIndex}.lessons.${index}`, newLesson);
     }
 
     return (
@@ -582,5 +584,7 @@ export default function CreateCoursePage() {
     </div>
   )
 }
+
+    
 
     
