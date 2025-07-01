@@ -39,8 +39,14 @@ export default function LoginPage() {
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Login failed")
+        let errorMessage = "Login failed";
+        try {
+            const data = await response.json();
+            errorMessage = data.error || errorMessage;
+        } catch (e) {
+            // The response might not have a JSON body, so we use a default message.
+        }
+        throw new Error(errorMessage);
       }
       
       // A full page reload is the most robust way to ensure the new

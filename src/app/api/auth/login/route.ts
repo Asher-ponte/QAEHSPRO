@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
     
-    const response = NextResponse.json({ id: user.id, username: user.username }, { status: 200 });
+    // Create a response with no body, just the cookie. This is a more robust
+    // way to handle session creation.
+    const response = new NextResponse(null, { status: 200 });
     
     response.cookies.set('session', user.id.toString(), {
       httpOnly: true,
