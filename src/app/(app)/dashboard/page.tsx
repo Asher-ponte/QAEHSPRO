@@ -1,0 +1,108 @@
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { ArrowUpRight, Lightbulb, Target } from "lucide-react"
+import Link from 'next/link'
+
+const courses = [
+  {
+    title: "Leadership Principles",
+    progress: 75,
+    category: "Management",
+  },
+  {
+    title: "Advanced React",
+    progress: 45,
+    category: "Technical Skills",
+  },
+  {
+    title: "Cybersecurity Basics",
+    progress: 95,
+    category: "Compliance",
+  },
+];
+
+const stats = [
+    {
+      title: "Courses Completed",
+      value: "12",
+      icon: <Target className="h-6 w-6 text-muted-foreground" />,
+    },
+    {
+      title: "Skills Acquired",
+      value: "8",
+      icon: <Lightbulb className="h-6 w-6 text-muted-foreground" />,
+    },
+]
+
+export default function DashboardPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold font-headline">Welcome back, John!</h1>
+        <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map(stat => (
+            <Card key={stat.title}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                    {stat.icon}
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{stat.value}</div>
+                </CardContent>
+            </Card>
+        ))}
+         <Card className="lg:col-span-2 bg-primary text-primary-foreground">
+            <CardHeader>
+                <CardTitle>AI-Powered Recommendations</CardTitle>
+                <CardDescription className="text-primary-foreground/80">Get personalized course suggestions based on your skills and role.</CardDescription>
+            </CardHeader>
+            <CardFooter>
+                 <Link href="/recommendations" className="w-full">
+                    <Button variant="secondary" className="w-full">
+                        Discover Courses <ArrowUpRight className="ml-2 h-4 w-4" />
+                    </Button>
+                </Link>
+            </CardFooter>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>My Courses</CardTitle>
+          <CardDescription>
+            Continue where you left off.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {courses.map((course) => (
+            <div key={course.title} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="font-semibold">{course.title}</h3>
+                    <p className="text-sm text-muted-foreground">{course.category}</p>
+                </div>
+                <span className="font-semibold">{course.progress}%</span>
+              </div>
+              <Progress value={course.progress} aria-label={`${course.title} progress`} />
+            </div>
+          ))}
+        </CardContent>
+        <CardFooter>
+            <Link href="/courses">
+                <Button variant="outline">View All Courses</Button>
+            </Link>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}
