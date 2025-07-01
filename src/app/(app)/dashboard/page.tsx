@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -33,19 +32,20 @@ interface Stats {
 export default function DashboardPage() {
   const { user, isLoading: isUserLoading } = useUser()
   const { toast } = useToast()
-  const router = useRouter()
   const [courses, setCourses] = useState<Course[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Don't do anything until the user loading state is settled
+    // The main app layout now handles auth checking. We just need to wait for the
+    // user to be loaded before fetching the dashboard data.
     if (isUserLoading) {
         return;
     }
-    // If not loading and there's no user, they are not authenticated.
     if (!user) {
-        router.push('/');
+        // This should not be reached if the layout guard is working, but as a
+        // safeguard, we prevent fetching data.
+        setIsLoading(false);
         return;
     }
 
@@ -72,7 +72,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-  }, [user, isUserLoading, toast, router])
+  }, [user, isUserLoading, toast])
 
   const statCards = [
     {
