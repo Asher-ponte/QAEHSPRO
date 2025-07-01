@@ -337,6 +337,28 @@ export default function CreateCoursePage() {
 
   async function onSubmit(values: CourseFormValues) {
     setIsLoading(true)
+
+    // Create a clean payload to avoid sending extra react-hook-form props
+    const payload = {
+      title: values.title,
+      description: values.description,
+      category: values.category,
+      image: values.image,
+      aiHint: values.aiHint,
+      modules: values.modules.map(module => ({
+        title: module.title,
+        lessons: module.lessons.map(lesson => ({
+          title: lesson.title,
+          type: lesson.type,
+          content: lesson.content,
+          questions: lesson.questions?.map(q => ({
+            text: q.text,
+            options: q.options.map(o => ({ text: o.text })),
+            correctOptionIndex: q.correctOptionIndex
+          }))
+        }))
+      }))
+    };
     
     try {
       const response = await fetch('/api/courses', {
@@ -344,7 +366,7 @@ export default function CreateCoursePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -569,3 +591,5 @@ export default function CreateCoursePage() {
     </div>
   )
 }
+
+    
