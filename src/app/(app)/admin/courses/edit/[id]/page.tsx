@@ -201,12 +201,12 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         
         if (value === 'quiz') {
             newLesson.questions = newLesson.questions || [];
-            newLesson.content = undefined;
+            newLesson.content = null;
         } else if (value === 'document') {
             newLesson.content = newLesson.content || "";
             newLesson.questions = undefined;
         } else {
-            newLesson.content = undefined;
+            newLesson.content = null;
             newLesson.questions = undefined;
         }
 
@@ -303,7 +303,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: "" })}
+                onClick={() => append({ title: "", type: "video", content: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -404,11 +404,11 @@ export default function EditCoursePage() {
           title: lesson.title,
           type: lesson.type,
           content: lesson.content,
-          questions: lesson.questions?.map(q => ({
+          questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
             text: q.text,
             options: q.options.map(o => ({ text: o.text })),
             correctOptionIndex: q.correctOptionIndex
-          }))
+          })) : undefined,
         }))
       }))
     };
@@ -557,7 +557,7 @@ export default function EditCoursePage() {
                             <FormItem>
                                 <FormLabel>Image URL</FormLabel>
                                 <FormControl>
-                                <Input placeholder="https://placehold.co/600x400" {...field} />
+                                <Input placeholder="https://placehold.co/600x400" {...field} value={field.value ?? ''} />
                                 </FormControl>
                                 <FormDescription>
                                 A URL for the course cover image. Leave blank for a placeholder.
@@ -574,7 +574,7 @@ export default function EditCoursePage() {
                         <FormItem>
                             <FormLabel>AI Image Hint</FormLabel>
                             <FormControl>
-                            <Input placeholder="e.g., leadership team" {...field} />
+                            <Input placeholder="e.g., leadership team" {...field} value={field.value ?? ''} />
                             </FormControl>
                             <FormDescription>
                             One or two keywords to help AI find a relevant image later.
@@ -634,7 +634,7 @@ export default function EditCoursePage() {
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: "" }] })}
+                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null }] })}
                         >
                             <Plus className="mr-2 h-4 w-4" /> Add Module
                         </Button>
@@ -658,5 +658,3 @@ export default function EditCoursePage() {
     </div>
   )
 }
-
-    

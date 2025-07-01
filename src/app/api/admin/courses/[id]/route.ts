@@ -44,7 +44,7 @@ const lessonSchema = z.object({
   id: z.number().optional(),
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
-  content: z.string().optional(),
+  content: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -59,8 +59,8 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   modules: z.array(moduleSchema),
-  image: z.string().url().optional().or(z.literal('')),
-  aiHint: z.string().optional(),
+  image: z.string().url().optional().or(z.literal('')).nullable(),
+  aiHint: z.string().optional().nullable(),
 })
 
 
@@ -93,13 +93,17 @@ export async function GET(
                         content: null, // Clear content as it's now in questions
                     };
                 }
-                return lesson;
+                return { ...lesson, content: lesson.content ?? null };
             });
         }
 
         course.modules = modules;
 
-        return NextResponse.json(course);
+        return NextResponse.json({
+            ...course,
+            image: course.image ?? null,
+            aiHint: course.aiHint ?? null,
+        });
 
     } catch (error) {
         console.error("Failed to fetch course for editing:", error);
@@ -139,19 +143,52 @@ export async function PUT(
             [title, description, category, image, aiHint, courseId]
         );
 
-        // 2. Delete all existing modules for the course. 
-        // ON DELETE CASCADE will handle deleting associated lessons and user progress.
-        await db.run('DELETE FROM modules WHERE course_id = ?', courseId);
+        // 2. Get existing module IDs to manage deletions
+        const existingModules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
+        const existingModuleIds = new Set(existingModules.map(m => m.id));
+        
+        const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id));
 
-        // 3. Re-insert modules and lessons from the payload
+        // Delete modules that are not in the payload
+        for (const existingId of existingModuleIds) {
+            if (!payloadModuleIds.has(existingId)) {
+                await db.run('DELETE FROM modules WHERE id = ?', existingId);
+            }
+        }
+
+
+        // 3. Upsert modules and lessons
         for (const [moduleIndex, moduleData] of modules.entries()) {
-            const moduleResult = await db.run(
-                'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
-                [courseId, moduleData.title, moduleIndex + 1]
-            );
-            const moduleId = moduleResult.lastID;
-            if (!moduleId) {
-                throw new Error(`Failed to create module: ${moduleData.title}`);
+            let moduleId = moduleData.id;
+
+            if (moduleId && existingModuleIds.has(moduleId)) {
+                // Update existing module
+                await db.run(
+                    'UPDATE modules SET title = ?, "order" = ? WHERE id = ?',
+                    [moduleData.title, moduleIndex + 1, moduleId]
+                );
+            } else {
+                 // Insert new module
+                const moduleResult = await db.run(
+                    'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
+                    [courseId, moduleData.title, moduleIndex + 1]
+                );
+                moduleId = moduleResult.lastID;
+                if (!moduleId) {
+                    throw new Error(`Failed to create module: ${moduleData.title}`);
+                }
+            }
+
+            // Manage lessons for this module
+            const existingLessons = await db.all('SELECT id FROM lessons WHERE module_id = ?', moduleId);
+            const existingLessonIds = new Set(existingLessons.map(l => l.id));
+            const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id));
+
+            // Delete lessons not in payload
+            for (const existingId of existingLessonIds) {
+                if (!payloadLessonIds.has(existingId)) {
+                    await db.run('DELETE FROM lessons WHERE id = ?', existingId);
+                }
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
@@ -160,10 +197,19 @@ export async function PUT(
                     contentToStore = transformQuestionsToDbFormat(lessonData.questions);
                 }
                 
-                await db.run(
-                    'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
-                    [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1]
-                );
+                if (lessonData.id && existingLessonIds.has(lessonData.id)) {
+                    // Update existing lesson
+                     await db.run(
+                        'UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ? WHERE id = ?',
+                        [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.id]
+                    );
+                } else {
+                     // Insert new lesson
+                    await db.run(
+                        'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
+                        [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1]
+                    );
+                }
             }
         }
 

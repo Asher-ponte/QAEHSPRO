@@ -27,7 +27,7 @@ const quizQuestionSchema = z.object({
 const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
-  content: z.string().optional(),
+  content: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -41,8 +41,8 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   modules: z.array(moduleSchema),
-  image: z.string().url().optional().or(z.literal('')),
-  aiHint: z.string().optional(),
+  image: z.string().url().optional().or(z.literal('')).nullable(),
+  aiHint: z.string().optional().nullable(),
 })
 
 export async function GET() {
