@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useRouter } from "next/navigation"
@@ -19,13 +20,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 export function UserNav() {
   const { user, isLoading } = useUser()
   const router = useRouter()
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    // Use window.location.assign for a full page reload to ensure
-    // the session is cleared and the user is redirected correctly.
-    window.location.assign('/');
-  };
 
   if (isLoading) {
     return <Skeleton className="h-10 w-10 rounded-full" />
@@ -65,9 +59,13 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+        <DropdownMenuItem asChild>
+          <form action="/api/auth/logout" method="POST" className="w-full">
+            <button type="submit" className="flex items-center w-full">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </button>
+          </form>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

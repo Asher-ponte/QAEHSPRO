@@ -1,9 +1,10 @@
 "use client"
 
+import React from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { User, Lock, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,44 +20,31 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Logo } from "@/components/logo"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-export default function LoginPage() {
-  const [username, setUsername] = useState("Demo User")
-  const [password, setPassword] = useState("password")
+function LoginPageContent() {
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [username] = useState("Demo User")
+  const [password] = useState("password")
+  const searchParams = useSearchParams()
   const { toast } = useToast()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Login failed')
-      }
-      
-      // Use window.location.assign for a full page reload to ensure
-      // the new session is recognized by the server and middleware.
-      window.location.assign("/dashboard");
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: errorMessage,
+        description: error,
       })
-      setIsLoading(false)
     }
-  }
+  }, [searchParams, toast]);
+
+  const handleSubmit = () => {
+    setIsLoading(true);
+    // The form submission is now handled by the browser,
+    // but we can still show a loading state.
+  };
 
   return (
     <div className="w-full lg:grid min-h-screen lg:grid-cols-2">
@@ -72,19 +60,19 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="grid gap-6">
+            <form onSubmit={handleSubmit} action="/api/auth/login" method="POST" className="grid gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="username">Username</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="username"
+                    name="username"
                     type="text"
                     placeholder="Demo User"
                     required
                     className="pl-10"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    defaultValue={username}
                     disabled={isLoading}
                   />
                 </div>
@@ -97,11 +85,11 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
+                    name="password"
                     type="password"
                     required
                     className="pl-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    defaultValue={password}
                     disabled={isLoading}
                   />
                 </div>
@@ -132,5 +120,14 @@ export default function LoginPage() {
         />
       </div>
     </div>
+  )
+}
+
+// The Suspense Boundary is required to use `useSearchParams`
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div>Loading...</div>}>
+      <LoginPageContent />
+    </React.Suspense>
   )
 }
