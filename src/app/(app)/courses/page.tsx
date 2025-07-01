@@ -54,7 +54,7 @@ export default function CoursesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold font-headline">Courses</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold font-headline">Courses</h1>
         <p className="text-muted-foreground">
           Browse our catalog of courses to enhance your skills.
         </p>
@@ -74,7 +74,7 @@ export default function CoursesPage() {
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
-              <Skeleton className="h-[228px] w-full rounded-t-lg" />
+              <Skeleton className="w-full rounded-t-lg aspect-video" />
               <CardContent className="p-4 space-y-2">
                  <Skeleton className="h-4 w-1/4" />
                  <Skeleton className="h-6 w-3/4" />
