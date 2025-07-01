@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -80,6 +81,31 @@ export default function CourseDetailPage() {
       case "quiz": return <CheckCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
       default: return null;
     }
+  }
+
+  const allLessons = course?.modules.flatMap(module => module.lessons) ?? [];
+  const firstUncompletedLesson = allLessons.find(lesson => !lesson.completed);
+  const hasStarted = allLessons.some(l => l.completed);
+
+  let buttonText = "Start Course";
+  let buttonHref = "#";
+  let buttonDisabled = true;
+
+  if (course && allLessons.length > 0) {
+      if (firstUncompletedLesson) {
+          // There are uncompleted lessons
+          buttonText = hasStarted ? "Continue Course" : "Start Course";
+          buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
+          buttonDisabled = false;
+      } else {
+          // All lessons are completed
+          buttonText = "Course Completed";
+          buttonDisabled = true;
+      }
+  } else if (course) {
+      // Course exists but has no lessons
+      buttonText = "Content Coming Soon";
+      buttonDisabled = true;
   }
 
   if (isLoading) {
@@ -164,9 +190,11 @@ export default function CourseDetailPage() {
                 </AccordionItem>
               ))}
             </Accordion>
-            <Button className="w-full mt-6">
-              Start Final Assessment
-            </Button>
+            <Link href={buttonHref} passHref legacyBehavior>
+                <Button className="w-full mt-6" disabled={buttonDisabled}>
+                    {buttonText}
+                </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
