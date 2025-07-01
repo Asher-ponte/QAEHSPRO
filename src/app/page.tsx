@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { User, Lock, Loader2 } from 'lucide-react'
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,9 +45,10 @@ export default function LoginPage() {
         throw new Error(data.error || "Login failed")
       }
       
-      // Use a full page navigation to prevent a race condition
-      // where the app checks for auth before the cookie is set.
-      window.location.assign("/dashboard")
+      // With middleware in place, a simple push is sufficient.
+      // The browser will navigate, and the middleware will ensure
+      // the user is authenticated before rendering the next page.
+      router.push("/dashboard")
 
     } catch (error) {
        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
