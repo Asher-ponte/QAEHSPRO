@@ -15,12 +15,14 @@ import { CheckCircle, PlayCircle, FileText } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface Lesson {
+  id: number;
   title: string;
   type: string;
   completed: boolean;
 }
 
 interface Module {
+  id: number;
   title: string;
   lessons: Lesson[];
 }
@@ -48,7 +50,19 @@ export default function CourseDetailPage() {
           throw new Error("Failed to fetch course")
         }
         const data = await res.json()
-        setCourse(data)
+        
+        // Ensure 'completed' is a boolean
+        const courseDataWithBooleans = {
+            ...data,
+            modules: data.modules.map((module: any) => ({
+                ...module,
+                lessons: module.lessons.map((lesson: any) => ({
+                    ...lesson,
+                    completed: !!lesson.completed
+                }))
+            }))
+        }
+        setCourse(courseDataWithBooleans)
       } catch (error) {
         console.error(error)
       } finally {
@@ -132,12 +146,12 @@ export default function CourseDetailPage() {
           <CardContent>
             <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
               {course.modules.map((module) => (
-                <AccordionItem value={module.title} key={module.title}>
+                <AccordionItem value={module.title} key={module.id || module.title}>
                   <AccordionTrigger className="font-semibold">{module.title}</AccordionTrigger>
                   <AccordionContent>
                     <ul className="space-y-3">
                       {module.lessons.map((lesson) => (
-                        <li key={lesson.title} className="flex items-center justify-between text-sm">
+                        <li key={lesson.id || lesson.title} className="flex items-center justify-between text-sm">
                            <div className="flex items-center">
                             {getIcon(lesson.type)}
                             <span>{lesson.title}</span>
