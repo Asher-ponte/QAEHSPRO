@@ -146,31 +146,11 @@ export async function PUT(
             [title, description, category, image, aiHint, courseId]
         );
 
-        // 2. Get all module IDs for the course to find associated lessons
-        const modulesToDelete = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
-        const moduleIdsToDelete = modulesToDelete.map(m => m.id);
-
-        if (moduleIdsToDelete.length > 0) {
-            const placeholders = moduleIdsToDelete.map(() => '?').join(',');
-            
-            // 3. Find all lessons to be deleted
-            const lessonsToDelete = await db.all(`SELECT id FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
-            const lessonIdsToDelete = lessonsToDelete.map(l => l.id);
-
-            // 4. Delete progress associated with those lessons
-            if (lessonIdsToDelete.length > 0) {
-                const lessonPlaceholders = lessonIdsToDelete.map(() => '?').join(',');
-                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonPlaceholders})`, lessonIdsToDelete);
-            }
-            
-            // 5. Delete all lessons for the modules
-            await db.run(`DELETE FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
-        }
-
-        // 6. Delete all modules for the course
+        // 2. Delete all existing modules for the course. 
+        // ON DELETE CASCADE will handle deleting associated lessons and user progress.
         await db.run('DELETE FROM modules WHERE course_id = ?', courseId);
 
-        // 7. Re-insert modules and lessons from the payload
+        // 3. Re-insert modules and lessons from the payload
         for (const [moduleIndex, moduleData] of modules.entries()) {
             const moduleResult = await db.run(
                 'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
@@ -221,33 +201,16 @@ export async function DELETE(
     try {
         await db.run('BEGIN TRANSACTION');
 
-        const modulesToDelete = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
-        const moduleIdsToDelete = modulesToDelete.map(m => m.id);
-
-        if (moduleIdsToDelete.length > 0) {
-            const placeholders = moduleIdsToDelete.map(() => '?').join(',');
-            
-            const lessonsToDelete = await db.all(`SELECT id FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
-            const lessonIdsToDelete = lessonsToDelete.map(l => l.id);
-
-            if (lessonIdsToDelete.length > 0) {
-                const lessonPlaceholders = lessonIdsToDelete.map(() => '?').join(',');
-                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonPlaceholders})`, lessonIdsToDelete);
-            }
-            
-            await db.run(`DELETE FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
-        }
-        
-        await db.run('DELETE FROM modules WHERE course_id = ?', [courseId]);
-
+        // By deleting the course, ON DELETE CASCADE will handle deleting all associated
+        // modules, lessons, and user_progress entries automatically.
         const result = await db.run('DELETE FROM courses WHERE id = ?', [courseId]);
-
-        await db.run('COMMIT');
 
         if (result.changes === 0) {
              await db.run('ROLLBACK');
              return NextResponse.json({ error: 'Course not found or already deleted' }, { status: 404 });
         }
+        
+        await db.run('COMMIT');
 
         return NextResponse.json({ success: true, message: `Course ${courseId} deleted successfully.` });
 
