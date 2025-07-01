@@ -35,19 +35,21 @@ export async function GET() {
         if (total === 0) {
             continue; // Skip courses with no lessons
         }
+        
+        const progress = Math.floor((completed / total) * 100);
 
+        // Add all courses the user has started to the "My Courses" list
+        myCourses.push({
+            id: course.id,
+            title: course.title,
+            category: course.category,
+            progress: progress,
+        });
+
+        // Separately, count the stats for fully completed courses
         if (completed === total) {
             coursesCompleted++;
             skillsAcquired.add(course.category);
-        } else {
-            // This now includes courses with 0% progress (started but no lessons completed)
-            const progress = Math.floor((completed / total) * 100);
-            myCourses.push({
-                id: course.id,
-                title: course.title,
-                category: course.category,
-                progress: progress,
-            });
         }
     }
 
