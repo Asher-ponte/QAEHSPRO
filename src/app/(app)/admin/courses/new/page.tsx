@@ -202,7 +202,9 @@ export default function CreateCoursePage() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create course")
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred" }));
+        const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to create course");
+        throw new Error(message);
       }
 
       toast({
@@ -214,11 +216,12 @@ export default function CreateCoursePage() {
       form.reset()
       router.push('/admin')
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
         console.error(error)
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
-            description: "There was a problem with your request. Please try again.",
+            description: errorMessage,
         })
     } finally {
         setIsLoading(false)

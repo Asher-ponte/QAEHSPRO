@@ -61,7 +61,8 @@ export default function LessonPage() {
             try {
                 const res = await fetch(`/api/courses/${params.id}/lessons/${params.lessonId}`);
                 if (!res.ok) {
-                    throw new Error('Failed to fetch lesson');
+                    const errorData = await res.json().catch(() => (null));
+                    throw new Error(errorData?.error || 'Failed to fetch lesson');
                 }
                 const data = await res.json();
                 setLesson(data);
