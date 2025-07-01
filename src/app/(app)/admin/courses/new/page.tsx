@@ -77,11 +77,9 @@ export default function CreateCoursePage() {
   return (
     <div className="flex flex-col gap-6">
        <div className="flex items-center gap-4">
-        <Link href="/admin" legacyBehavior>
-          <Button variant="outline" size="icon" asChild>
-            <a><ArrowLeft className="h-4 w-4" /></a>
-          </Button>
-        </Link>
+        <Button variant="outline" size="icon" asChild>
+          <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
+        </Button>
         <div>
           <h1 className="text-3xl font-bold font-headline">Create a New Course</h1>
           <p className="text-muted-foreground">
