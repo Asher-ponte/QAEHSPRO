@@ -53,25 +53,6 @@ const lessonSchema = z.object({
   type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
   content: z.string().optional(),
   questions: z.array(quizQuestionSchema).optional(),
-}).superRefine((data, ctx) => {
-    if (data.type === 'document') {
-        if (!data.content || data.content.trim().length < 10) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Document content must be at least 10 characters.",
-                path: ['content'],
-            });
-        }
-    }
-    if (data.type === 'quiz') {
-       if (!data.questions || data.questions.length < 1) {
-             ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "A quiz must have at least one question.",
-                path: ['questions'],
-            });
-        }
-    }
 });
 
 const moduleSchema = z.object({
@@ -584,7 +565,3 @@ export default function CreateCoursePage() {
     </div>
   )
 }
-
-    
-
-    
