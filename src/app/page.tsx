@@ -21,8 +21,8 @@ import { Logo } from "@/components/logo"
 import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
+  const [username, setUsername] = useState("Demo User")
+  const [password, setPassword] = useState("password")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
@@ -43,7 +43,9 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed')
       }
       
-      router.push("/dashboard")
+      // Use window.location.assign for a full page reload to ensure
+      // the new session is recognized by the server and middleware.
+      window.location.assign("/dashboard");
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
@@ -52,7 +54,6 @@ export default function LoginPage() {
         title: "Login Failed",
         description: errorMessage,
       })
-    } finally {
       setIsLoading(false)
     }
   }

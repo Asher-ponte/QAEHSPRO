@@ -22,8 +22,9 @@ export function UserNav() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/');
-    router.refresh();
+    // Use window.location.assign for a full page reload to ensure
+    // the session is cleared and the user is redirected correctly.
+    window.location.assign('/');
   };
 
   if (isLoading) {
