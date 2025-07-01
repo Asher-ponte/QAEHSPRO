@@ -1,27 +1,34 @@
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
     const db = await getDb();
-    const userId = 1; // Hardcoded user
+    const cookieStore = cookies();
+    const sessionId = cookieStore.get('session')?.value;
 
-    // Get all courses that the user has any progress in (started or completed).
-    // Using IFNULL to ensure completedLessons is never null.
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const userId = parseInt(sessionId, 10);
+
     const coursesWithProgress = await db.all(`
-      SELECT
-        c.id,
-        c.title,
-        c.category,
-        (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
-        IFNULL(SUM(CASE WHEN up.completed = 1 THEN 1 ELSE 0 END), 0) as completedLessons
-      FROM user_progress up
-      JOIN lessons l ON up.lesson_id = l.id
-      JOIN modules m ON l.module_id = m.id
-      JOIN courses c ON m.course_id = c.id
-      WHERE up.user_id = ?
-      GROUP BY c.id, c.title, c.category
+        SELECT
+            c.id,
+            c.title,
+            c.category,
+            (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
+            COUNT(up.lesson_id) as completedLessons
+        FROM course_enrollments ce
+        JOIN courses c ON ce.course_id = c.id
+        LEFT JOIN (
+            SELECT l.id as lesson_id, m.course_id FROM lessons l JOIN modules m ON l.module_id = m.id
+        ) l ON l.course_id = c.id
+        LEFT JOIN user_progress up ON up.lesson_id = l.lesson_id AND up.user_id = ce.user_id AND up.completed = 1
+        WHERE ce.user_id = ?
+        GROUP BY c.id
     `, userId);
 
     let coursesCompleted = 0;
@@ -33,12 +40,17 @@ export async function GET() {
         const completed = course.completedLessons;
 
         if (total === 0) {
-            continue; // Skip courses with no lessons
+             myCourses.push({
+                id: course.id,
+                title: course.title,
+                category: course.category,
+                progress: 0,
+            });
+            continue; 
         }
         
         const progress = Math.floor((completed / total) * 100);
 
-        // Add all courses the user has started to the "My Courses" list
         myCourses.push({
             id: course.id,
             title: course.title,
@@ -46,7 +58,6 @@ export async function GET() {
             progress: progress,
         });
 
-        // Separately, count the stats for fully completed courses
         if (completed === total) {
             coursesCompleted++;
             skillsAcquired.add(course.category);

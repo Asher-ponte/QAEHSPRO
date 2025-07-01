@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,11 +18,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function UserNav() {
   const { user, isLoading } = useUser()
+  const router = useRouter()
 
-  const handleLogout = () => {
-    // Since login is removed, this action is a no-op.
-    // We can just refresh the page or do nothing.
-    window.location.reload()
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/');
+    router.refresh();
   };
 
   if (isLoading) {

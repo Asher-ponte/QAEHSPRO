@@ -1,14 +1,22 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
+import { cookies } from 'next/headers';
 
 export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
     const db = await getDb()
-    const userId = 1; // Hardcoded user
     const { lessonId, id: courseId } = params;
+
+    const cookieStore = cookies();
+    const sessionId = cookieStore.get('session')?.value;
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const userId = parseInt(sessionId, 10);
 
     try {
         // Use a transaction to ensure atomicity

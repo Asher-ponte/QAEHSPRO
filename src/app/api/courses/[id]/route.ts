@@ -1,11 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const db = await getDb()
-    // Hardcode user ID to 1 since login is removed
-    const userId = 1;
+    const cookieStore = cookies();
+    const sessionId = cookieStore.get('session')?.value;
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const userId = parseInt(sessionId, 10);
 
     const course = await db.get('SELECT * FROM courses WHERE id = ?', params.id)
     
@@ -36,7 +42,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         courseDetail.modules.push({ ...module, lessons });
     }
 
-    // If a course has no modules, provide some default placeholder data.
     if (courseDetail.modules.length === 0) {
       courseDetail.modules.push({
           id: -1,

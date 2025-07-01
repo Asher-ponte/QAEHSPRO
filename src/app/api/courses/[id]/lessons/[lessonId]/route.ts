@@ -1,6 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
+import { cookies } from 'next/headers';
 
 export async function GET(
     request: NextRequest, 
@@ -9,7 +10,14 @@ export async function GET(
   try {
     const db = await getDb()
     const { lessonId } = params
-    const userId = 1 // Hardcoded user ID
+    
+    const cookieStore = cookies();
+    const sessionId = cookieStore.get('session')?.value;
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const userId = parseInt(sessionId, 10);
 
     // When a user views a lesson, create a progress entry if it doesn't exist.
     // This marks the course as "started" for the dashboard.
@@ -20,7 +28,7 @@ export async function GET(
 
     const lesson = await db.get(
         `SELECT 
-            l.id, l.title, l.type, l.content, 
+            l.id, l.title, l.type, l.content, l.image, l.aiHint,
             m.id as module_id, m.title as module_title, 
             c.id as course_id, c.title as course_title,
             CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
@@ -50,3 +58,4 @@ export async function GET(
 }
 
     
+
