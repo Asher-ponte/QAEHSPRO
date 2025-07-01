@@ -54,7 +54,7 @@ const lessonSchema = z.object({
   id: z.number().optional(), // Keep track of existing lessons
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
-  content: z.string().optional(),
+  content: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -68,8 +68,8 @@ const courseSchema = z.object({
   title: z.string(),
   description: z.string(),
   category: z.string(),
-  image: z.string().url().optional().or(z.literal('')),
-  aiHint: z.string().optional(),
+  image: z.string().url().optional().or(z.literal('')).nullable(),
+  aiHint: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
 })
 
