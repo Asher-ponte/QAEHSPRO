@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export async function GET() {
   try {
     const db = await getDb()
-    const userId = 1 // Mocked user ID for 'johndoe'
+    const cookieStore = cookies()
+    const sessionId = cookieStore.get('session')?.value
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+    const userId = parseInt(sessionId, 10);
+
 
     // --- Calculate Stats ---
     const allCourses = await db.all('SELECT id, category FROM courses');

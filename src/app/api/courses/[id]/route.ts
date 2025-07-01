@@ -1,9 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const db = await getDb()
+    const cookieStore = cookies()
+    const sessionId = cookieStore.get('session')?.value
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+    const userId = parseInt(sessionId, 10);
+
     const course = await db.get('SELECT * FROM courses WHERE id = ?', params.id)
     
     if (!course) {
@@ -18,8 +27,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const courseDetail = { ...course, modules: [] as any[] };
 
     for (const module of modules) {
-        // For now, we'll mock the user ID as 1 (for 'johndoe').
-        // In a real app, you'd get this from the user's session.
         const lessons = await db.all(
             `SELECT 
                 l.id, 
@@ -27,10 +34,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
                 l.type, 
                 CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
              FROM lessons l
-             LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = 1
+             LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
              WHERE l.module_id = ? 
              ORDER BY l."order" ASC`,
-            module.id
+            [userId, module.id]
         );
         courseDetail.modules.push({ ...module, lessons });
     }
