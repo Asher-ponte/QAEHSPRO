@@ -15,6 +15,7 @@ import { Lightbulb, Target } from "lucide-react"
 import Link from 'next/link'
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/hooks/use-user"
+import { useToast } from "@/hooks/use-toast"
 
 interface Course {
   id: string;
@@ -30,6 +31,7 @@ interface Stats {
 
 export default function DashboardPage() {
   const { user, isLoading: isUserLoading } = useUser()
+  const { toast } = useToast()
   const [courses, setCourses] = useState<Course[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,20 +40,26 @@ export default function DashboardPage() {
     async function fetchDashboardData() {
       try {
         const res = await fetch("/api/dashboard")
-        if (!res.ok) {
-          throw new Error("Failed to fetch dashboard data")
-        }
         const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to fetch dashboard data")
+        }
         setStats(data.stats)
         setCourses(data.myCourses)
       } catch (error) {
         console.error(error)
+        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
+        toast({
+          variant: "destructive",
+          title: "Dashboard Error",
+          description: errorMessage,
+        })
       } finally {
         setIsLoading(false)
       }
     }
     fetchDashboardData()
-  }, [])
+  }, [toast])
 
   const statCards = [
     {
