@@ -39,9 +39,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // If a course has no modules, provide some default placeholder data.
     if (courseDetail.modules.length === 0) {
       courseDetail.modules.push({
+          id: -1,
           title: "Module 1: Coming Soon",
           lessons: [
-            { title: "Course content is being prepared.", type: "document", completed: false },
+            { id: -1, title: "Course content is being prepared.", type: "document", completed: false },
           ],
         },)
     }
@@ -49,7 +50,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     return NextResponse.json(courseDetail)
   } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: 'Failed to fetch course' }, { status: 500 })
+    console.error(`Error fetching course ${params.id}:`, error)
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
+    return NextResponse.json({ error: 'Failed to fetch course', details: errorMessage }, { status: 500 })
   }
 }

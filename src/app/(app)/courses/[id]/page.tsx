@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/accordion"
 import { CheckCircle, PlayCircle, FileText } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/hooks/use-toast"
 
 interface Lesson {
   id: number;
@@ -41,6 +42,7 @@ export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (!params.id) return
@@ -48,7 +50,9 @@ export default function CourseDetailPage() {
       try {
         const res = await fetch(`/api/courses/${params.id}`)
         if (!res.ok) {
-          throw new Error("Failed to fetch course")
+          const errorData = await res.json().catch(() => ({ error: "An unknown error occurred" }));
+          const message = errorData.details ? `${errorData.error}: ${errorData.details}` : (errorData.error || "Failed to fetch course");
+          throw new Error(message);
         }
         const data = await res.json()
         
@@ -66,12 +70,18 @@ export default function CourseDetailPage() {
         setCourse(courseDataWithBooleans)
       } catch (error) {
         console.error(error)
+        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
+        toast({
+            variant: "destructive",
+            title: "Error loading course",
+            description: errorMessage
+        })
       } finally {
         setIsLoading(false)
       }
     }
     fetchCourse()
-  }, [params.id])
+  }, [params.id, toast])
 
 
   const getIcon = (type: string) => {
@@ -140,7 +150,7 @@ export default function CourseDetailPage() {
   }
 
   if (!course) {
-    return <div>Course not found.</div>
+    return <div>Course could not be loaded. Please check the console for more details.</div>
   }
 
   return (
