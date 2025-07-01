@@ -14,14 +14,17 @@ import {
 import { CreditCard, LogOut, Settings, User } from "lucide-react"
 import { useUser } from "@/hooks/use-user"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useRouter } from "next/navigation"
 
 export function UserNav() {
   const { user, isLoading } = useUser()
+  const router = useRouter()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    // Force a full page reload to the login page to ensure all state is cleared.
-    window.location.assign("/");
+    // Refresh the router to clear session state, then push to login page.
+    router.refresh();
+    router.push("/");
   };
 
   if (isLoading) {

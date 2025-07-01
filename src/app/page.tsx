@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { User, Lock, Loader2 } from 'lucide-react'
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,10 +45,11 @@ export default function LoginPage() {
         throw new Error(data.error || "Login failed")
       }
       
-      // On success, trigger a full page reload to the dashboard.
-      // This is more robust than router.push() and avoids client-side
-      // caching/race condition issues that can cause authentication loops.
-      window.location.assign("/dashboard");
+      // Instead of a full reload, we refresh the router to sync the new
+      // session cookie, then push to the dashboard. This is a more
+      // reliable way to handle post-login navigation in Next.js.
+      router.refresh();
+      router.push("/dashboard");
 
     } catch (error) {
        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
