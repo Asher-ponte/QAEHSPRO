@@ -6,7 +6,7 @@ export function Logo() {
       <div className="bg-primary text-primary-foreground p-2 rounded-lg">
         <GraduationCap className="h-6 w-6" />
       </div>
-      <span className="text-xl font-bold font-headline text-primary">
+      <span className="text-xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">
         Skills Ascend
       </span>
     </div>

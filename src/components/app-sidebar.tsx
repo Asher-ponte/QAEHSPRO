@@ -11,6 +11,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 import { Logo } from "@/components/logo"
 
@@ -32,30 +33,33 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <Logo />
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarMenu>
-          {links.map((link) => (
-            <SidebarMenuItem key={link.href}>
-              <SidebarMenuButton
-                isActive={isActive(link.href)}
-                asChild
-                tooltip={link.label}
-              >
-                <Link href={link.href} className="flex items-center gap-3">
-                  <link.icon className="h-5 w-5" />
-                  <span className="group-data-[collapsible=icon]:hidden">
-                    {link.label}
-                  </span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarContent>
-    </Sidebar>
+    <>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <Logo />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            {links.map((link) => (
+              <SidebarMenuItem key={link.href}>
+                <SidebarMenuButton
+                  isActive={isActive(link.href)}
+                  asChild
+                  tooltip={link.label}
+                >
+                  <Link href={link.href} className="flex items-center gap-3">
+                    <link.icon className="h-5 w-5" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      {link.label}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarRail />
+    </>
   )
 }
