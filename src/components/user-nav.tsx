@@ -1,7 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,13 +16,12 @@ import { useUser } from "@/hooks/use-user"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function UserNav() {
-  const router = useRouter()
   const { user, isLoading } = useUser()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push("/");
-    router.refresh();
+    // Force a full page reload to the login page to ensure all state is cleared.
+    window.location.assign("/");
   };
 
   if (isLoading) {
