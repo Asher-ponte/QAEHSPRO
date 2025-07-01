@@ -31,41 +31,34 @@ function transformDbToQuestionsFormat(content: string | null) {
 
 
 const quizOptionSchema = z.object({
-  text: z.string().min(1, "Option text cannot be empty."),
+  text: z.string(),
 });
 
 const quizQuestionSchema = z.object({
-  text: z.string().min(1, "Question text cannot be empty."),
-  options: z.array(quizOptionSchema).min(2, "Must have at least two options."),
-  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
+  text: z.string(),
+  options: z.array(quizOptionSchema),
+  correctOptionIndex: z.coerce.number(),
 });
 
 const lessonSchema = z.object({
   id: z.number().optional(),
-  title: z.string().min(3),
+  title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional(),
   questions: z.array(quizQuestionSchema).optional(),
-}).superRefine((data, ctx) => {
-    if (data.type === 'document' && (!data.content || data.content.trim().length < 10)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Document content must be at least 10 characters.", path: ['content'] });
-    }
-    if (data.type === 'quiz' && (!data.questions || data.questions.length < 1)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A quiz must have at least one question.", path: ['questions'] });
-    }
 });
 
 const moduleSchema = z.object({
   id: z.number().optional(),
-  title: z.string().min(3),
-  lessons: z.array(lessonSchema).min(1),
+  title: z.string(),
+  lessons: z.array(lessonSchema),
 });
 
 const courseSchema = z.object({
-  title: z.string().min(3),
-  description: z.string().min(10),
+  title: z.string(),
+  description: z.string(),
   category: z.string(),
-  modules: z.array(moduleSchema).min(1),
+  modules: z.array(moduleSchema),
   image: z.string().url().optional().or(z.literal('')),
   aiHint: z.string().optional(),
 })
@@ -220,5 +213,3 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete course due to a server error' }, { status: 500 });
     }
 }
-
-    
