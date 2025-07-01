@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -99,8 +100,8 @@ export default function CoursesPage() {
                 </CardHeader>
                 <CardContent className="flex-grow p-4">
                   <Badge variant="secondary" className="mb-2">{course.category}</Badge>
-                  <CardTitle className="text-lg font-headline">{course.title}</CardTitle>
-                  <CardDescription className="mt-2 text-sm">
+                  <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
+                  <CardDescription className="mt-2 text-sm break-words">
                     {course.description}
                   </CardDescription>
                 </CardContent>

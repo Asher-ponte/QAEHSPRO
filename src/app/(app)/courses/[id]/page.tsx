@@ -172,8 +172,8 @@ export default function CourseDetailPage() {
             />
           </CardHeader>
           <CardContent className="p-6">
-            <h1 className="text-2xl md:text-3xl font-bold font-headline mb-2">{course.title}</h1>
-            <p className="text-muted-foreground">{course.description}</p>
+            <h1 className="text-2xl md:text-3xl font-bold font-headline mb-2 break-words">{course.title}</h1>
+            <p className="text-muted-foreground break-words">{course.description}</p>
           </CardContent>
           <CardFooter className="p-6 pt-0 md:hidden">
             <Button asChild className="w-full" disabled={buttonDisabled}>
@@ -195,7 +195,7 @@ export default function CourseDetailPage() {
             <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
               {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id || module.title}>
-                  <AccordionTrigger className="font-semibold">{module.title}</AccordionTrigger>
+                  <AccordionTrigger className="font-semibold text-left break-words">{module.title}</AccordionTrigger>
                   <AccordionContent>
                     <ul className="space-y-1">
                       {module.lessons.map((lesson) => (
