@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -12,21 +13,21 @@ import Link from "next/link"
 const adminActions = [
   {
     title: "Manage Courses",
-    description: "Create, edit, and publish training courses.",
+    description: "Create, edit, and delete training courses.",
     icon: <BookOpen className="h-8 w-8 text-primary" />,
-    href: "#",
+    href: "/admin/courses",
   },
   {
     title: "Manage Users",
     description: "Onboard new employees and manage user roles.",
     icon: <Users className="h-8 w-8 text-primary" />,
-    href: "#",
+    href: "/admin/users",
   },
   {
     title: "View Analytics",
     description: "Track course completion and user engagement.",
     icon: <BarChart className="h-8 w-8 text-primary" />,
-    href: "#",
+    href: "/admin/analytics",
   },
   {
     title: "Platform Settings",
