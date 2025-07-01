@@ -1,3 +1,7 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +16,8 @@ import {
 import { CreditCard, LogOut, Settings, User } from "lucide-react"
 
 export function UserNav() {
+  const router = useRouter()
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -47,7 +53,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/")}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
