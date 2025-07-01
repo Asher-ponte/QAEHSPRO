@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Lightbulb, Loader2, Sparkles } from "lucide-react"
+import { Lightbulb, Loader2, Sparkles, ArrowRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -74,7 +75,7 @@ export default function RecommendationsPage() {
   }
 
   return (
-    <div className="grid md:grid-cols-2 gap-8">
+    <div className="grid md:grid-cols-2 gap-8 items-start">
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-3xl">AI Training Recommender</CardTitle>
@@ -158,28 +159,39 @@ export default function RecommendationsPage() {
       
       <div className="flex flex-col gap-4">
         {isLoading && (
-            <Card className="flex flex-col items-center justify-center p-10 h-full">
+            <Card className="flex flex-col items-center justify-center p-10 min-h-[500px]">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <p className="mt-4 text-muted-foreground">AI is thinking...</p>
             </Card>
         )}
         {recommendations && (
-          <Card className="h-full">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Lightbulb /> Recommended Courses</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Lightbulb /> Your Recommended Courses</CardTitle>
+              <CardDescription>Based on your profile, here are some courses we think you'll love.</CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <p>{recommendations.recommendedCourses}</p>
-                </div>
+            <CardContent className="space-y-3">
+               {recommendations.recommendedCourses.map((course) => (
+                  <Card key={course.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                      <div className="pr-4">
+                          <h3 className="font-semibold">{course.title}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">{course.description}</p>
+                      </div>
+                      <Link href={`/courses/${course.id}`}>
+                          <Button variant="outline" size="sm" className="shrink-0">
+                              View <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                      </Link>
+                  </Card>
+              ))}
             </CardContent>
             <CardFooter>
-                <Button variant="outline" onClick={() => setRecommendations(null)}>Start a new recommendation</Button>
+                <Button variant="outline" onClick={() => setRecommendations(null)}>Get New Recommendations</Button>
             </CardFooter>
           </Card>
         )}
         {!isLoading && !recommendations && (
-            <Card className="flex flex-col items-center justify-center text-center p-10 h-full border-dashed">
+            <Card className="flex flex-col items-center justify-center text-center p-10 min-h-[500px] border-dashed">
                 <Sparkles className="h-12 w-12 text-muted-foreground/50"/>
                 <p className="mt-4 text-muted-foreground">Your recommended courses will appear here.</p>
             </Card>

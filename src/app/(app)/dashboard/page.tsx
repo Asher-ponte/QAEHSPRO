@@ -8,21 +8,24 @@ import {
   CardFooter,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { ArrowUpRight, Lightbulb, Target } from "lucide-react"
+import { ArrowUpRight, Lightbulb, Target, Sparkles } from "lucide-react"
 import Link from 'next/link'
 
 const courses = [
   {
+    id: "1",
     title: "Leadership Principles",
     progress: 75,
     category: "Management",
   },
   {
+    id: "2",
     title: "Advanced React",
     progress: 45,
     category: "Technical Skills",
   },
   {
+    id: "3",
     title: "Cybersecurity Basics",
     progress: 95,
     category: "Compliance",
@@ -63,8 +66,15 @@ export default function DashboardPage() {
         ))}
          <Card className="lg:col-span-2 bg-primary text-primary-foreground">
             <CardHeader>
-                <CardTitle>AI-Powered Recommendations</CardTitle>
-                <CardDescription className="text-primary-foreground/80">Get personalized course suggestions based on your skills and role.</CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>AI-Powered Recommendations</CardTitle>
+                  <CardDescription className="text-primary-foreground/80 mt-1">
+                    Get personalized course suggestions based on your skills and role.
+                  </CardDescription>
+                </div>
+                <Sparkles className="h-8 w-8 text-primary-foreground/50 shrink-0" />
+              </div>
             </CardHeader>
             <CardFooter>
                  <Link href="/recommendations" className="w-full">
@@ -83,18 +93,20 @@ export default function DashboardPage() {
             Continue where you left off.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-1">
           {courses.map((course) => (
-            <div key={course.title} className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="font-semibold">{course.title}</h3>
-                    <p className="text-sm text-muted-foreground">{course.category}</p>
+            <Link href={`/courses/${course.id}`} key={course.title} className="block hover:bg-muted/50 -mx-6 px-6 py-3 rounded-lg transition-colors">
+                <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="font-semibold">{course.title}</h3>
+                        <p className="text-sm text-muted-foreground">{course.category}</p>
+                    </div>
+                    <span className="font-semibold">{course.progress}%</span>
                 </div>
-                <span className="font-semibold">{course.progress}%</span>
-              </div>
-              <Progress value={course.progress} aria-label={`${course.title} progress`} />
-            </div>
+                <Progress value={course.progress} aria-label={`${course.title} progress`} />
+                </div>
+            </Link>
           ))}
         </CardContent>
         <CardFooter>

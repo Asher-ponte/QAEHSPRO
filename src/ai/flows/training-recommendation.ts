@@ -20,8 +20,14 @@ const TrainingRecommendationInputSchema = z.object({
 
 export type TrainingRecommendationInput = z.infer<typeof TrainingRecommendationInputSchema>;
 
+const RecommendedCourseSchema = z.object({
+  id: z.string().describe('A unique identifier for the course, can be a slug or number. e.g., "advanced-react" or "2".'),
+  title: z.string().describe('The title of the recommended course.'),
+  description: z.string().describe('A short description of why this course is recommended.'),
+});
+
 const TrainingRecommendationOutputSchema = z.object({
-  recommendedCourses: z.string().describe('The recommended courses for the employee.'),
+  recommendedCourses: z.array(RecommendedCourseSchema).describe('A list of recommended courses for the employee.'),
 });
 
 export type TrainingRecommendationOutput = z.infer<typeof TrainingRecommendationOutputSchema>;
@@ -36,13 +42,16 @@ const prompt = ai.definePrompt({
   output: {schema: TrainingRecommendationOutputSchema},
   prompt: `You are an expert training recommendation system.
 
-You will use the employee's role, skills, and learning history to recommend the best courses for them.
+You will use the employee's role, skills, and learning history to recommend a list of the 3 to 5 best courses for them.
+For each course, provide a title, a short description, and a unique ID.
+
+The available courses that you can recommend from have IDs: "1" (Leadership Principles), "2" (Advanced React), "3" (Cybersecurity Basics), "4" (Effective Communication), "5" (Data Analysis with Python), "6" (Project Management Fundamentals). Use these existing IDs when applicable. For novel recommendations, create a new slug-based id (e.g. 'advanced-python').
 
 Employee Role: {{{employeeRole}}}
 Employee Skills: {{{employeeSkills}}}
 Learning History: {{{learningHistory}}}
 
-Recommend the best courses for the employee:
+Recommend the best courses for the employee in the specified format.
 `,
 });
 

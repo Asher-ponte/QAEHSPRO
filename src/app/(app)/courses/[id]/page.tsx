@@ -93,7 +93,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                             {getIcon(lesson.type)}
                             <span>{lesson.title}</span>
                           </div>
-                          <CheckCircle className={`h-5 w-5 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                          <CheckCircle className={`h-5 w-5 ${lesson.completed ? 'text-accent' : 'text-muted-foreground/30'}`} />
                         </li>
                       ))}
                     </ul>
