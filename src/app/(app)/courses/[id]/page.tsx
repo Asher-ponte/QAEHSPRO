@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -130,9 +131,6 @@ export default function CourseDetailPage() {
                 <Skeleton className="h-4 w-full mb-2" />
                 <Skeleton className="h-4 w-2/3" />
               </CardContent>
-              <CardFooter className="p-6 pt-0 md:hidden">
-                <Skeleton className="h-10 w-full" />
-              </CardFooter>
             </Card>
           </div>
           <div className="space-y-6">
@@ -157,7 +155,7 @@ export default function CourseDetailPage() {
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-8">
+    <div className="grid md:grid-cols-3 gap-8 pb-24 md:pb-8">
       <div className="md:col-span-2">
         <Card className="overflow-hidden">
           <CardHeader className="p-0">
@@ -171,14 +169,9 @@ export default function CourseDetailPage() {
             />
           </CardHeader>
           <CardContent className="p-6">
-            <h1 className="text-2xl md:text-3xl font-bold font-headline mb-2 break-words">{course.title}</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-headline mb-2 break-words">{course.title}</h1>
             <p className="text-muted-foreground break-words">{course.description}</p>
           </CardContent>
-          <CardFooter className="p-6 pt-0 md:hidden">
-            <Button asChild className="w-full" disabled={buttonDisabled}>
-                <Link href={buttonHref}>{buttonText}</Link>
-            </Button>
-          </CardFooter>
         </Card>
       </div>
 
@@ -202,7 +195,7 @@ export default function CourseDetailPage() {
                            <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors">
                             <div className="flex items-center min-w-0">
                                 {getIcon(lesson.type)}
-                                <span className="break-words">{lesson.title}</span>
+                                <span className="break-words flex-1">{lesson.title}</span>
                             </div>
                             <CheckCircle className={`h-5 w-5 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
                            </Link>
@@ -215,6 +208,13 @@ export default function CourseDetailPage() {
             </Accordion>
           </CardContent>
         </Card>
+      </div>
+      
+      {/* Floating button for mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t z-10">
+        <Button asChild className="w-full" disabled={buttonDisabled}>
+            <Link href={buttonHref}>{buttonText}</Link>
+        </Button>
       </div>
     </div>
   )
