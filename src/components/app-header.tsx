@@ -8,7 +8,12 @@ import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
 import { UserNav } from "@/components/user-nav"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -20,11 +25,11 @@ export function AppHeader() {
   const pathname = usePathname()
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') {
-      return pathname === href;
+    if (href === "/dashboard") {
+      return pathname === href
     }
-    return pathname.startsWith(href);
-  };
+    return pathname.startsWith(href)
+  }
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
@@ -57,6 +62,7 @@ export function AppHeader() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <nav className="grid gap-6 text-lg font-medium mt-6">
               <Link href="/dashboard" className="mb-4">
                 <Logo />
