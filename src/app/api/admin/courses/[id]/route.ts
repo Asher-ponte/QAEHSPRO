@@ -41,6 +41,7 @@ const quizQuestionSchema = z.object({
 });
 
 const lessonSchema = z.object({
+  id: z.number().optional(),
   title: z.string().min(3),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional(),
@@ -55,6 +56,7 @@ const lessonSchema = z.object({
 });
 
 const moduleSchema = z.object({
+  id: z.number().optional(),
   title: z.string().min(3),
   lessons: z.array(lessonSchema).min(1),
 });
