@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,42 +11,51 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { CheckCircle, PlayCircle, FileText } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+
+interface Lesson {
+  title: string;
+  type: string;
+  completed: boolean;
+}
+
+interface Module {
+  title: string;
+  lessons: Lesson[];
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  aiHint: string;
+  modules: Module[];
+}
 
 export default function CourseDetailPage({ params }: { params: { id: string } }) {
-  const course = {
-    id: params.id,
-    title: "Advanced React",
-    description: "This course offers a deep dive into advanced React concepts that will elevate your web development skills. We'll explore hooks beyond the basics, state management with Context and Reducers, performance optimization techniques, and best practices for building scalable and maintainable React applications.",
-    image: "https://placehold.co/1200x600",
-    aiHint: "programming code",
-    modules: [
-      {
-        title: "Module 1: Advanced Hooks",
-        lessons: [
-          { title: "useState and useEffect Deep Dive", type: "video", completed: true },
-          { title: "useContext for State Management", type: "video", completed: true },
-          { title: "useReducer for Complex State", type: "video", completed: false },
-          { title: "Reading: Hooks API Reference", type: "document", completed: false },
-        ],
-      },
-      {
-        title: "Module 2: Performance Optimization",
-        lessons: [
-          { title: "Memoization with useMemo and useCallback", type: "video", completed: false },
-          { title: "Code Splitting with React.lazy", type: "video", completed: false },
-          { title: "Optimizing Performance with Profiler", type: "video", completed: false },
-        ],
-      },
-      {
-        title: "Module 3: Patterns and Best Practices",
-        lessons: [
-          { title: "Higher-Order Components (HOCs)", type: "video", completed: false },
-          { title: "Render Props Pattern", type: "video", completed: false },
-          { title: "Module 3 Quiz", type: "quiz", completed: false },
-        ],
-      },
-    ]
-  }
+  const [course, setCourse] = useState<Course | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (!params.id) return
+    async function fetchCourse() {
+      try {
+        const res = await fetch(`/api/courses/${params.id}`)
+        if (!res.ok) {
+          throw new Error("Failed to fetch course")
+        }
+        const data = await res.json()
+        setCourse(data)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchCourse()
+  }, [params.id])
+
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -52,6 +64,41 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       case "quiz": return <CheckCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
       default: return null;
     }
+  }
+
+  if (isLoading) {
+     return (
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="md:col-span-2">
+            <Card className="overflow-hidden">
+              <Skeleton className="h-[400px] w-full" />
+              <CardContent className="p-6">
+                <Skeleton className="h-8 w-3/4 mb-4" />
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
+          </div>
+          <div>
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-1/2" />
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-10 w-full mt-6" />
+                </CardContent>
+            </Card>
+          </div>
+        </div>
+     )
+  }
+
+  if (!course) {
+    return <div>Course not found.</div>
   }
 
   return (
@@ -81,7 +128,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             <CardTitle>Course Content</CardTitle>
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible defaultValue="Module 1: Advanced Hooks">
+            <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
               {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.title}>
                   <AccordionTrigger className="font-semibold">{module.title}</AccordionTrigger>

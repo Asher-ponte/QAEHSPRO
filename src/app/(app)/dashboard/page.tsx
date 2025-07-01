@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -8,29 +11,16 @@ import {
   CardFooter,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { ArrowUpRight, Lightbulb, Target, Sparkles } from "lucide-react"
+import { Lightbulb, Target } from "lucide-react"
 import Link from 'next/link'
+import { Skeleton } from "@/components/ui/skeleton"
 
-const courses = [
-  {
-    id: "1",
-    title: "Leadership Principles",
-    progress: 75,
-    category: "Management",
-  },
-  {
-    id: "2",
-    title: "Advanced React",
-    progress: 45,
-    category: "Technical Skills",
-  },
-  {
-    id: "3",
-    title: "Cybersecurity Basics",
-    progress: 95,
-    category: "Compliance",
-  },
-];
+interface Course {
+  id: string;
+  title: string;
+  progress: number;
+  category: string;
+}
 
 const stats = [
     {
@@ -46,6 +36,31 @@ const stats = [
 ]
 
 export default function DashboardPage() {
+  const [courses, setCourses] = useState<Course[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        const res = await fetch("/api/courses")
+        if (!res.ok) {
+          throw new Error("Failed to fetch courses")
+        }
+        const data = await res.json()
+        const coursesWithProgress = data.slice(0, 3).map((course: any) => ({
+          ...course,
+          progress: Math.floor(Math.random() * 75) + 25
+        }))
+        setCourses(coursesWithProgress)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchCourses()
+  }, [])
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -74,20 +89,37 @@ export default function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          {courses.map((course) => (
-            <Link href={`/courses/${course.id}`} key={course.title} className="block hover:bg-muted/50 -mx-6 px-6 py-3 rounded-lg transition-colors">
+          {isLoading ? (
+             Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="block -mx-6 px-6 py-3">
                 <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="font-semibold">{course.title}</h3>
-                        <p className="text-sm text-muted-foreground">{course.category}</p>
+                      <Skeleton className="h-5 w-48 mb-2" />
+                      <Skeleton className="h-4 w-32" />
                     </div>
-                    <span className="font-semibold">{course.progress}%</span>
+                    <Skeleton className="h-5 w-12" />
+                  </div>
+                  <Skeleton className="h-4 w-full" />
                 </div>
-                <Progress value={course.progress} aria-label={`${course.title} progress`} />
-                </div>
-            </Link>
-          ))}
+              </div>
+            ))
+          ) : (
+            courses.map((course) => (
+              <Link href={`/courses/${course.id}`} key={course.title} className="block hover:bg-muted/50 -mx-6 px-6 py-3 rounded-lg transition-colors">
+                  <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                      <div>
+                          <h3 className="font-semibold">{course.title}</h3>
+                          <p className="text-sm text-muted-foreground">{course.category}</p>
+                      </div>
+                      <span className="font-semibold">{course.progress}%</span>
+                  </div>
+                  <Progress value={course.progress} aria-label={`${course.title} progress`} />
+                  </div>
+              </Link>
+            ))
+          )}
         </CardContent>
         <CardFooter>
             <Link href="/courses">

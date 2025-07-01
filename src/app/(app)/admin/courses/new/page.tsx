@@ -6,14 +6,12 @@ import { z } from "zod"
 import { ArrowLeft, Loader2, PlusCircle } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
 import {
   Form,
@@ -44,6 +42,7 @@ const courseSchema = z.object({
 export default function CreateCoursePage() {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const form = useForm<z.infer<typeof courseSchema>>({
     resolver: zodResolver(courseSchema),
@@ -55,23 +54,38 @@ export default function CreateCoursePage() {
 
   async function onSubmit(values: z.infer<typeof courseSchema>) {
     setIsLoading(true)
-    // Here you would typically call a server action to save the course
-    console.log(values)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch('/api/courses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      })
 
-    setIsLoading(false)
+      if (!response.ok) {
+        throw new Error("Failed to create course")
+      }
 
-    toast({
-      variant: "default",
-      title: "Course Created!",
-      description: `The course "${values.title}" has been successfully created.`,
-    })
+      toast({
+        variant: "default",
+        title: "Course Created!",
+        description: `The course "${values.title}" has been successfully created.`,
+      })
 
-    form.reset()
-    // You could optionally redirect the user to another page
-    // e.g., router.push('/admin/courses')
+      form.reset()
+      router.push('/admin') // Redirect back to admin dashboard
+    } catch (error) {
+        console.error(error)
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "There was a problem with your request. Please try again.",
+        })
+    } finally {
+        setIsLoading(false)
+    }
   }
 
   return (
