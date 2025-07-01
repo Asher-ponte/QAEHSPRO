@@ -40,20 +40,18 @@ export function AppSidebar() {
         <SidebarMenu>
           {links.map((link) => (
             <SidebarMenuItem key={link.href}>
-              <Link href={link.href} passHref legacyBehavior>
-                <SidebarMenuButton
-                  isActive={isActive(link.href)}
-                  asChild
-                  tooltip={link.label}
-                >
-                  <a className="flex items-center gap-3">
-                    <link.icon className="h-5 w-5" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      {link.label}
-                    </span>
-                  </a>
-                </SidebarMenuButton>
-              </Link>
+              <SidebarMenuButton
+                isActive={isActive(link.href)}
+                asChild
+                tooltip={link.label}
+              >
+                <Link href={link.href} className="flex items-center gap-3">
+                  <link.icon className="h-5 w-5" />
+                  <span className="group-data-[collapsible=icon]:hidden">
+                    {link.label}
+                  </span>
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
