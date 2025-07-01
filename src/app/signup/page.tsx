@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { User, Lock, Mail } from 'lucide-react'
+import { User, Lock } from 'lucide-react'
 
 import { Button } from "@/components/ui/button"
 import {
@@ -30,19 +30,6 @@ export default function SignupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
-             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@company.com"
-                  required
-                  className="pl-10"
-                />
-              </div>
-            </div>
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <div className="relative">
