@@ -190,11 +190,9 @@ export default function CourseDetailPage() {
                 </AccordionItem>
               ))}
             </Accordion>
-            <Link href={buttonHref} passHref legacyBehavior>
-                <Button className="w-full mt-6" disabled={buttonDisabled}>
-                    {buttonText}
-                </Button>
-            </Link>
+            <Button asChild className="w-full mt-6" disabled={buttonDisabled}>
+                <Link href={buttonHref}>{buttonText}</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
