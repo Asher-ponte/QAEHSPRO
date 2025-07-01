@@ -4,7 +4,7 @@
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2 } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 interface Lesson {
   id: number;
@@ -30,74 +31,144 @@ interface QuizQuestion {
     options: { text: string; isCorrect: boolean }[];
 }
 
-const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () => void }) => {
+const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () => Promise<void> }) => {
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<number, number>>({});
-    const [showResults, setShowResults] = useState(false);
+    const [showResults, setShowResults] = useState(lesson.completed);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (lesson.content) {
             try {
-                setQuestions(JSON.parse(lesson.content));
+                const parsedQuestions = JSON.parse(lesson.content);
+                setQuestions(parsedQuestions);
             } catch (error) {
                 console.error("Failed to parse quiz content:", error);
+                setQuestions([]);
             }
         }
     }, [lesson.content]);
 
+    const score = useMemo(() => {
+        if (!questions.length) return null;
+        const correctAnswers = questions.reduce((acc, q, i) => {
+            const correctOptionIndex = q.options.findIndex(opt => opt.isCorrect);
+            if (answers[i] === correctOptionIndex) {
+                return acc + 1;
+            }
+            return acc;
+        }, 0);
+        return { correct: correctAnswers, total: questions.length };
+    }, [questions, answers]);
+
+    const allCorrect = useMemo(() => {
+        if (!score) return false;
+        return score.correct === score.total;
+    }, [score]);
+
+
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
+        if (showResults) return;
         setAnswers(prev => ({...prev, [questionIndex]: optionIndex}));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         setShowResults(true);
-        const isCorrect = questions.every((q, i) => {
+
+        const isPassing = questions.every((q, i) => {
             const correctOptionIndex = q.options.findIndex(opt => opt.isCorrect);
             return answers[i] === correctOptionIndex;
         });
 
-        if (isCorrect) {
-            onComplete();
+        if (isPassing) {
+            await onComplete();
         }
+        setIsSubmitting(false);
+    };
+    
+    const handleRetry = () => {
+        setAnswers({});
+        setShowResults(false);
+        setIsSubmitting(false);
     };
 
     if (!questions.length) {
-        return <p>This quiz is empty.</p>;
+        return <p>This quiz is empty or failed to load.</p>;
     }
     
     return (
         <div className="space-y-8">
+            {showResults && !lesson.completed && (
+                <Card className={`p-4 ${allCorrect ? 'bg-green-100 dark:bg-green-900/30 border-green-500' : 'bg-red-100 dark:bg-red-900/30 border-red-500'}`}>
+                    <CardHeader className="p-0">
+                        <CardTitle className="text-xl">
+                            {allCorrect ? "Quiz Passed!" : "Try Again"}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 pt-2">
+                        <p>You answered {score?.correct} out of {score?.total} questions correctly.</p>
+                        {!allCorrect && <p className="mt-2">Review your answers below and try again when you're ready.</p>}
+                    </CardContent>
+                </Card>
+            )}
+
             {questions.map((q, qIndex) => (
-                <div key={qIndex} className="p-4 border rounded-lg">
+                <div key={qIndex} className="p-4 border rounded-lg bg-background/50">
                     <p className="font-semibold mb-4">{qIndex + 1}. {q.text}</p>
                     <RadioGroup 
                         onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value))}
-                        disabled={lesson.completed}
+                        value={answers[qIndex]?.toString()}
+                        disabled={lesson.completed || showResults}
+                        className="space-y-2"
                     >
-                        <div className="space-y-2">
-                        {q.options.map((opt, oIndex) => (
-                            <div key={oIndex} className="flex items-center space-x-2">
-                                <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
-                                <Label htmlFor={`q${qIndex}o${oIndex}`}>{opt.text}</Label>
-                                {showResults && !lesson.completed && (
-                                    <>
-                                        {opt.isCorrect && <CheckCircle className="h-4 w-4 text-green-500" />}
-                                        {!opt.isCorrect && answers[qIndex] === oIndex && <CheckCircle className="h-4 w-4 text-red-500" />}
-                                    </>
-                                )}
-                            </div>
-                        ))}
-                        </div>
+                        {q.options.map((opt, oIndex) => {
+                            const isSelected = answers[qIndex] === oIndex;
+                            const isCorrect = opt.isCorrect;
+                            
+                            let indicator = null;
+                            if (showResults || lesson.completed) {
+                                if (isCorrect) {
+                                    indicator = <CheckCircle className="h-5 w-5 text-green-500" />;
+                                } else if (isSelected && !isCorrect) {
+                                    indicator = <XCircle className="h-5 w-5 text-red-500" />;
+                                }
+                            }
+
+                            return (
+                                <div key={oIndex} className="flex items-center space-x-3">
+                                    <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
+                                    <Label 
+                                      htmlFor={`q${qIndex}o${oIndex}`} 
+                                      className={cn(
+                                        "flex-grow cursor-pointer",
+                                        (lesson.completed || showResults) && "cursor-default",
+                                        (lesson.completed || showResults) && isCorrect && "text-green-700 dark:text-green-400 font-semibold",
+                                        showResults && isSelected && !isCorrect && "text-red-700 dark:text-red-400"
+                                      )}
+                                    >
+                                        {opt.text}
+                                    </Label>
+                                    {indicator}
+                                </div>
+                            );
+                        })}
                     </RadioGroup>
                 </div>
             ))}
             {!lesson.completed && (
-                <div className="flex flex-col items-center">
-                    <Button onClick={handleSubmit} disabled={Object.keys(answers).length !== questions.length}>
-                        Submit Quiz
-                    </Button>
-                    {showResults && !questions.every((q, i) => q.options[answers[i]]?.isCorrect) && (
-                        <p className="text-red-500 mt-4">Some answers are incorrect. Please try again.</p>
+                <div className="flex justify-center gap-4 mt-6">
+                    {showResults ? (
+                         !allCorrect && (
+                            <Button onClick={handleRetry}>
+                                Try Again
+                            </Button>
+                         )
+                    ) : (
+                        <Button onClick={handleSubmit} disabled={Object.keys(answers).length !== questions.length || isSubmitting}>
+                           {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Submit Quiz
+                        </Button>
                     )}
                 </div>
             )}
@@ -105,8 +176,7 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
     );
 };
 
-
-const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () => void }) => {
+const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () => Promise<void> }) => {
     switch (lesson.type) {
         case 'video':
             return (
@@ -287,5 +357,3 @@ export default function LessonPage() {
         </div>
     )
 }
-
-    
