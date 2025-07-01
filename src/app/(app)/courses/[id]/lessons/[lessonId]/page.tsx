@@ -187,7 +187,7 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
             );
         case 'document':
             return (
-                <article className="prose dark:prose-invert max-w-none">
+                <article className="prose dark:prose-invert max-w-none overflow-x-auto">
                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {lesson.content || "No content available."}
                     </ReactMarkdown>
@@ -316,7 +316,7 @@ export default function LessonPage() {
         <div className="space-y-6 pb-24 md:pb-6">
             <Link href={`/courses/${lesson.course_id}`} className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary">
                 <ArrowLeft className="h-4 w-4" />
-                Back to "{lesson.course_title}"
+                <span className="truncate">Back to "{lesson.course_title}"</span>
             </Link>
 
             <Card>
@@ -324,7 +324,7 @@ export default function LessonPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                          <div className="flex items-center gap-4">
                             {getIcon()}
-                            <CardTitle className="text-2xl md:text-3xl font-bold font-headline">{lesson.title}</CardTitle>
+                            <CardTitle className="text-2xl md:text-3xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                         </div>
                         {lesson.completed && (
                             <Badge variant="secondary" className="text-green-600 border-green-600">
