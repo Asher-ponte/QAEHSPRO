@@ -169,7 +169,7 @@ export default function CourseDetailPage() {
             />
           </CardHeader>
           <CardContent className="p-6">
-            <h1 className="text-3xl font-bold font-headline mb-2">{course.title}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold font-headline mb-2">{course.title}</h1>
             <p className="text-muted-foreground">{course.description}</p>
           </CardContent>
         </Card>

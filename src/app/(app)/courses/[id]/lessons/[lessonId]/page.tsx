@@ -321,10 +321,10 @@ export default function LessonPage() {
 
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                          <div className="flex items-center gap-4">
                             {getIcon()}
-                            <CardTitle className="text-3xl font-bold font-headline">{lesson.title}</CardTitle>
+                            <CardTitle className="text-2xl md:text-3xl font-bold font-headline">{lesson.title}</CardTitle>
                         </div>
                         {lesson.completed && (
                             <Badge variant="secondary" className="text-green-600 border-green-600">
