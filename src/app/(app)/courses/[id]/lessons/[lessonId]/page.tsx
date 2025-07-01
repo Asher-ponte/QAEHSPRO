@@ -1,14 +1,19 @@
+
 "use client"
 
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
+import { Badge } from "@/components/ui/badge"
 
 interface Lesson {
   id: number;
@@ -17,9 +22,91 @@ interface Lesson {
   content: string | null;
   course_id: number;
   course_title: string;
+  completed: boolean;
 }
 
-const LessonContent = ({ lesson }: { lesson: Lesson }) => {
+interface QuizQuestion {
+    text: string;
+    options: { text: string; isCorrect: boolean }[];
+}
+
+const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () => void }) => {
+    const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+    const [answers, setAnswers] = useState<Record<number, number>>({});
+    const [showResults, setShowResults] = useState(false);
+
+    useEffect(() => {
+        if (lesson.content) {
+            try {
+                setQuestions(JSON.parse(lesson.content));
+            } catch (error) {
+                console.error("Failed to parse quiz content:", error);
+            }
+        }
+    }, [lesson.content]);
+
+    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
+        setAnswers(prev => ({...prev, [questionIndex]: optionIndex}));
+    };
+
+    const handleSubmit = () => {
+        setShowResults(true);
+        const isCorrect = questions.every((q, i) => {
+            const correctOptionIndex = q.options.findIndex(opt => opt.isCorrect);
+            return answers[i] === correctOptionIndex;
+        });
+
+        if (isCorrect) {
+            onComplete();
+        }
+    };
+
+    if (!questions.length) {
+        return <p>This quiz is empty.</p>;
+    }
+    
+    return (
+        <div className="space-y-8">
+            {questions.map((q, qIndex) => (
+                <div key={qIndex} className="p-4 border rounded-lg">
+                    <p className="font-semibold mb-4">{qIndex + 1}. {q.text}</p>
+                    <RadioGroup 
+                        onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value))}
+                        disabled={lesson.completed}
+                    >
+                        <div className="space-y-2">
+                        {q.options.map((opt, oIndex) => (
+                            <div key={oIndex} className="flex items-center space-x-2">
+                                <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
+                                <Label htmlFor={`q${qIndex}o${oIndex}`}>{opt.text}</Label>
+                                {showResults && !lesson.completed && (
+                                    <>
+                                        {opt.isCorrect && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                        {!opt.isCorrect && answers[qIndex] === oIndex && <CheckCircle className="h-4 w-4 text-red-500" />}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                        </div>
+                    </RadioGroup>
+                </div>
+            ))}
+            {!lesson.completed && (
+                <div className="flex flex-col items-center">
+                    <Button onClick={handleSubmit} disabled={Object.keys(answers).length !== questions.length}>
+                        Submit Quiz
+                    </Button>
+                    {showResults && !questions.every((q, i) => q.options[answers[i]]?.isCorrect) && (
+                        <p className="text-red-500 mt-4">Some answers are incorrect. Please try again.</p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () => void }) => {
     switch (lesson.type) {
         case 'video':
             return (
@@ -37,13 +124,7 @@ const LessonContent = ({ lesson }: { lesson: Lesson }) => {
                 </article>
             );
         case 'quiz':
-            return (
-                <div className="text-center p-8 bg-muted rounded-lg">
-                    <CheckCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                    <h2 className="text-xl font-semibold">Quiz Time!</h2>
-                    <p className="text-muted-foreground">The quiz for this lesson will be displayed here.</p>
-                </div>
-            );
+            return <QuizContent lesson={lesson} onComplete={onComplete} />;
         default:
             return <p>Unsupported lesson type.</p>;
     }
@@ -52,28 +133,74 @@ const LessonContent = ({ lesson }: { lesson: Lesson }) => {
 
 export default function LessonPage() {
     const params = useParams<{ id: string, lessonId: string }>()
+    const router = useRouter();
+    const { toast } = useToast();
     const [lesson, setLesson] = useState<Lesson | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isCompleting, setIsCompleting] = useState(false);
+    
+    const fetchLesson = useMemo(() => async () => {
+        if (!params.id || !params.lessonId) return;
+        setIsLoading(true);
+        try {
+            const res = await fetch(`/api/courses/${params.id}/lessons/${params.lessonId}`);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => (null));
+                throw new Error(errorData?.error || 'Failed to fetch lesson');
+            }
+            const data = await res.json();
+            setLesson(data);
+        } catch (error) {
+            console.error(error);
+             toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "Could not load lesson.",
+            })
+        } finally {
+            setIsLoading(false);
+        }
+    }, [params.id, params.lessonId, toast]);
 
     useEffect(() => {
-        if (!params.id || !params.lessonId) return;
-        async function fetchLesson() {
-            try {
-                const res = await fetch(`/api/courses/${params.id}/lessons/${params.lessonId}`);
-                if (!res.ok) {
-                    const errorData = await res.json().catch(() => (null));
-                    throw new Error(errorData?.error || 'Failed to fetch lesson');
-                }
-                const data = await res.json();
-                setLesson(data);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setIsLoading(false);
-            }
-        }
         fetchLesson();
-    }, [params.id, params.lessonId]);
+    }, [fetchLesson]);
+
+    const handleCompleteLesson = async () => {
+        if (!lesson || isCompleting) return;
+        setIsCompleting(true);
+        try {
+            const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/complete`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Failed to update progress');
+            }
+            toast({
+                title: "Lesson Completed!",
+                description: "Moving to the next lesson.",
+            });
+
+            if (data.nextLessonId) {
+                router.push(`/courses/${lesson.course_id}/lessons/${data.nextLessonId}`);
+            } else {
+                 toast({
+                    title: "Course Completed!",
+                    description: "Congratulations! You've finished the course.",
+                });
+                router.push(`/courses/${lesson.course_id}`);
+            }
+        } catch (error) {
+             toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "Could not complete lesson.",
+            })
+        } finally {
+            setIsCompleting(false);
+        }
+    }
 
     if (isLoading) {
         return (
@@ -124,15 +251,41 @@ export default function LessonPage() {
 
             <Card>
                 <CardHeader>
-                    <div className="flex items-center gap-4">
-                        {getIcon()}
-                        <CardTitle className="text-3xl font-bold font-headline">{lesson.title}</CardTitle>
+                    <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            {getIcon()}
+                            <CardTitle className="text-3xl font-bold font-headline">{lesson.title}</CardTitle>
+                        </div>
+                        {lesson.completed && (
+                            <Badge variant="secondary" className="text-green-600 border-green-600">
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Completed
+                            </Badge>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                   <LessonContent lesson={lesson} />
+                   <LessonContent lesson={lesson} onComplete={handleCompleteLesson} />
                 </CardContent>
             </Card>
+
+            {lesson.type !== 'quiz' && (
+                 <div className="flex justify-end">
+                    <Button 
+                        onClick={handleCompleteLesson} 
+                        disabled={isCompleting || lesson.completed}
+                    >
+                        {isCompleting ? (
+                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                        )}
+                        {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }
+
+    

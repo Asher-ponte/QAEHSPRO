@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useForm, useFieldArray, type Control, useWatch } from "react-hook-form"
@@ -34,22 +35,66 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 
+const quizQuestionSchema = z.object({
+  text: z.string().min(1, "Question text cannot be empty."),
+  options: z.array(z.object({
+      text: z.string().min(1, "Option text cannot be empty."),
+      isCorrect: z.boolean().default(false),
+  })).min(2, "Must have at least two options.").refine(
+      (options) => options.filter(opt => opt.isCorrect).length === 1,
+      { message: "Each question must have exactly one correct option." }
+  ),
+});
+
+const quizSchema = z.array(quizQuestionSchema).min(1, "A quiz must have at least one question.");
+
 const lessonSchema = z.object({
   title: z.string().min(3, "Lesson title must be at least 3 characters."),
   type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
   content: z.string().optional(),
-}).refine(
-    (data) => {
-        if (data.type === 'document') {
-            return data.content && data.content.trim().length >= 10;
+}).superRefine((data, ctx) => {
+    if (data.type === 'document') {
+        if (!data.content || data.content.trim().length < 10) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Document content must be at least 10 characters.",
+                path: ['content'],
+            });
         }
-        return true;
-    },
-    {
-        message: "Document content must be at least 10 characters.",
-        path: ['content'],
     }
-);
+    if (data.type === 'quiz') {
+        if (!data.content) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Quiz content is required. Please provide a valid JSON array of questions.",
+                path: ['content'],
+            });
+            return;
+        }
+        try {
+            const parsedContent = JSON.parse(data.content);
+            const validation = quizSchema.safeParse(parsedContent);
+            if (!validation.success) {
+                // Accessing nested errors to provide a more specific message
+                const firstError = validation.error.errors[0];
+                const path = firstError.path.join('.');
+                const message = `Invalid quiz format at ${path}: ${firstError.message}`;
+
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: message,
+                    path: ['content'],
+                });
+            }
+        } catch (error) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Invalid JSON format. Please ensure the content is a valid JSON.",
+                path: ['content'],
+            });
+        }
+    }
+});
 
 const moduleSchema = z.object({
   title: z.string().min(3, "Module title must be at least 3 characters."),
@@ -64,6 +109,27 @@ const courseSchema = z.object({
 })
 
 type CourseFormValues = z.infer<typeof courseSchema>
+
+const quizContentPlaceholder = JSON.stringify([
+    {
+        "text": "What is the capital of France?",
+        "options": [
+            { "text": "Berlin", "isCorrect": false },
+            { "text": "Madrid", "isCorrect": false },
+            { "text": "Paris", "isCorrect": true },
+            { "text": "Rome", "isCorrect": false }
+        ]
+    },
+    {
+        "text": "Which planet is known as the Red Planet?",
+        "options": [
+            { "text": "Earth", "isCorrect": false },
+            { "text": "Mars", "isCorrect": true },
+            { "text": "Jupiter", "isCorrect": false },
+            { "text": "Saturn", "isCorrect": false }
+        ]
+    }
+], null, 2);
 
 function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
@@ -152,6 +218,28 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                     )}
                                 />
                             )}
+                             {lessonType === 'quiz' && (
+                                <FormField
+                                    control={control}
+                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Quiz Questions (JSON format)</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder={quizContentPlaceholder}
+                                                className="min-h-[300px] font-mono text-xs"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Enter an array of questions in JSON format. Each question must have exactly one correct answer.
+                                        </FormDescription>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
                         </div>
                     </div>
                 )
@@ -181,6 +269,7 @@ export default function CreateCoursePage() {
       description: "",
       modules: [],
     },
+    mode: "onChange"
   })
 
   const { fields, append, remove } = useFieldArray({
@@ -321,7 +410,7 @@ export default function CreateCoursePage() {
                         <div>
                             <h3 className="text-lg font-medium">Course Content</h3>
                              <p className="text-sm text-muted-foreground">
-                                Add modules and lessons. For 'document' lessons, you can write content directly.
+                                Add modules and lessons. For 'quiz' lessons, use the JSON editor.
                             </p>
                         </div>
                          <Separator />
@@ -389,3 +478,5 @@ export default function CreateCoursePage() {
     </div>
   )
 }
+
+    
