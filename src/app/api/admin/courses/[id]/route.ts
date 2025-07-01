@@ -1,6 +1,181 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
+import { z } from 'zod';
+
+const quizQuestionSchema = z.object({
+  text: z.string().min(1),
+  options: z.array(z.object({
+      text: z.string().min(1),
+      isCorrect: z.boolean(),
+  })).min(2).refine(
+      (options) => options.filter(opt => opt.isCorrect).length === 1,
+      { message: "Each question must have exactly one correct option." }
+  ),
+});
+
+const quizSchema = z.array(quizQuestionSchema).min(1);
+
+const lessonSchema = z.object({
+  title: z.string().min(3),
+  type: z.enum(["video", "document", "quiz"]),
+  content: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.type === 'document' && (!data.content || data.content.trim().length < 10)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Document content must be at least 10 characters.", path: ['content'] });
+    }
+    if (data.type === 'quiz') {
+        if (!data.content) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Quiz content is required.", path: ['content'] });
+            return;
+        }
+        try {
+            const parsedContent = JSON.parse(data.content);
+            if (!quizSchema.safeParse(parsedContent).success) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid quiz JSON structure.", path: ['content'] });
+            }
+        } catch (error) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid JSON format.", path: ['content'] });
+        }
+    }
+});
+
+const moduleSchema = z.object({
+  title: z.string().min(3),
+  lessons: z.array(lessonSchema).min(1),
+});
+
+const courseSchema = z.object({
+  title: z.string().min(3),
+  description: z.string().min(10),
+  category: z.string(),
+  modules: z.array(moduleSchema).min(1),
+  image: z.string().url().optional().or(z.literal('')),
+  aiHint: z.string().optional(),
+})
+
+
+export async function GET(
+    request: NextRequest, 
+    { params }: { params: { id: string } }
+) {
+    const db = await getDb();
+    const { id: courseId } = params;
+
+    if (!courseId) {
+        return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+    }
+
+    try {
+        const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+        if (!course) {
+            return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+        }
+
+        const modules = await db.all('SELECT * FROM modules WHERE course_id = ? ORDER BY "order" ASC', courseId);
+        
+        for (const module of modules) {
+            const lessons = await db.all('SELECT * FROM lessons WHERE module_id = ? ORDER BY "order" ASC', module.id);
+            module.lessons = lessons;
+        }
+
+        course.modules = modules;
+
+        return NextResponse.json(course);
+
+    } catch (error) {
+        console.error("Failed to fetch course for editing:", error);
+        return NextResponse.json({ error: 'Failed to fetch course due to a server error' }, { status: 500 });
+    }
+}
+
+
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    const db = await getDb();
+    const { id: courseId } = params;
+
+    if (!courseId) {
+        return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+    }
+
+    try {
+        const data = await request.json();
+        const parsedData = courseSchema.safeParse(data);
+
+        if (!parsedData.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
+        }
+        
+        const { title, description, category, modules } = parsedData.data;
+        const image = parsedData.data.image || 'https://placehold.co/600x400';
+        const aiHint = parsedData.data.aiHint || 'education training';
+
+        await db.run('BEGIN TRANSACTION');
+
+        // 1. Update the course itself
+        await db.run(
+            'UPDATE courses SET title = ?, description = ?, category = ?, image = ?, aiHint = ? WHERE id = ?',
+            [title, description, category, image, aiHint, courseId]
+        );
+
+        // 2. Get all module IDs for the course to find associated lessons
+        const modulesToDelete = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
+        const moduleIdsToDelete = modulesToDelete.map(m => m.id);
+
+        if (moduleIdsToDelete.length > 0) {
+            const placeholders = moduleIdsToDelete.map(() => '?').join(',');
+            
+            // 3. Find all lessons to be deleted
+            const lessonsToDelete = await db.all(`SELECT id FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
+            const lessonIdsToDelete = lessonsToDelete.map(l => l.id);
+
+            // 4. Delete progress associated with those lessons
+            if (lessonIdsToDelete.length > 0) {
+                const lessonPlaceholders = lessonIdsToDelete.map(() => '?').join(',');
+                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonPlaceholders})`, lessonIdsToDelete);
+            }
+            
+            // 5. Delete all lessons for the modules
+            await db.run(`DELETE FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
+        }
+
+        // 6. Delete all modules for the course
+        await db.run('DELETE FROM modules WHERE course_id = ?', courseId);
+
+        // 7. Re-insert modules and lessons from the payload
+        for (const [moduleIndex, moduleData] of modules.entries()) {
+            const moduleResult = await db.run(
+                'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
+                [courseId, moduleData.title, moduleIndex + 1]
+            );
+            const moduleId = moduleResult.lastID;
+            if (!moduleId) {
+                throw new Error(`Failed to create module: ${moduleData.title}`);
+            }
+
+            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                await db.run(
+                    'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
+                    [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1]
+                );
+            }
+        }
+
+        await db.run('COMMIT');
+
+        const updatedCourse = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+        return NextResponse.json(updatedCourse, { status: 200 });
+
+    } catch (error) {
+        await db.run('ROLLBACK');
+        console.error("Failed to update course:", error);
+        return NextResponse.json({ error: 'Failed to update course due to a server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
+    }
+}
+
 
 export async function DELETE(
     request: NextRequest, 
@@ -16,23 +191,21 @@ export async function DELETE(
     try {
         await db.run('BEGIN TRANSACTION');
 
-        const lessons = await db.all(
-            'SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?',
-            [courseId]
-        );
-        const lessonIds = lessons.map(l => l.id);
+        const modulesToDelete = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
+        const moduleIdsToDelete = modulesToDelete.map(m => m.id);
 
-        if (lessonIds.length > 0) {
-            const progressPlaceholders = lessonIds.map(() => '?').join(',');
-            await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${progressPlaceholders})`, lessonIds);
-        }
+        if (moduleIdsToDelete.length > 0) {
+            const placeholders = moduleIdsToDelete.map(() => '?').join(',');
+            
+            const lessonsToDelete = await db.all(`SELECT id FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
+            const lessonIdsToDelete = lessonsToDelete.map(l => l.id);
 
-        const moduleIdsResult = await db.all('SELECT id FROM modules WHERE course_id = ?', [courseId]);
-        const moduleIds = moduleIdsResult.map(m => m.id);
-
-        if (moduleIds.length > 0) {
-            const lessonPlaceholders = moduleIds.map(() => '?').join(',');
-            await db.run(`DELETE FROM lessons WHERE module_id IN (${lessonPlaceholders})`, moduleIds);
+            if (lessonIdsToDelete.length > 0) {
+                const lessonPlaceholders = lessonIdsToDelete.map(() => '?').join(',');
+                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonPlaceholders})`, lessonIdsToDelete);
+            }
+            
+            await db.run(`DELETE FROM lessons WHERE module_id IN (${placeholders})`, moduleIdsToDelete);
         }
         
         await db.run('DELETE FROM modules WHERE course_id = ?', [courseId]);

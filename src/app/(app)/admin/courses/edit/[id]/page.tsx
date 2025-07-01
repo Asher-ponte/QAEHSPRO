@@ -6,8 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const quizQuestionSchema = z.object({
   text: z.string().min(1, "Question text cannot be empty."),
@@ -49,6 +50,7 @@ const quizQuestionSchema = z.object({
 const quizSchema = z.array(quizQuestionSchema).min(1, "A quiz must have at least one question.");
 
 const lessonSchema = z.object({
+  id: z.number().optional(), // Keep track of existing lessons
   title: z.string().min(3, "Lesson title must be at least 3 characters."),
   type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
   content: z.string().optional(),
@@ -96,6 +98,7 @@ const lessonSchema = z.object({
 });
 
 const moduleSchema = z.object({
+  id: z.number().optional(), // Keep track of existing modules
   title: z.string().min(3, "Module title must be at least 3 characters."),
   lessons: z.array(lessonSchema).min(1, "Each module must have at least one lesson."),
 });
@@ -119,15 +122,6 @@ const quizContentPlaceholder = JSON.stringify([
             { "text": "Madrid", "isCorrect": false },
             { "text": "Paris", "isCorrect": true },
             { "text": "Rome", "isCorrect": false }
-        ]
-    },
-    {
-        "text": "Which planet is known as the Red Planet?",
-        "options": [
-            { "text": "Earth", "isCorrect": false },
-            { "text": "Mars", "isCorrect": true },
-            { "text": "Jupiter", "isCorrect": false },
-            { "text": "Saturn", "isCorrect": false }
         ]
     }
 ], null, 2);
@@ -257,11 +251,34 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
+function FormSkeleton() {
+    return (
+        <div className="space-y-8">
+            <Card>
+                <CardContent className="pt-6 space-y-8">
+                    <Skeleton className="h-10 w-1/2" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </CardContent>
+            </Card>
+            <Card>
+                <CardContent className="pt-6 space-y-4">
+                    <Skeleton className="h-8 w-1/4" />
+                    <Skeleton className="h-40 w-full" />
+                </CardContent>
+            </Card>
+        </div>
+    )
+}
 
-export default function CreateCoursePage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
-  const router = useRouter()
+
+export default function EditCoursePage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
+  const { toast } = useToast();
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const courseId = params.id;
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -273,7 +290,34 @@ export default function CreateCoursePage() {
       modules: [],
     },
     mode: "onChange"
-  })
+  });
+
+  useEffect(() => {
+    if (!courseId) return;
+
+    const fetchCourse = async () => {
+        setIsFetching(true);
+        try {
+            const res = await fetch(`/api/admin/courses/${courseId}`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch course data");
+            }
+            const data = await res.json();
+            form.reset(data);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: `Could not load course data: ${errorMessage}`,
+            });
+            router.push('/admin/courses');
+        } finally {
+            setIsFetching(false);
+        }
+    };
+    fetchCourse();
+  }, [courseId, form, router, toast]);
 
   const { fields, append, remove } = useFieldArray({
     name: "modules",
@@ -282,42 +326,58 @@ export default function CreateCoursePage() {
 
 
   async function onSubmit(values: CourseFormValues) {
-    setIsLoading(true)
-    
+    setIsSubmitting(true);
     try {
-      const response = await fetch('/api/courses', {
-        method: 'POST',
+      const response = await fetch(`/api/admin/courses/${courseId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(values),
-      })
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "An unknown error occurred" }));
-        const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to create course");
+        const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to update course");
         throw new Error(message);
       }
 
       toast({
         variant: "default",
-        title: "Course Created!",
-        description: `The course "${values.title}" has been successfully created.`,
-      })
+        title: "Course Updated!",
+        description: `The course "${values.title}" has been successfully updated.`,
+      });
+      
+      router.push('/admin/courses');
 
-      form.reset()
-      router.push('/admin/courses')
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
-        console.error(error)
+        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+        console.error(error);
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
             description: errorMessage,
-        })
+        });
     } finally {
-        setIsLoading(false)
+        setIsSubmitting(false);
     }
+  }
+
+  if (isFetching) {
+    return (
+         <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" asChild>
+                    <Link href="/admin/courses"><ArrowLeft className="h-4 w-4" /></Link>
+                </Button>
+                <div>
+                    <h1 className="text-3xl font-bold font-headline">Edit Course</h1>
+                    <p className="text-muted-foreground">Loading course data...</p>
+                </div>
+            </div>
+            <FormSkeleton />
+        </div>
+    )
   }
 
   return (
@@ -327,9 +387,9 @@ export default function CreateCoursePage() {
           <Link href="/admin/courses"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold font-headline">Create a New Course</h1>
+          <h1 className="text-3xl font-bold font-headline">Edit Course</h1>
           <p className="text-muted-foreground">
-            Fill out the form below to add a new course and its content.
+            Modify the course details and content below.
           </p>
         </div>
       </div>
@@ -376,7 +436,7 @@ export default function CreateCoursePage() {
                         </FormItem>
                         )}
                     />
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <FormField
                             control={form.control}
@@ -384,7 +444,7 @@ export default function CreateCoursePage() {
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Category</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
                                     <SelectValue placeholder="Select a category" />
@@ -497,17 +557,14 @@ export default function CreateCoursePage() {
                 </CardContent>
             </Card>
             
-            <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-                {isLoading ? (
+            <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto">
+                {isSubmitting ? (
                 <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Course...
+                    Saving Changes...
                 </>
                 ) : (
-                <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Course
-                </>
+                'Save Changes'
                 )}
             </Button>
         </form>

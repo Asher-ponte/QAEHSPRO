@@ -1,11 +1,43 @@
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
+
+const quizQuestionSchema = z.object({
+  text: z.string().min(1),
+  options: z.array(z.object({
+      text: z.string().min(1),
+      isCorrect: z.boolean(),
+  })).min(2).refine(
+      (options) => options.filter(opt => opt.isCorrect).length === 1,
+      { message: "Each question must have exactly one correct option." }
+  ),
+});
+
+const quizSchema = z.array(quizQuestionSchema).min(1);
 
 const lessonSchema = z.object({
   title: z.string().min(3),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.type === 'document' && (!data.content || data.content.trim().length < 10)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Document content must be at least 10 characters.", path: ['content'] });
+    }
+    if (data.type === 'quiz') {
+        if (!data.content) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Quiz content is required.", path: ['content'] });
+            return;
+        }
+        try {
+            const parsedContent = JSON.parse(data.content);
+            if (!quizSchema.safeParse(parsedContent).success) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid quiz JSON structure.", path: ['content'] });
+            }
+        } catch (error) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid JSON format.", path: ['content'] });
+        }
+    }
 });
 
 const moduleSchema = z.object({
@@ -18,7 +50,7 @@ const courseSchema = z.object({
   description: z.string().min(10),
   category: z.string(),
   modules: z.array(moduleSchema).min(1),
-  image: z.string().url().optional(),
+  image: z.string().url().optional().or(z.literal('')),
   aiHint: z.string().optional(),
 })
 
@@ -49,7 +81,6 @@ export async function POST(request: NextRequest) {
 
     await db.run('BEGIN TRANSACTION');
 
-    // 1. Insert course
     const courseResult = await db.run(
       'INSERT INTO courses (title, description, category, image, aiHint) VALUES (?, ?, ?, ?, ?)',
       [title, description, category, image, aiHint]
@@ -59,7 +90,6 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to create course');
     }
 
-    // 2. Insert modules and lessons
     for (const [moduleIndex, moduleData] of modules.entries()) {
         const moduleResult = await db.run(
             'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
@@ -71,13 +101,10 @@ export async function POST(request: NextRequest) {
         }
 
         for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-            const lessonResult = await db.run(
+            await db.run(
                 'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
                 [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1]
             );
-            if (!lessonResult.lastID) {
-                throw new Error(`Failed to create lesson: ${lessonData.title}`);
-            }
         }
     }
     

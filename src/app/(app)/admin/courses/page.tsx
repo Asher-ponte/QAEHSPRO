@@ -183,10 +183,12 @@ export default function ManageCoursesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => toast({ title: "Coming soon!", description: "Editing functionality will be added in a future update." })}>
-                             <Edit className="mr-2 h-4 w-4" />
-                             <span>Edit</span>
-                           </DropdownMenuItem>
+                           <Link href={`/admin/courses/edit/${course.id}`}>
+                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                               <Edit className="mr-2 h-4 w-4" />
+                               <span>Edit</span>
+                             </DropdownMenuItem>
+                           </Link>
                            <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                              <Trash2 className="mr-2 h-4 w-4" />
                              <span>Delete</span>
