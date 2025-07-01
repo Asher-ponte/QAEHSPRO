@@ -9,15 +9,14 @@ export default function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, isLoading } = useUser()
+  const { isLoading } = useUser()
 
-  // The redirect logic is now handled by middleware.ts, so we can remove
-  // the useEffect that was causing the race condition.
-
-  if (isLoading || !user) {
-    // We still show a loader while the useUser hook fetches user data
-    // for display in the header and on the dashboard. The middleware has
-    // already ensured the user is authenticated.
+  // The redirect logic is now handled by middleware.ts. This layout's
+  // only job is to show a loader while the initial user data is being
+  // fetched for display purposes (e.g., in the header). We no longer
+  // block rendering if the user fetch fails, as the middleware is the
+  // single source of truth for authentication.
+  if (isLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
