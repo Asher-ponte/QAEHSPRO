@@ -3,40 +3,38 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
 
-const quizQuestionSchema = z.object({
-  text: z.string().min(1),
-  options: z.array(z.object({
-      text: z.string().min(1),
-      isCorrect: z.boolean(),
-  })).min(2).refine(
-      (options) => options.filter(opt => opt.isCorrect).length === 1,
-      { message: "Each question must have exactly one correct option." }
-  ),
+// Helper to transform form quiz data to DB format
+function transformQuestionsToDbFormat(questions: any[]) {
+    return JSON.stringify(questions.map(q => ({
+        text: q.text,
+        options: q.options.map((opt: { text: string }, index: number) => ({
+            text: opt.text,
+            isCorrect: index === q.correctOptionIndex,
+        })),
+    })));
+}
+
+const quizOptionSchema = z.object({
+  text: z.string().min(1, "Option text cannot be empty."),
 });
 
-const quizSchema = z.array(quizQuestionSchema).min(1);
+const quizQuestionSchema = z.object({
+  text: z.string().min(1, "Question text cannot be empty."),
+  options: z.array(quizOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
+});
 
 const lessonSchema = z.object({
   title: z.string().min(3),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional(),
+  questions: z.array(quizQuestionSchema).optional(),
 }).superRefine((data, ctx) => {
     if (data.type === 'document' && (!data.content || data.content.trim().length < 10)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Document content must be at least 10 characters.", path: ['content'] });
     }
-    if (data.type === 'quiz') {
-        if (!data.content) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Quiz content is required.", path: ['content'] });
-            return;
-        }
-        try {
-            const parsedContent = JSON.parse(data.content);
-            if (!quizSchema.safeParse(parsedContent).success) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid quiz JSON structure.", path: ['content'] });
-            }
-        } catch (error) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid JSON format.", path: ['content'] });
-        }
+    if (data.type === 'quiz' && (!data.questions || data.questions.length < 1)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A quiz must have at least one question.", path: ['questions'] });
     }
 });
 
@@ -101,9 +99,14 @@ export async function POST(request: NextRequest) {
         }
 
         for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+            let contentToStore = lessonData.content ?? null;
+            if (lessonData.type === 'quiz' && lessonData.questions) {
+                contentToStore = transformQuestionsToDbFormat(lessonData.questions);
+            }
+
             await db.run(
                 'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
-                [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1]
+                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1]
             );
         }
     }
@@ -119,3 +122,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create course', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
+
+    

@@ -35,25 +35,25 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+
+const quizOptionSchema = z.object({
+  text: z.string().min(1, "Option text cannot be empty."),
+});
 
 const quizQuestionSchema = z.object({
   text: z.string().min(1, "Question text cannot be empty."),
-  options: z.array(z.object({
-      text: z.string().min(1, "Option text cannot be empty."),
-      isCorrect: z.boolean().default(false),
-  })).min(2, "Must have at least two options.").refine(
-      (options) => options.filter(opt => opt.isCorrect).length === 1,
-      { message: "Each question must have exactly one correct option." }
-  ),
+  options: z.array(quizOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number({invalid_type_error: "A correct option must be selected."}).min(0, "A correct option must be selected."),
 });
-
-const quizSchema = z.array(quizQuestionSchema).min(1, "A quiz must have at least one question.");
 
 const lessonSchema = z.object({
   id: z.number().optional(), // Keep track of existing lessons
   title: z.string().min(3, "Lesson title must be at least 3 characters."),
   type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
   content: z.string().optional(),
+  questions: z.array(quizQuestionSchema).optional(),
 }).superRefine((data, ctx) => {
     if (data.type === 'document') {
         if (!data.content || data.content.trim().length < 10) {
@@ -65,33 +65,11 @@ const lessonSchema = z.object({
         }
     }
     if (data.type === 'quiz') {
-        if (!data.content) {
+       if (!data.questions || data.questions.length < 1) {
              ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Quiz content is required. Please provide a valid JSON array of questions.",
-                path: ['content'],
-            });
-            return;
-        }
-        try {
-            const parsedContent = JSON.parse(data.content);
-            const validation = quizSchema.safeParse(parsedContent);
-            if (!validation.success) {
-                const firstError = validation.error.errors[0];
-                const path = firstError.path.join('.');
-                const message = `Invalid quiz format at ${path}: ${firstError.message}`;
-
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: message,
-                    path: ['content'],
-                });
-            }
-        } catch (error) {
-             ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Invalid JSON format. Please ensure the content is a valid JSON.",
-                path: ['content'],
+                message: "A quiz must have at least one question.",
+                path: ['questions'],
             });
         }
     }
@@ -114,17 +92,112 @@ const courseSchema = z.object({
 
 type CourseFormValues = z.infer<typeof courseSchema>
 
-const quizContentPlaceholder = JSON.stringify([
-    {
-        "text": "What is the capital of France?",
-        "options": [
-            { "text": "Berlin", "isCorrect": false },
-            { "text": "Madrid", "isCorrect": false },
-            { "text": "Paris", "isCorrect": true },
-            { "text": "Rome", "isCorrect": false }
-        ]
-    }
-], null, 2);
+function QuizBuilder({ moduleIndex, lessonIndex, control }: { moduleIndex: number, lessonIndex: number, control: Control<CourseFormValues> }) {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `modules.${moduleIndex}.lessons.${lessonIndex}.questions`,
+    });
+
+    return (
+        <div className="space-y-4">
+            {fields.map((questionField, questionIndex) => (
+                <div key={questionField.id} className="p-4 border rounded-lg space-y-4 bg-background">
+                    <div className="flex justify-between items-center">
+                        <FormLabel>Question {questionIndex + 1}</FormLabel>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(questionIndex)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                     <FormField
+                        control={control}
+                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.text`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs">Question Text</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., What is the capital of France?" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <QuestionOptions moduleIndex={moduleIndex} lessonIndex={lessonIndex} questionIndex={questionIndex} control={control} />
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 })}
+            >
+                <Plus className="mr-2 h-4 w-4" /> Add Question
+            </Button>
+             <FormMessage>{(control.getFieldState(`modules.${moduleIndex}.lessons.${lessonIndex}.questions`).error as any)?.message}</FormMessage>
+        </div>
+    );
+}
+
+function QuestionOptions({ moduleIndex, lessonIndex, questionIndex, control }: { moduleIndex: number, lessonIndex: number, questionIndex: number, control: Control<CourseFormValues> }) {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.options`,
+    });
+
+    const correctOptionFieldName = `modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.correctOptionIndex`;
+
+    return (
+        <div className="space-y-2">
+            <FormLabel className="text-xs">Options</FormLabel>
+            <FormField
+                control={control}
+                name={correctOptionFieldName}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                                value={field.value?.toString()}
+                                className="space-y-2"
+                            >
+                                {fields.map((optionField, optionIndex) => (
+                                    <div key={optionField.id} className="flex items-center gap-2">
+                                        <FormControl>
+                                            <RadioGroupItem value={optionIndex.toString()} />
+                                        </FormControl>
+                                         <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.options.${optionIndex}.text`}
+                                            render={({ field }) => (
+                                                <FormItem className="flex-grow">
+                                                    <FormControl>
+                                                        <Input placeholder={`Option ${optionIndex + 1}`} {...field} />
+                                                    </FormControl>
+                                                    <FormMessage/>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => remove(optionIndex)} disabled={fields.length <= 2}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                 )}
+            />
+             <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ text: "" })}
+            >
+                <Plus className="mr-2 h-4 w-4" /> Add Option
+            </Button>
+        </div>
+    );
+}
 
 function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
@@ -136,6 +209,24 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         control,
         name: `modules.${moduleIndex}.lessons`,
     });
+
+    const handleTypeChange = (value: string, index: number) => {
+        const currentLesson = control.getValues(`modules.${moduleIndex}.lessons.${index}`);
+        const newLesson = { ...currentLesson, type: value as "video" | "document" | "quiz" };
+        
+        if (value === 'quiz') {
+            newLesson.questions = newLesson.questions || [];
+            newLesson.content = undefined;
+        } else if (value === 'document') {
+            newLesson.content = newLesson.content || "";
+            newLesson.questions = undefined;
+        } else {
+            newLesson.content = undefined;
+            newLesson.questions = undefined;
+        }
+
+        control.setValue(`modules.${moduleIndex}.lessons.${index}`, newLesson);
+    }
 
     return (
         <div className="space-y-4 pl-4 border-l ml-4">
@@ -174,7 +265,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                     render={({ field }) => (
                                         <FormItem>
                                         <FormLabel>Lesson Type</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={(value) => handleTypeChange(value, lessonIndex)} defaultValue={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select lesson type" />
@@ -214,26 +305,10 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                 />
                             )}
                              {lessonType === 'quiz' && (
-                                <FormField
-                                    control={control}
-                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Quiz Questions (JSON format)</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                placeholder={quizContentPlaceholder}
-                                                className="min-h-[300px] font-mono text-xs"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Enter an array of questions in JSON format. Each question must have exactly one correct answer.
-                                        </FormDescription>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                               <div className="space-y-2">
+                                  <Label>Quiz Builder</Label>
+                                  <QuizBuilder moduleIndex={moduleIndex} lessonIndex={lessonIndex} control={control} />
+                               </div>
                             )}
                         </div>
                     </div>
@@ -507,7 +582,7 @@ export default function EditCoursePage() {
                         <div>
                             <h3 className="text-lg font-medium">Course Content</h3>
                              <p className="text-sm text-muted-foreground">
-                                Add modules and lessons. For 'quiz' lessons, use the JSON editor.
+                                Add modules and lessons. Use the Quiz Builder for interactive questions.
                             </p>
                         </div>
                          <Separator />
@@ -572,3 +647,5 @@ export default function EditCoursePage() {
     </div>
   )
 }
+
+    
