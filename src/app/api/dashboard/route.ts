@@ -4,42 +4,43 @@ import { getDb } from '@/lib/db';
 export async function GET() {
   try {
     const db = await getDb();
-    // Hardcode user ID to 1 since login is removed
-    const userId = 1;
+    const userId = 1; // Hardcoded user
 
-    // A single, more comprehensive query to get all course progress data
-    const coursesProgress = await db.all(`
-        SELECT
-            c.id,
-            c.title,
-            c.category,
-            COUNT(l.id) as totalLessons,
-            SUM(CASE WHEN up.completed = 1 THEN 1 ELSE 0 END) as completedLessons
-        FROM courses c
-        LEFT JOIN modules m ON c.id = m.course_id
-        LEFT JOIN lessons l ON m.id = l.module_id
-        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
-        GROUP BY c.id, c.title, c.category
+    // Get all courses that the user has any progress in (started or completed).
+    const coursesWithProgress = await db.all(`
+      SELECT
+        c.id,
+        c.title,
+        c.category,
+        -- Calculate total lessons for the course
+        (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
+        -- Calculate completed lessons for the user in this course
+        SUM(CASE WHEN up.completed = 1 THEN 1 ELSE 0 END) as completedLessons
+      FROM user_progress up
+      JOIN lessons l ON up.lesson_id = l.id
+      JOIN modules m ON l.module_id = m.id
+      JOIN courses c ON m.course_id = c.id
+      WHERE up.user_id = ?
+      GROUP BY c.id, c.title, c.category
     `, userId);
 
     let coursesCompleted = 0;
     const skillsAcquired = new Set<string>();
     const myCourses = [];
 
-    for (const course of coursesProgress) {
+    for (const course of coursesWithProgress) {
         const total = course.totalLessons || 0;
         const completed = course.completedLessons || 0;
-        
+
         if (total === 0) {
-            continue;
+            continue; // Skip courses with no lessons
         }
 
         if (completed === total) {
             coursesCompleted++;
             skillsAcquired.add(course.category);
-        }
-
-        if (completed > 0 && completed < total) {
+        } else {
+            // This now includes courses with 0% progress (started but no lessons completed)
             const progress = Math.floor((completed / total) * 100);
             myCourses.push({
                 id: course.id,

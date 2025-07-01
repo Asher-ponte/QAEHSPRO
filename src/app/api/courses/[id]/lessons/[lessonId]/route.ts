@@ -11,6 +11,13 @@ export async function GET(
     const { lessonId } = params
     const userId = 1 // Hardcoded user ID
 
+    // When a user views a lesson, create a progress entry if it doesn't exist.
+    // This marks the course as "started" for the dashboard.
+    await db.run(
+        'INSERT OR IGNORE INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 0)',
+        [userId, lessonId]
+    );
+
     const lesson = await db.get(
         `SELECT 
             l.id, l.title, l.type, l.content, 
