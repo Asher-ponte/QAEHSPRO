@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -32,11 +33,22 @@ interface Stats {
 export default function DashboardPage() {
   const { user, isLoading: isUserLoading } = useUser()
   const { toast } = useToast()
+  const router = useRouter()
   const [courses, setCourses] = useState<Course[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Don't do anything until the user loading state is settled
+    if (isUserLoading) {
+        return;
+    }
+    // If not loading and there's no user, they are not authenticated.
+    if (!user) {
+        router.push('/');
+        return;
+    }
+
     async function fetchDashboardData() {
       try {
         const res = await fetch("/api/dashboard")
@@ -58,8 +70,9 @@ export default function DashboardPage() {
         setIsLoading(false)
       }
     }
+
     fetchDashboardData()
-  }, [toast])
+  }, [user, isUserLoading, toast, router])
 
   const statCards = [
     {
@@ -74,15 +87,66 @@ export default function DashboardPage() {
     },
   ]
 
+  // While user is loading, or if we are fetching dashboard data, show skeletons.
+  if (isUserLoading || isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-3xl font-bold font-headline">
+            <Skeleton className="h-8 w-64" />
+          </h1>
+          <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {statCards.map(stat => (
+              <Card key={stat.title}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                      {stat.icon}
+                  </CardHeader>
+                  <CardContent>
+                      <Skeleton className="h-8 w-1/4" />
+                  </CardContent>
+              </Card>
+          ))}
+        </div>
+  
+        <Card>
+          <CardHeader>
+            <CardTitle>My Courses</CardTitle>
+            <CardDescription>
+              Continue where you left off.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1">
+             {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="block -mx-6 px-6 py-3">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Skeleton className="h-5 w-48 mb-2" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                    <Skeleton className="h-5 w-12" />
+                  </div>
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" disabled>View All Courses</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-3xl font-bold font-headline">
-          {isUserLoading ? (
-            <Skeleton className="h-8 w-64" />
-          ) : (
-            `Welcome back, ${user?.username || 'User'}!`
-          )}
+            {`Welcome back, ${user?.username || 'User'}!`}
         </h1>
         <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
       </div>
@@ -94,11 +158,7 @@ export default function DashboardPage() {
                     {stat.icon}
                 </CardHeader>
                 <CardContent>
-                    {isLoading ? (
-                        <Skeleton className="h-8 w-1/4" />
-                    ) : (
-                        <div className="text-2xl font-bold">{stat.value}</div>
-                    )}
+                    <div className="text-2xl font-bold">{stat.value}</div>
                 </CardContent>
             </Card>
         ))}
@@ -112,22 +172,7 @@ export default function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          {isLoading ? (
-             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="block -mx-6 px-6 py-3">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Skeleton className="h-5 w-48 mb-2" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                    <Skeleton className="h-5 w-12" />
-                  </div>
-                  <Skeleton className="h-4 w-full" />
-                </div>
-              </div>
-            ))
-          ) : (
+          {courses.length > 0 ? (
             courses.map((course) => (
               <Link href={`/courses/${course.id}`} key={course.title} className="block hover:bg-muted/50 -mx-6 px-6 py-3 rounded-lg transition-colors">
                   <div className="flex flex-col gap-2">
@@ -142,6 +187,10 @@ export default function DashboardPage() {
                   </div>
               </Link>
             ))
+          ) : (
+             <div className="px-6 py-3">
+                <p className="text-muted-foreground">You have no courses in progress.</p>
+             </div>
           )}
         </CardContent>
         <CardFooter>
