@@ -45,9 +45,6 @@ export default function LoginPage() {
                 Login
               </Button>
             </Link>
-            <Button variant="outline" className="w-full">
-              Login with SSO
-            </Button>
           </div>
           <div className="mt-4 text-center text-sm">
             Don&apos;t have an account?{" "}
