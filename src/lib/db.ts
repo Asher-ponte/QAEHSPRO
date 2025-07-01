@@ -48,6 +48,7 @@ async function initializeDb() {
         module_id INTEGER NOT NULL,
         title TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('video', 'document', 'quiz')),
+        content TEXT,
         "order" INTEGER NOT NULL,
         FOREIGN KEY (module_id) REFERENCES modules (id)
       );
@@ -89,17 +90,17 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (3, 1, 'Module 3: Conclusion', 3)");
         
         // Lessons for module 1
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (2, 1, 'Core Concepts', 'video', 2)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (3, 1, 'Reading: Getting Started', 'document', 3)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (2, 1, 'Core Concepts', 'video', null, 2)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 1, 'Reading: Getting Started', 'document', '# Welcome to Leadership\n\nThis first lesson covers the basic principles of what it means to be a good leader in a fast-paced environment.\n\n*   Principle 1: Lead by example.\n*   Principle 2: Communicate clearly.\n*   Principle 3: Empower your team.', 3)");
         
         // Lessons for module 2
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (4, 2, 'Advanced Topics', 'video', 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (5, 2, 'Practical Application', 'video', 2)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (4, 2, 'Advanced Topics', 'video', null, 1)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (5, 2, 'Practical Application', 'video', null, 2)");
         
         // Lessons for module 3
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (6, 3, 'Summary and Review', 'video', 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, \"order\") VALUES (7, 3, 'Course Quiz', 'quiz', 2)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (6, 3, 'Summary and Review', 'video', null, 1)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (7, 3, 'Course Quiz', 'quiz', null, 2)");
     }
     
     const progressCount = await dbInstance.get('SELECT COUNT(id) as count FROM user_progress');

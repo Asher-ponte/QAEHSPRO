@@ -5,6 +5,7 @@ import { z } from 'zod'
 const lessonSchema = z.object({
   title: z.string().min(3),
   type: z.enum(["video", "document", "quiz"]),
+  content: z.string().optional(),
 });
 
 const moduleSchema = z.object({
@@ -71,8 +72,8 @@ export async function POST(request: NextRequest) {
 
         for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
             const lessonResult = await db.run(
-                'INSERT INTO lessons (module_id, title, type, "order") VALUES (?, ?, ?, ?)',
-                [moduleId, lessonData.title, lessonData.type, lessonIndex + 1]
+                'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
+                [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1]
             );
             if (!lessonResult.lastID) {
                 throw new Error(`Failed to create lesson: ${lessonData.title}`);

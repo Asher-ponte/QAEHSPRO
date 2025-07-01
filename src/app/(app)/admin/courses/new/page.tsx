@@ -1,6 +1,6 @@
 "use client"
 
-import { useForm, useFieldArray, type Control } from "react-hook-form"
+import { useForm, useFieldArray, type Control, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
@@ -37,7 +37,19 @@ import { Separator } from "@/components/ui/separator"
 const lessonSchema = z.object({
   title: z.string().min(3, "Lesson title must be at least 3 characters."),
   type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
-});
+  content: z.string().optional(),
+}).refine(
+    (data) => {
+        if (data.type === 'document') {
+            return data.content && data.content.trim().length >= 10;
+        }
+        return true;
+    },
+    {
+        message: "Document content must be at least 10 characters.",
+        path: ['content'],
+    }
+);
 
 const moduleSchema = z.object({
   title: z.string().min(3, "Module title must be at least 3 characters."),
@@ -58,65 +70,97 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         name: `modules.${moduleIndex}.lessons`,
         control,
     });
+    
+    const lessonsInModule = useWatch({
+        control,
+        name: `modules.${moduleIndex}.lessons`,
+    });
 
     return (
         <div className="space-y-4 pl-4 border-l ml-4">
-            {fields.map((field, lessonIndex) => (
-                <div key={field.id} className="p-4 rounded-md bg-muted/50 relative">
-                     <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-6 w-6"
-                        onClick={() => remove(lessonIndex)}
-                        >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                        <span className="sr-only">Remove Lesson</span>
-                    </Button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={control}
-                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.title`}
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Lesson Title</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="e.g., What is Marketing?" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
+            {fields.map((field, lessonIndex) => {
+                const lessonType = lessonsInModule[lessonIndex]?.type;
+                return (
+                    <div key={field.id} className="p-4 rounded-md bg-muted/50 relative">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6"
+                            onClick={() => remove(lessonIndex)}
+                            >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Remove Lesson</span>
+                        </Button>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={control}
+                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.title`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Lesson Title</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="e.g., What is Marketing?" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={control}
+                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.type`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Lesson Type</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select lesson type" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="video">Video</SelectItem>
+                                                <SelectItem value="document">Document</SelectItem>
+                                                <SelectItem value="quiz">Quiz</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            {lessonType === 'document' && (
+                                <FormField
+                                    control={control}
+                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Lesson Content</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="Write your lesson content here... Supports Markdown."
+                                                className="min-h-[200px]"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Use Markdown for formatting, like # for headings and * for bold.
+                                        </FormDescription>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             )}
-                        />
-                        <FormField
-                            control={control}
-                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.type`}
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Lesson Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select lesson type" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="video">Video</SelectItem>
-                                        <SelectItem value="document">Document</SelectItem>
-                                        <SelectItem value="quiz">Quiz</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        </div>
                     </div>
-                </div>
-            ))}
+                )
+            })}
              <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video" })}
+                onClick={() => append({ title: "", type: "video", content: "" })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -274,7 +318,7 @@ export default function CreateCoursePage() {
                         <div>
                             <h3 className="text-lg font-medium">Course Content</h3>
                              <p className="text-sm text-muted-foreground">
-                                Add modules and lessons. The final exam should be a 'quiz' type lesson in the last module.
+                                Add modules and lessons. For 'document' lessons, you can write content directly.
                             </p>
                         </div>
                          <Separator />
@@ -315,7 +359,7 @@ export default function CreateCoursePage() {
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video" }] })}
+                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: "" }] })}
                         >
                             <Plus className="mr-2 h-4 w-4" /> Add Module
                         </Button>

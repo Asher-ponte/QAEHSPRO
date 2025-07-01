@@ -175,14 +175,16 @@ export default function CourseDetailPage() {
                 <AccordionItem value={module.title} key={module.id || module.title}>
                   <AccordionTrigger className="font-semibold">{module.title}</AccordionTrigger>
                   <AccordionContent>
-                    <ul className="space-y-3">
+                    <ul className="space-y-1">
                       {module.lessons.map((lesson) => (
-                        <li key={lesson.id || lesson.title} className="flex items-center justify-between text-sm">
-                           <div className="flex items-center">
-                            {getIcon(lesson.type)}
-                            <span>{lesson.title}</span>
-                          </div>
-                          <CheckCircle className={`h-5 w-5 ${lesson.completed ? 'text-accent' : 'text-muted-foreground/30'}`} />
+                        <li key={lesson.id || lesson.title}>
+                           <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="flex items-center justify-between text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center">
+                                {getIcon(lesson.type)}
+                                <span>{lesson.title}</span>
+                            </div>
+                            <CheckCircle className={`h-5 w-5 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                           </Link>
                         </li>
                       ))}
                     </ul>
