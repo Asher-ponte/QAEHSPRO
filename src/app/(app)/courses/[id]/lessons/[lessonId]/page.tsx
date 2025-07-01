@@ -313,7 +313,7 @@ export default function LessonPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-24 md:pb-6">
             <Link href={`/courses/${lesson.course_id}`} className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary">
                 <ArrowLeft className="h-4 w-4" />
                 Back to "{lesson.course_title}"
@@ -340,19 +340,30 @@ export default function LessonPage() {
             </Card>
 
             {lesson.type !== 'quiz' && (
-                 <div className="flex justify-end">
-                    <Button 
-                        onClick={handleCompleteLesson} 
-                        disabled={isCompleting || lesson.completed}
-                    >
-                        {isCompleting ? (
-                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                        )}
-                        {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
-                    </Button>
-                </div>
+                <>
+                    {/* Floating button for mobile */}
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t z-10">
+                        <Button 
+                            onClick={handleCompleteLesson} 
+                            disabled={isCompleting || lesson.completed}
+                            className="w-full"
+                        >
+                            {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                            {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
+                        </Button>
+                    </div>
+
+                    {/* Standard button for desktop */}
+                    <div className="hidden md:flex justify-end">
+                        <Button 
+                            onClick={handleCompleteLesson} 
+                            disabled={isCompleting || lesson.completed}
+                        >
+                            {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                            {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
+                        </Button>
+                    </div>
+                </>
             )}
         </div>
     )

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -174,7 +175,10 @@ export default function CourseDetailPage() {
         </Card>
       </div>
 
-      <div>
+      <div className="space-y-6">
+         <Button asChild className="w-full" disabled={buttonDisabled}>
+            <Link href={buttonHref}>{buttonText}</Link>
+        </Button>
         <Card>
           <CardHeader>
             <CardTitle>Course Content</CardTitle>
@@ -202,9 +206,6 @@ export default function CourseDetailPage() {
                 </AccordionItem>
               ))}
             </Accordion>
-            <Button asChild className="w-full mt-6" disabled={buttonDisabled}>
-                <Link href={buttonHref}>{buttonText}</Link>
-            </Button>
           </CardContent>
         </Card>
       </div>
