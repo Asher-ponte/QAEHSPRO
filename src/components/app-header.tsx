@@ -13,7 +13,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/recommendations", label: "Recommendations", icon: Sparkles },
   { href: "/admin", label: "Admin", icon: Shield },
 ]
 

@@ -52,7 +52,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold font-headline">Welcome back, John!</h1>
         <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         {stats.map(stat => (
             <Card key={stat.title}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -64,26 +64,6 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
         ))}
-         <Card className="lg:col-span-2 bg-primary text-primary-foreground">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>AI-Powered Recommendations</CardTitle>
-                  <CardDescription className="text-primary-foreground/80 mt-1">
-                    Get personalized course suggestions based on your skills and role.
-                  </CardDescription>
-                </div>
-                <Sparkles className="h-8 w-8 text-primary-foreground/50 shrink-0" />
-              </div>
-            </CardHeader>
-            <CardFooter>
-                 <Link href="/recommendations" className="w-full">
-                    <Button variant="secondary" className="w-full">
-                        Discover Courses <ArrowUpRight className="ml-2 h-4 w-4" />
-                    </Button>
-                </Link>
-            </CardFooter>
-        </Card>
       </div>
 
       <Card>
