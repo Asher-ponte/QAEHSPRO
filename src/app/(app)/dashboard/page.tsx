@@ -22,44 +22,47 @@ interface Course {
   category: string;
 }
 
-const stats = [
-    {
-      title: "Courses Completed",
-      value: "12",
-      icon: <Target className="h-6 w-6 text-muted-foreground" />,
-    },
-    {
-      title: "Skills Acquired",
-      value: "8",
-      icon: <Lightbulb className="h-6 w-6 text-muted-foreground" />,
-    },
-]
+interface Stats {
+    coursesCompleted: number;
+    skillsAcquired: number;
+}
 
 export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchCourses() {
+    async function fetchDashboardData() {
       try {
-        const res = await fetch("/api/courses")
+        const res = await fetch("/api/dashboard")
         if (!res.ok) {
-          throw new Error("Failed to fetch courses")
+          throw new Error("Failed to fetch dashboard data")
         }
         const data = await res.json()
-        const coursesWithProgress = data.slice(0, 3).map((course: any) => ({
-          ...course,
-          progress: Math.floor(Math.random() * 75) + 25
-        }))
-        setCourses(coursesWithProgress)
+        setStats(data.stats)
+        setCourses(data.myCourses)
       } catch (error) {
         console.error(error)
       } finally {
         setIsLoading(false)
       }
     }
-    fetchCourses()
+    fetchDashboardData()
   }, [])
+
+  const statCards = [
+    {
+      title: "Courses Completed",
+      value: stats?.coursesCompleted,
+      icon: <Target className="h-6 w-6 text-muted-foreground" />,
+    },
+    {
+      title: "Skills Acquired",
+      value: stats?.skillsAcquired,
+      icon: <Lightbulb className="h-6 w-6 text-muted-foreground" />,
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,14 +71,18 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {stats.map(stat => (
+        {statCards.map(stat => (
             <Card key={stat.title}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
                     {stat.icon}
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
+                    {isLoading ? (
+                        <Skeleton className="h-8 w-1/4" />
+                    ) : (
+                        <div className="text-2xl font-bold">{stat.value}</div>
+                    )}
                 </CardContent>
             </Card>
         ))}
