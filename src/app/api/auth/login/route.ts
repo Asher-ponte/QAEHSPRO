@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
 
 const loginSchema = z.object({
   username: z.string(),
@@ -34,14 +33,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
     
-    cookies().set('session', user.id.toString(), {
+    const response = NextResponse.json({ id: user.id, username: user.username }, { status: 200 });
+    
+    response.cookies.set('session', user.id.toString(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       path: '/',
       sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
-    return NextResponse.json({ id: user.id, username: user.username }, { status: 200 });
+    return response;
 
   } catch (error) {
     console.error(error);
