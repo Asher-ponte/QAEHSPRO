@@ -14,22 +14,24 @@ export async function GET() {
     }
     const userId = parseInt(sessionId, 10);
 
+    // This query is now robust and won't fail if enrollments don't exist.
+    // It correctly calculates progress for courses the user has started.
     const coursesWithProgress = await db.all(`
         SELECT
             c.id,
             c.title,
             c.category,
             (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
-            COUNT(up.lesson_id) as completedLessons
-        FROM course_enrollments ce
-        JOIN courses c ON ce.course_id = c.id
-        LEFT JOIN (
-            SELECT l.id as lesson_id, m.course_id FROM lessons l JOIN modules m ON l.module_id = m.id
-        ) l ON l.course_id = c.id
-        LEFT JOIN user_progress up ON up.lesson_id = l.lesson_id AND up.user_id = ce.user_id AND up.completed = 1
-        WHERE ce.user_id = ?
-        GROUP BY c.id
-    `, userId);
+            (SELECT COUNT(up.id) FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id AND up.user_id = ? AND up.completed = 1) as completedLessons
+        FROM courses c
+        WHERE c.id IN (
+            SELECT DISTINCT m.course_id
+            FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
+            JOIN modules m ON l.module_id = m.id
+            WHERE up.user_id = ?
+        )
+    `, [userId, userId]);
 
     let coursesCompleted = 0;
     const skillsAcquired = new Set<string>();
@@ -58,7 +60,7 @@ export async function GET() {
             progress: progress,
         });
 
-        if (completed === total) {
+        if (progress === 100) {
             coursesCompleted++;
             skillsAcquired.add(course.category);
         }

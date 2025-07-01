@@ -44,7 +44,6 @@ export default function LoginPage() {
       }
       
       router.push("/dashboard")
-      router.refresh(); 
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
@@ -80,7 +79,7 @@ export default function LoginPage() {
                   <Input
                     id="username"
                     type="text"
-                    placeholder="johndoe"
+                    placeholder="Demo User"
                     required
                     className="pl-10"
                     value={username}
