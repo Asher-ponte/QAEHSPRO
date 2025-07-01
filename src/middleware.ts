@@ -1,29 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
  
+// Middleware is disabled as login functionality has been removed.
 export function middleware(request: NextRequest) {
-  const session = request.cookies.get('session')?.value
-  const url = request.nextUrl.clone()
-
-  const isProtectedRoute = 
-       url.pathname.startsWith('/dashboard') ||
-       url.pathname.startsWith('/courses') ||
-       url.pathname.startsWith('/admin') ||
-       url.pathname.startsWith('/recommendations');
-
-  const isAuthRoute = url.pathname === '/' || url.pathname.startsWith('/signup');
- 
-  // If user is not authenticated and trying to access a protected route,
-  // redirect them to the login page.
-  if (!session && isProtectedRoute) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
- 
-  // If the user is authenticated and tries to access the login or signup pages,
-  // redirect them to the dashboard.
-  if (session && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
- 
   return NextResponse.next()
 }
  

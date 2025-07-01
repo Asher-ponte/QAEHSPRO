@@ -18,11 +18,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 export function UserNav() {
   const { user, isLoading } = useUser()
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    // A full page reload is the most robust way to ensure the session is
-    // cleared before the login page is rendered.
-    window.location.href = "/";
+  const handleLogout = () => {
+    // Since login is removed, this action is a no-op.
+    // We can just refresh the page or do nothing.
+    window.location.reload()
   };
 
   if (isLoading) {

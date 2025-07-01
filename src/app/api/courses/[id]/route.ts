@@ -1,17 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const db = await getDb()
-    const cookieStore = cookies()
-    const sessionId = cookieStore.get('session')?.value
-
-    if (!sessionId) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-    const userId = parseInt(sessionId, 10);
+    // Hardcode user ID to 1 since login is removed
+    const userId = 1;
 
     const course = await db.get('SELECT * FROM courses WHERE id = ?', params.id)
     

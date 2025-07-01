@@ -1,35 +1,14 @@
 "use client"
 
-import { useState, useEffect } from 'react';
-
 interface User {
   id: number;
   username: string;
 }
 
+// Mock user hook to bypass login
 export function useUser() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user', error);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchUser();
-  }, []);
+  const user: User | null = { id: 1, username: 'Demo User' };
+  const isLoading = false;
 
   return { user, isLoading };
 }

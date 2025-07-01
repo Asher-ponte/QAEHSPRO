@@ -1,21 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
     const db = await getDb();
-    const cookieStore = cookies();
-    const sessionId = cookieStore.get('session')?.value;
-
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const userId = parseInt(sessionId, 10);
-
-    if (isNaN(userId)) {
-      return NextResponse.json({ error: 'Invalid session ID' }, { status: 400 });
-    }
+    // Hardcode user ID to 1 since login is removed
+    const userId = 1;
 
     // A single, more comprehensive query to get all course progress data
     const coursesProgress = await db.all(`
