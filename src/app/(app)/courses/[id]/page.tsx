@@ -124,7 +124,7 @@ export default function CourseDetailPage() {
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
             <Card className="overflow-hidden">
-              <Skeleton className="h-[400px] w-full" />
+              <Skeleton className="w-full aspect-[3/2]" />
               <CardContent className="p-6">
                 <Skeleton className="h-8 w-3/4 mb-4" />
                 <Skeleton className="h-4 w-full mb-2" />
@@ -158,16 +158,15 @@ export default function CourseDetailPage() {
     <div className="grid md:grid-cols-3 gap-8 pb-24 md:pb-8">
       <div className="md:col-span-2">
         <Card className="overflow-hidden">
-          <CardHeader className="p-0">
+          <div className="w-full aspect-[3/2] relative">
             <Image
               src={course.image}
               alt={course.title}
-              width={1200}
-              height={600}
+              fill
               data-ai-hint={course.aiHint}
               className="object-cover"
             />
-          </CardHeader>
+          </div>
           <CardContent className="p-6">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-headline mb-2 break-words">{course.title}</h1>
             <p className="text-muted-foreground break-words">{course.description}</p>
