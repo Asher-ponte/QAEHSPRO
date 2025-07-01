@@ -2,7 +2,6 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { User, Lock, Loader2 } from 'lucide-react'
 
@@ -24,7 +23,6 @@ export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +43,10 @@ export default function LoginPage() {
         throw new Error(data.error || "Login failed")
       }
       
-      router.push("/dashboard")
+      // Use a full page navigation to prevent a race condition
+      // where the app checks for auth before the cookie is set.
+      window.location.assign("/dashboard")
+
     } catch (error) {
        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
        toast({
