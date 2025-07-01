@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
@@ -27,7 +28,7 @@ export async function GET() {
             JOIN modules m ON l.module_id = m.id
             WHERE m.course_id = ?
         `, course.id);
-        const totalLessons = totalLessonsResult.count;
+        const totalLessons = totalLessonsResult?.count || 0;
 
         if (totalLessons === 0) {
             continue;
@@ -41,9 +42,9 @@ export async function GET() {
             JOIN modules m ON l.module_id = m.id
             WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
         `, [userId, course.id]);
-        const completedLessons = completedLessonsResult.count;
+        const completedLessons = completedLessonsResult?.count || 0;
         
-        if (totalLessons === completedLessons) {
+        if (totalLessons > 0 && totalLessons === completedLessons) {
             coursesCompleted++;
             skillsAcquired.add(course.category);
         }
@@ -55,8 +56,9 @@ export async function GET() {
         FROM courses c
         JOIN modules m ON c.id = m.course_id
         JOIN lessons l ON m.id = l.module_id
-        JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
-        LIMIT 3
+        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
+        ORDER BY c.id
+        LIMIT 5
     `, userId);
 
     const coursesWithProgress = [];
@@ -67,7 +69,7 @@ export async function GET() {
             JOIN modules m ON l.module_id = m.id
             WHERE m.course_id = ?
         `, course.id);
-        const totalLessons = totalLessonsResult.count;
+        const totalLessons = totalLessonsResult?.count || 0;
         
         let progress = 0;
         if (totalLessons > 0) {
@@ -78,10 +80,13 @@ export async function GET() {
                 JOIN modules m ON l.module_id = m.id
                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
             `, [userId, course.id]);
-            const completedLessons = completedLessonsResult.count;
+            const completedLessons = completedLessonsResult?.count || 0;
             progress = Math.floor((completedLessons / totalLessons) * 100);
         }
-        coursesWithProgress.push({ ...course, progress });
+        
+        if (progress < 100) {
+           coursesWithProgress.push({ ...course, progress });
+        }
     }
 
     return NextResponse.json({
@@ -89,7 +94,7 @@ export async function GET() {
             coursesCompleted,
             skillsAcquired: skillsAcquired.size,
         },
-        myCourses: coursesWithProgress,
+        myCourses: coursesWithProgress.slice(0, 3), // Ensure we only send 3
     });
 
   } catch (error) {
