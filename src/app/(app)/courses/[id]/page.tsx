@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -200,12 +199,12 @@ export default function CourseDetailPage() {
                     <ul className="space-y-1">
                       {module.lessons.map((lesson) => (
                         <li key={lesson.id || lesson.title}>
-                           <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="flex items-center justify-between text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors">
-                            <div className="flex items-center">
+                           <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center min-w-0">
                                 {getIcon(lesson.type)}
-                                <span>{lesson.title}</span>
+                                <span className="break-words">{lesson.title}</span>
                             </div>
-                            <CheckCircle className={`h-5 w-5 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                            <CheckCircle className={`h-5 w-5 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
                            </Link>
                         </li>
                       ))}
