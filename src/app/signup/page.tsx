@@ -7,16 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Logo } from "@/components/logo"
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2">
       <div className="flex items-center justify-center py-12">
         <div className="mx-auto grid w-[350px] gap-8">
           <div className="grid gap-4">
             <Logo />
-            <h1 className="text-3xl font-bold font-headline">Login</h1>
+            <h1 className="text-3xl font-bold font-headline">Sign Up</h1>
             <p className="text-balance text-muted-foreground">
-              Enter your credentials to login to your account
+              Enter your information to create an account
             </p>
           </div>
           <div className="grid gap-6">
@@ -42,17 +42,14 @@ export default function LoginPage() {
             </div>
             <Link href="/dashboard" className="w-full">
               <Button type="submit" className="w-full">
-                Login
+                Sign Up
               </Button>
             </Link>
-            <Button variant="outline" className="w-full">
-              Login with SSO
-            </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/" className="underline">
+              Login
             </Link>
           </div>
         </div>
