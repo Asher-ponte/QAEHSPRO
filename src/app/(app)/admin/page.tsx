@@ -46,10 +46,12 @@ export default function AdminPage() {
             Manage your organization's learning platform.
           </p>
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create New Course
-        </Button>
+        <Link href="/admin/courses/new">
+          <Button>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create New Course
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
