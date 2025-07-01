@@ -38,36 +38,39 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 
 
+// Loosened schema for a better UX during form building.
+// Strict validation is handled by the server.
 const quizOptionSchema = z.object({
-  text: z.string().min(1, "Option text cannot be empty."),
+  text: z.string(),
 });
 
 const quizQuestionSchema = z.object({
-  text: z.string().min(1, "Question text cannot be empty."),
-  options: z.array(quizOptionSchema).min(2, "Must have at least two options."),
-  correctOptionIndex: z.coerce.number({invalid_type_error: "A correct option must be selected."}).min(0, "A correct option must be selected."),
+  text: z.string(),
+  options: z.array(quizOptionSchema),
+  correctOptionIndex: z.coerce.number(),
 });
 
 const lessonSchema = z.object({
-  title: z.string().min(3, "Lesson title must be at least 3 characters."),
-  type: z.enum(["video", "document", "quiz"], { required_error: "Please select a lesson type."}),
+  title: z.string(),
+  type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
-  title: z.string().min(3, "Module title must be at least 3 characters."),
-  lessons: z.array(lessonSchema).min(1, "Each module must have at least one lesson."),
+  title: z.string(),
+  lessons: z.array(lessonSchema),
 });
 
 const courseSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters."),
-  description: z.string().min(10, "Description must be at least 10 characters."),
-  category: z.string({ required_error: "Please select a category." }),
-  image: z.string().url("Must be a valid URL.").optional().or(z.literal('')),
+  title: z.string(),
+  description: z.string(),
+  category: z.string(),
+  image: z.string().url().optional().or(z.literal('')),
   aiHint: z.string().optional(),
-  modules: z.array(moduleSchema).min(1, "A course must have at least one module."),
+  modules: z.array(moduleSchema),
 })
+
 
 type CourseFormValues = z.infer<typeof courseSchema>
 
@@ -318,6 +321,7 @@ export default function CreateCoursePage() {
     defaultValues: {
       title: "",
       description: "",
+      category: "",
       image: "",
       aiHint: "",
       modules: [],
