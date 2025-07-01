@@ -6,7 +6,7 @@ import { useParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import {
   Accordion,
   AccordionContent,
@@ -131,9 +131,13 @@ export default function CourseDetailPage() {
                 <Skeleton className="h-4 w-full mb-2" />
                 <Skeleton className="h-4 w-2/3" />
               </CardContent>
+              <CardFooter className="p-6 pt-0 md:hidden">
+                <Skeleton className="h-10 w-full" />
+              </CardFooter>
             </Card>
           </div>
-          <div>
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-full hidden md:block" />
             <Card>
                 <CardHeader>
                     <Skeleton className="h-6 w-1/2" />
@@ -142,7 +146,6 @@ export default function CourseDetailPage() {
                     <Skeleton className="h-12 w-full" />
                     <Skeleton className="h-12 w-full" />
                     <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-10 w-full mt-6" />
                 </CardContent>
             </Card>
           </div>
@@ -172,11 +175,16 @@ export default function CourseDetailPage() {
             <h1 className="text-2xl md:text-3xl font-bold font-headline mb-2">{course.title}</h1>
             <p className="text-muted-foreground">{course.description}</p>
           </CardContent>
+          <CardFooter className="p-6 pt-0 md:hidden">
+            <Button asChild className="w-full" disabled={buttonDisabled}>
+                <Link href={buttonHref}>{buttonText}</Link>
+            </Button>
+          </CardFooter>
         </Card>
       </div>
 
       <div className="space-y-6">
-         <Button asChild className="w-full" disabled={buttonDisabled}>
+         <Button asChild className="w-full hidden md:flex" disabled={buttonDisabled}>
             <Link href={buttonHref}>{buttonText}</Link>
         </Button>
         <Card>
