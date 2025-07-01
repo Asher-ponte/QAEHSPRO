@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 
@@ -7,15 +8,14 @@ export async function GET() {
     const userId = 1; // Hardcoded user
 
     // Get all courses that the user has any progress in (started or completed).
+    // Using IFNULL to ensure completedLessons is never null.
     const coursesWithProgress = await db.all(`
       SELECT
         c.id,
         c.title,
         c.category,
-        -- Calculate total lessons for the course
         (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
-        -- Calculate completed lessons for the user in this course
-        SUM(CASE WHEN up.completed = 1 THEN 1 ELSE 0 END) as completedLessons
+        IFNULL(SUM(CASE WHEN up.completed = 1 THEN 1 ELSE 0 END), 0) as completedLessons
       FROM user_progress up
       JOIN lessons l ON up.lesson_id = l.id
       JOIN modules m ON l.module_id = m.id
@@ -29,8 +29,8 @@ export async function GET() {
     const myCourses = [];
 
     for (const course of coursesWithProgress) {
-        const total = course.totalLessons || 0;
-        const completed = course.completedLessons || 0;
+        const total = course.totalLessons;
+        const completed = course.completedLessons;
 
         if (total === 0) {
             continue; // Skip courses with no lessons
