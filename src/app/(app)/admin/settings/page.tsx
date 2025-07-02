@@ -33,6 +33,7 @@ import { Separator } from "@/components/ui/separator"
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
   companyLogoPath: z.string().optional(),
+  companyLogo2Path: z.string().optional(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>
@@ -44,7 +45,7 @@ export default function PlatformSettingsPage() {
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
-        defaultValues: { companyName: "", companyLogoPath: "" },
+        defaultValues: { companyName: "", companyLogoPath: "", companyLogo2Path: "" },
     });
 
     useEffect(() => {
@@ -54,7 +55,11 @@ export default function PlatformSettingsPage() {
                 const res = await fetch('/api/admin/settings');
                 if (!res.ok) throw new Error("Failed to fetch settings.");
                 const data = await res.json();
-                form.reset({ companyName: data.companyName, companyLogoPath: data.companyLogoPath || "" });
+                form.reset({
+                  companyName: data.companyName,
+                  companyLogoPath: data.companyLogoPath || "",
+                  companyLogo2Path: data.companyLogo2Path || ""
+                });
             } catch (error) {
                 toast({
                     variant: "destructive",
@@ -149,6 +154,22 @@ export default function PlatformSettingsPage() {
                                             </FormControl>
                                             <FormDescription>
                                                 Place your logo in `public/images` and enter the path here.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="companyLogo2Path"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Company Logo 2 Path</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="/images/your-second-logo.png" {...field} value={field.value ?? ''} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Optional second logo. Place in `public/images`.
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>

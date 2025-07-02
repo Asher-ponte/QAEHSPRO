@@ -12,6 +12,7 @@ interface CertificateData {
   certificateNumber: string | null;
   companyName: string;
   companyLogoPath: string | null;
+  companyLogo2Path: string | null;
   user: { username: string };
   course: { title: string };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
@@ -43,17 +44,30 @@ export function Certificate({ data }: { data: CertificateData }) {
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-                    {data.companyLogoPath && (
-                         <div className="relative h-24 w-auto max-w-xs mb-4">
-                            <Image 
-                                src={data.companyLogoPath} 
-                                alt={`${data.companyName} Logo`} 
-                                width={150} 
-                                height={96}
-                                className="object-contain"
-                            />
-                        </div>
-                    )}
+                    <div className="flex justify-center items-center gap-8 mb-4">
+                        {data.companyLogoPath && (
+                            <div className="relative h-24 w-auto max-w-xs">
+                                <Image 
+                                    src={data.companyLogoPath} 
+                                    alt={`${data.companyName} Logo`} 
+                                    width={150} 
+                                    height={96}
+                                    className="object-contain"
+                                />
+                            </div>
+                        )}
+                        {data.companyLogo2Path && (
+                            <div className="relative h-24 w-auto max-w-xs">
+                                <Image 
+                                    src={data.companyLogo2Path} 
+                                    alt={`${data.companyName} Secondary Logo`} 
+                                    width={150} 
+                                    height={96}
+                                    className="object-contain"
+                                />
+                            </div>
+                        )}
+                    </div>
 
                     <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                     

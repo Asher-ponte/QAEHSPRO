@@ -33,10 +33,11 @@ export async function GET(
             WHERE cs.course_id = ?
         `, certificate.course_id);
         
-        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path')");
+        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path')");
         
         const companyName = settings.find(s => s.key === 'company_name')?.value || 'Your Company Name';
         const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || null;
+        const companyLogo2Path = settings.find(s => s.key === 'company_logo_2_path')?.value || null;
 
         const responseData = {
             id: certificate.id,
@@ -44,6 +45,7 @@ export async function GET(
             certificateNumber: certificate.certificate_number,
             companyName: companyName,
             companyLogoPath: companyLogoPath,
+            companyLogo2Path: companyLogo2Path,
             user: {
                 username: user.username,
             },
