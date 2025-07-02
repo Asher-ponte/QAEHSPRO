@@ -236,17 +236,42 @@ export async function DELETE(
 ) {
     let db;
     try {
-        db = await getDb()
-        const { id: courseId } = params
+        db = await getDb();
+        const { id: courseId } = params;
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
-
+        
         await db.run('BEGIN TRANSACTION');
 
-        // By deleting the course, ON DELETE CASCADE will handle deleting all associated
-        // modules, lessons, and user_progress entries automatically.
+        // Manual cascade delete to ensure it works even if the DB schema was created without ON DELETE CASCADE.
+        
+        // 1. Find all modules for the course
+        const modules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
+        const moduleIds = modules.map(m => m.id);
+
+        if (moduleIds.length > 0) {
+            const moduleIdsPlaceholder = moduleIds.map(() => '?').join(',');
+
+            // 2. Find all lessons for those modules
+            const lessons = await db.all(`SELECT id FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, moduleIds);
+            const lessonIds = lessons.map(l => l.id);
+
+            // 3. Delete from user_progress for those lessons
+            if (lessonIds.length > 0) {
+                const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
+                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonIdsPlaceholder})`, lessonIds);
+            }
+
+            // 4. Delete from lessons for those modules
+            await db.run(`DELETE FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, moduleIds);
+        }
+
+        // 5. Delete from modules for the course
+        await db.run('DELETE FROM modules WHERE course_id = ?', courseId);
+
+        // 6. Finally, delete the course
         const result = await db.run('DELETE FROM courses WHERE id = ?', [courseId]);
 
         if (result.changes === 0) {
