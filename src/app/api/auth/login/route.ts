@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,16 +33,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(loginURL, { status: 302 });
     }
     
-    // On success, redirect to the dashboard and set the session cookie.
+    // Create a new session
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+    await db.run(
+        'INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)',
+        [sessionId, user.id, expiresAt.toISOString()]
+    );
+
     const redirectURL = new URL('/dashboard', request.url);
-    const response = NextResponse.redirect(redirectURL, { status: 303 }); // Use 303 See Other for POST-redirect-GET pattern
+    const response = NextResponse.redirect(redirectURL, { status: 303 });
     
-    response.cookies.set('session', user.id.toString(), {
+    response.cookies.set('session', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       path: '/',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      expires: expiresAt,
     });
 
     return response;

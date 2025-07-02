@@ -1,21 +1,18 @@
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { getCurrentUser } from '@/lib/session';
 
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+  const userId = user.id;
+  
   try {
     const db = await getDb();
-    const cookieStore = cookies();
-    const sessionId = cookieStore.get('session')?.value;
-
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const userId = parseInt(sessionId, 10);
-
-    // This query is now robust and won't fail if enrollments don't exist.
-    // It correctly calculates progress for courses the user has started.
+    
     const coursesWithProgress = await db.all(`
         SELECT
             c.id,

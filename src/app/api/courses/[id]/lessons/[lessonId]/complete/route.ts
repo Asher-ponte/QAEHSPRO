@@ -1,7 +1,8 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { cookies } from 'next/headers';
+import { getCurrentUser } from '@/lib/session';
+
 
 export async function POST(
     request: NextRequest, 
@@ -10,13 +11,11 @@ export async function POST(
     const db = await getDb()
     const { lessonId, id: courseId } = params;
 
-    const cookieStore = cookies();
-    const sessionId = cookieStore.get('session')?.value;
-
-    if (!sessionId) {
+    const user = await getCurrentUser();
+    if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const userId = parseInt(sessionId, 10);
+    const userId = user.id;
 
     try {
         // Use a transaction to ensure atomicity
@@ -66,5 +65,3 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to update progress' }, { status: 500 });
     }
 }
-
-    

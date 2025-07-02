@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { cookies } from 'next/headers';
+import { getCurrentUser } from '@/lib/session';
 
 export async function GET(
     request: NextRequest, 
@@ -11,13 +11,11 @@ export async function GET(
     const db = await getDb()
     const { lessonId } = params
     
-    const cookieStore = cookies();
-    const sessionId = cookieStore.get('session')?.value;
-
-    if (!sessionId) {
+    const user = await getCurrentUser();
+    if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const userId = parseInt(sessionId, 10);
+    const userId = user.id;
 
     // When a user views a lesson, create a progress entry if it doesn't exist.
     // This marks the course as "started" for the dashboard.
@@ -28,7 +26,7 @@ export async function GET(
 
     const lesson = await db.get(
         `SELECT 
-            l.id, l.title, l.type, l.content, l.image, l.aiHint,
+            l.id, l.title, l.type, l.content,
             m.id as module_id, m.title as module_title, 
             c.id as course_id, c.title as course_title,
             CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
@@ -56,6 +54,3 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch lesson' }, { status: 500 })
   }
 }
-
-    
-
