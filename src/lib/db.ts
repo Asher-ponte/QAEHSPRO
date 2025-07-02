@@ -203,7 +203,11 @@ export async function getDb() {
     if (!db) {
         db = await initializeDb();
     }
-    // Every time, ensure the admin user exists. This is self-healing.
-    await db.run("INSERT OR IGNORE INTO users (id, username, department, position, role) VALUES (?, ?, ?, ?, ?)", [1, 'Demo User', 'Administration', 'System Administrator', 'Admin']);
+    // Every time, ensure the admin user exists and has the correct role. This is self-healing.
+    await db.run("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)", [1, 'Demo User']);
+    await db.run(
+        "UPDATE users SET username = ?, department = ?, position = ?, role = ? WHERE id = ?",
+        ['Demo User', 'Administration', 'System Administrator', 'Admin', 1]
+    );
     return db;
 }
