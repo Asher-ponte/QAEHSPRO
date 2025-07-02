@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -42,15 +41,15 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     return (
         <div id="certificate-print-area" className="bg-background">
-            <div id="certificate-to-download" className="max-w-4xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[210/297]">
+            <div id="certificate-to-download" className="max-w-5xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[297/210]">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col h-full text-center">
                     {/* Header */}
-                    <header className="mb-4">
-                        <div className="flex justify-center items-center gap-x-8 gap-y-4 mb-6">
+                    <header className="mb-2">
+                        <div className="flex justify-center items-center gap-x-8 gap-y-4 mb-4">
                            {data.companyLogoPath && (
-                                <div className="relative h-20 w-40">
+                                <div className="relative h-16 w-32">
                                     <Image 
                                         src={data.companyLogoPath} 
                                         alt={`${data.companyName} Logo`} 
@@ -60,7 +59,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                             {data.companyLogo2Path && (
-                                 <div className="relative h-20 w-40">
+                                 <div className="relative h-16 w-32">
                                     <Image 
                                         src={data.companyLogo2Path} 
                                         alt={`${data.companyName} Secondary Logo`} 
@@ -70,28 +69,28 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                         </div>
-                        <h1 className="text-3xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                        <h1 className="text-2xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                          {data.companyAddress && (
-                            <p className="text-sm text-muted-foreground mt-1">{data.companyAddress}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{data.companyAddress}</p>
                         )}
                     </header>
 
                     {/* Main Content */}
-                    <main className="py-10">
-                        <h2 className="text-lg font-semibold text-muted-foreground tracking-widest uppercase pt-4">
+                    <main className="py-2">
+                        <h2 className="text-md font-semibold text-muted-foreground tracking-widest uppercase pt-2">
                             Certificate of Completion
                         </h2>
-                        <p className="text-base mt-8">This certificate is proudly presented to</p>
-                        <h1 className="text-6xl font-bold my-4 text-black dark:text-white">
+                        <p className="text-sm mt-4">This certificate is proudly presented to</p>
+                        <h1 className="text-5xl font-bold my-2 text-black dark:text-white">
                             {data.user.username}
                         </h1>
-                        <p className="text-base max-w-2xl mx-auto">
+                        <p className="text-sm max-w-2xl mx-auto">
                             for successfully completing the course
                         </p>
-                        <h3 className="text-3xl font-semibold my-4">
+                        <h3 className="text-2xl font-semibold my-2">
                            "{data.course.title}"
                         </h3>
-                        <p className="text-base mt-4">
+                        <p className="text-sm mt-2">
                             on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                         </p>
                     </main>
@@ -100,11 +99,22 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <div className="flex-grow" />
 
                     {/* Footer */}
-                    <footer>
-                        <div className="flex flex-wrap justify-around items-end gap-x-8 gap-y-4 mb-4">
+                    <footer className="flex justify-between items-end gap-x-8 gap-y-4">
+                        <div className="flex flex-col items-center text-center">
+                            {qrCodeDataUrl && (
+                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={70} height={70} />
+                            )}
+                            {data.certificateNumber && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    Certificate No: {data.certificateNumber}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap justify-center items-end gap-x-8 gap-y-4">
                             {data.signatories.map((s, i) => (
-                                <div key={i} className="flex flex-col items-center min-w-[200px] text-center">
-                                    <div className="relative h-12 w-40 mb-1">
+                                <div key={i} className="flex flex-col items-center min-w-[180px] text-center">
+                                    <div className="relative h-12 w-32 mb-1">
                                         <Image 
                                             src={s.signatureImagePath} 
                                             alt={`Signature of ${s.name}`} 
@@ -118,16 +128,6 @@ export function Certificate({ data }: { data: CertificateData }) {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                         <div className="flex flex-col items-center mt-6">
-                            {qrCodeDataUrl && (
-                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={70} height={70} />
-                            )}
-                            {data.certificateNumber && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    Certificate No: {data.certificateNumber}
-                                </p>
-                            )}
                         </div>
                     </footer>
                 </div>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -108,9 +107,9 @@ export default function CertificatePage() {
         });
         const imgData = canvas.toDataURL('image/png');
 
-        // Create a portrait A4 PDF
+        // Create a landscape A4 PDF
         const pdf = new jsPDF({
-            orientation: 'portrait',
+            orientation: 'landscape',
             unit: 'pt',
             format: 'a4'
         });
