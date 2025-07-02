@@ -39,7 +39,7 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     return (
         <div id="certificate-print-area" className="bg-background">
-            <div className="max-w-2xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
+            <div id="certificate-to-download" className="max-w-2xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">

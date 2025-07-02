@@ -87,7 +87,7 @@ export default function CertificatePage() {
     if (!data || isDownloading) return;
     setIsDownloading(true);
 
-    const certificateElement = document.getElementById('certificate-print-area');
+    const certificateElement = document.getElementById('certificate-to-download');
     if (!certificateElement) {
         toast({
             variant: "destructive",
