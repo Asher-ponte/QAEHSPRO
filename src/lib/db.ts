@@ -144,6 +144,7 @@ async function initializeDb() {
 
         // Seed Users
         await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Demo User', 'Administration', 'System Administrator', 'Admin']);
+        await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png')");
@@ -270,5 +271,10 @@ export async function getDb() {
         "UPDATE users SET username = ?, department = ?, position = ?, role = ? WHERE id = ?",
         ['Demo User', 'Administration', 'System Administrator', 'Admin', 1]
     );
+
+    // Ensure Jonathan Dumalaos exists and is an admin
+    await db.run("INSERT OR IGNORE INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+    await db.run("UPDATE users SET role = ? WHERE username = ?", ['Admin', 'Jonathan Dumalaos']);
+    
     return db;
 }
