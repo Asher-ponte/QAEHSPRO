@@ -28,7 +28,8 @@ export function Certificate({ data }: { data: CertificateData }) {
             const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}`;
             QRCode.toDataURL(validationUrl, {
                 errorCorrectionLevel: 'M',
-                width: 128
+                width: 128,
+                margin: 1,
             })
             .then(url => {
                 setQrCodeDataUrl(url);
@@ -45,10 +46,10 @@ export function Certificate({ data }: { data: CertificateData }) {
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col h-full text-center">
-                    {/* Main Content */}
-                    <div className="flex-grow flex flex-col items-center space-y-2">
-                         <div className="flex justify-center items-center gap-8 mb-2">
-                            {data.companyLogoPath && (
+                    {/* Header */}
+                    <header>
+                        <div className="flex justify-center items-center gap-x-8 gap-y-4 mb-4">
+                           {data.companyLogoPath && (
                                 <div className="relative h-16 w-32">
                                     <Image 
                                         src={data.companyLogoPath} 
@@ -69,40 +70,40 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                         </div>
-
                         <h1 className="text-2xl font-bold tracking-wider text-primary">{data.companyName}</h1>
-                        
-                        {data.companyAddress && (
+                         {data.companyAddress && (
                             <p className="text-xs text-muted-foreground">{data.companyAddress}</p>
                         )}
+                    </header>
 
-                        <h2 className="text-lg font-semibold text-muted-foreground tracking-widest uppercase pt-2">
+                    {/* Main Content */}
+                    <main className="py-6">
+                        <h2 className="text-base font-semibold text-muted-foreground tracking-widest uppercase pt-2">
                             Certificate of Completion
                         </h2>
-
-                        <p className="text-sm pt-4">This certificate is proudly presented to</p>
-
-                        <h1 className="text-3xl font-bold">
+                        <p className="text-sm mt-6">This certificate is proudly presented to</p>
+                        <h1 className="text-4xl font-bold my-2">
                             {data.user.username}
                         </h1>
-
                         <p className="text-sm max-w-2xl">
                             for successfully completing the course
                         </p>
-                        <h3 className="text-xl font-semibold">
+                        <h3 className="text-2xl font-semibold my-2">
                            "{data.course.title}"
                         </h3>
-
                         <p className="text-sm">
                             on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                         </p>
-                    </div>
+                    </main>
 
-                    {/* Signatories and Footer */}
-                    <div className="mt-auto pt-4">
+                    {/* This div will grow to push the footer to the bottom */}
+                    <div className="flex-grow" />
+
+                    {/* Footer */}
+                    <footer>
                         <div className="flex flex-wrap justify-around items-end gap-x-8 gap-y-4 mb-4">
                             {data.signatories.map((s, i) => (
-                                <div key={i} className="flex flex-col items-center min-w-[150px]">
+                                <div key={i} className="flex flex-col items-center min-w-[150px] text-center">
                                     <div className="relative h-12 w-32 mb-1">
                                         <Image 
                                             src={s.signatureImagePath} 
@@ -111,15 +112,14 @@ export function Certificate({ data }: { data: CertificateData }) {
                                             className="object-contain invert-0 dark:invert"
                                         />
                                     </div>
-                                    <div className="border-t border-foreground pt-1 w-full text-center">
+                                    <div className="border-t border-foreground pt-1 w-full">
                                         <p className="text-xs font-semibold whitespace-nowrap">{s.name}</p>
                                         {s.position && <p className="text-[10px] text-muted-foreground whitespace-nowrap">{s.position}</p>}
                                     </div>
                                 </div>
                             ))}
                         </div>
-
-                         <div className="flex flex-col items-center mt-4">
+                         <div className="flex flex-col items-center mt-2">
                             {qrCodeDataUrl && (
                                 <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={60} height={60} />
                             )}
@@ -129,7 +129,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </p>
                             )}
                         </div>
-                    </div>
+                    </footer>
                 </div>
             </div>
         </div>
