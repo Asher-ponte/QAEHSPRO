@@ -51,6 +51,7 @@ export async function POST(
         const currentIndex = allLessons.findIndex(l => l.id === parseInt(lessonId, 10));
 
         let nextLessonId: number | null = null;
+        let certificateId: number | null = null;
         if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
             nextLessonId = allLessons[currentIndex + 1].id;
         } else {
@@ -68,12 +69,14 @@ export async function POST(
                     'INSERT OR IGNORE INTO certificates (user_id, course_id, completion_date) VALUES (?, ?, ?)',
                     [userId, courseId, new Date().toISOString()]
                 );
+                const newCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+                certificateId = newCertificate?.id ?? null;
             }
         }
         
         await db.run('COMMIT');
 
-        return NextResponse.json({ success: true, nextLessonId });
+        return NextResponse.json({ success: true, nextLessonId, certificateId });
 
     } catch (error) {
         await db.run('ROLLBACK');

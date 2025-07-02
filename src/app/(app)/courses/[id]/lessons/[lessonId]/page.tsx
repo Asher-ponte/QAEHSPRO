@@ -262,13 +262,21 @@ export default function LessonPage() {
             if (!res.ok || !data.success) {
                 throw new Error(data.error || 'Failed to update progress');
             }
-            toast({
-                title: "Lesson Completed!",
-                description: "Moving to the next lesson.",
-            });
-
+            
             if (data.nextLessonId) {
+                 toast({
+                    title: "Lesson Completed!",
+                    description: "Moving to the next lesson.",
+                });
                 router.push(`/courses/${lesson.course_id}/lessons/${data.nextLessonId}`);
+            } else if (data.certificateId) {
+                 toast({
+                    title: "Congratulations!",
+                    description: "You've completed the course. Redirecting to your certificate...",
+                });
+                setTimeout(() => {
+                    router.push(`/profile/certificates/${data.certificateId}`);
+                }, 2000);
             } else {
                  toast({
                     title: "Course Completed!",
