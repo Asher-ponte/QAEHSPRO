@@ -55,7 +55,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                         </div>
                     )}
 
-                    <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                    <h1 className="text-4xl font-bold tracking-wider text-primary">QAEHS PRO ACADEMY</h1>
                     
                     <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase">
                         Certificate of Completion
