@@ -14,13 +14,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, Settings, User } from "lucide-react"
+import { CreditCard, Settings, User, LogOut } from "lucide-react"
 import { useUser } from "@/hooks/use-user"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/hooks/use-toast"
 
 export function UserNav() {
   const { user, isLoading } = useUser()
   const router = useRouter()
+  const { toast } = useToast()
+
+  const handleLogout = async () => {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        toast({
+            title: "Logged Out",
+            description: "You have been successfully logged out.",
+        });
+        router.push('/login');
+        router.refresh(); // This is important to clear client-side cache
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Logout Failed",
+            description: "Could not log out. Please try again.",
+        });
+    }
+  }
 
   if (isLoading) {
     return <Skeleton className="h-10 w-10 rounded-full" />
@@ -61,6 +81,11 @@ export function UserNav() {
             <span>Settings</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

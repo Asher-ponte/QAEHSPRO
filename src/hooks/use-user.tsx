@@ -2,6 +2,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 interface User {
   id: number;
@@ -21,9 +23,11 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchUserData() {
+      setIsLoading(true);
       try {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
@@ -31,21 +35,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
           setUser(userData);
         } else {
           setUser(null);
+          router.push('/login');
         }
       } catch (error) {
         console.error("Failed to fetch user", error);
         setUser(null);
+        router.push('/login');
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchUserData();
-  }, []);
+  }, [router]);
 
   return (
     <UserContext.Provider value={{ user, isLoading }}>
-      {children}
+      {/* Show a loading state or nothing while checking auth */}
+      {isLoading ? (
+        <div className="flex h-screen w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      ) : user ? (
+        children
+      ) : null}
     </UserContext.Provider>
   );
 }

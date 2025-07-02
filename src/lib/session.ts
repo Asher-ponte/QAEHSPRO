@@ -2,6 +2,7 @@
 'use server'
 
 import { getDb } from '@/lib/db';
+import { cookies } from 'next/headers';
 
 interface User {
   id: number;
@@ -12,18 +13,24 @@ interface User {
 }
 
 /**
- * Gets the current user. Since authentication has been removed,
- * this function returns a static, hardcoded "Demo User".
- * This allows the rest of the application to function without
- * needing to be refactored.
+ * Gets the current user from the session cookie.
  */
 export async function getCurrentUser(): Promise<User | null> {
-  // In a real app, you'd get this from a session or token.
-  // For this demo, we'll fetch the default admin user from the DB.
   try {
+    const sessionId = cookies().get('session_id')?.value;
+    
+    if (!sessionId) {
+      return null;
+    }
+    
     const db = await getDb();
-    // The default user is ID 1
-    const user = await db.get<User>('SELECT * FROM users WHERE id = ?', 1);
+    const userId = parseInt(sessionId, 10);
+    
+    if (isNaN(userId)) {
+        return null;
+    }
+
+    const user = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
     return user ?? null;
   } catch (error) {
     console.error("Failed to get current user from DB:", error);
