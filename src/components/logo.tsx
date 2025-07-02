@@ -6,12 +6,12 @@ export function Logo() {
       <Image 
         src="/images/logo.png" 
         alt="QAEHS PRO Logo" 
-        width={32} 
-        height={32} 
+        width={40} 
+        height={40} 
         className="rounded-lg"
         unoptimized
       />
-      <span className="text-xl font-bold font-headline text-primary">
+      <span className="text-2xl font-bold font-headline text-primary">
         QAEHS PRO
       </span>
     </div>
