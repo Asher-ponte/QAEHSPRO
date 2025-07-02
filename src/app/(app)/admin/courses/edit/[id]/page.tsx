@@ -11,8 +11,8 @@ import { useParams, useRouter } from "next/navigation"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,7 +24,13 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
 
+interface SignatoryOption {
+    id: number;
+    name: string;
+    position: string | null;
+}
 
 const quizOptionSchema = z.object({
   text: z.string(),
@@ -59,6 +65,7 @@ const courseSchema = z.object({
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
+  signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -70,6 +77,81 @@ const courseSchema = z.object({
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>
+
+
+function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
+    const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAllSignatories = async () => {
+            setIsLoading(true);
+            try {
+                const res = await fetch('/api/admin/signatories');
+                if (!res.ok) throw new Error("Failed to load signatories");
+                setSignatories(await res.json());
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAllSignatories();
+    }, []);
+
+    return (
+         <FormField
+            control={control}
+            name="signatoryIds"
+            render={() => (
+                <FormItem>
+                    {isLoading ? (
+                         <div className="space-y-2">
+                            <Skeleton className="h-5 w-1/4" />
+                            <Skeleton className="h-6 w-1/2" />
+                            <Skeleton className="h-6 w-1/2" />
+                        </div>
+                    ) : signatories.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {signatories.map((signatory) => (
+                                <FormField
+                                    key={signatory.id}
+                                    control={control}
+                                    name="signatoryIds"
+                                    render={({ field }) => {
+                                        return (
+                                            <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(signatory.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            return checked
+                                                                ? field.onChange([...field.value, signatory.id])
+                                                                : field.onChange(field.value?.filter((value) => value !== signatory.id));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                    {signatory.name}
+                                                    {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                                </FormLabel>
+                                            </FormItem>
+                                        );
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                         <p className="text-sm text-muted-foreground">
+                            No signatories found. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
+                        </p>
+                    )}
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    )
+}
 
 function QuizBuilder({ moduleIndex, lessonIndex, control }: { moduleIndex: number, lessonIndex: number, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
@@ -368,6 +450,7 @@ export default function EditCoursePage() {
       startDate: null,
       endDate: null,
       modules: [],
+      signatoryIds: [],
     },
     mode: "onChange"
   });
@@ -383,7 +466,10 @@ export default function EditCoursePage() {
                 throw new Error("Failed to fetch course data");
             }
             const data = await res.json();
-            form.reset(data);
+            form.reset({
+                ...data,
+                signatoryIds: data.signatoryIds || []
+            });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
             toast({
@@ -415,6 +501,7 @@ export default function EditCoursePage() {
       imagePath: values.imagePath,
       startDate: values.startDate,
       endDate: values.endDate,
+      signatoryIds: values.signatoryIds,
       modules: values.modules.map(module => ({
         id: module.id,
         title: module.title,
@@ -503,231 +590,246 @@ export default function EditCoursePage() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card>
-                <CardContent className="pt-6">
+                <CardHeader>
+                    <CardTitle>Course Details</CardTitle>
+                    <CardDescription>
+                        Basic information about the course.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
                     <div className="space-y-8">
-                    <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Course Title</FormLabel>
-                            <FormControl>
-                            <Input placeholder="e.g., Introduction to Marketing" {...field} />
-                            </FormControl>
-                            <FormDescription>
-                            A clear and concise title for the course.
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
+                        <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Course Title</FormLabel>
+                                <FormControl>
+                                <Input placeholder="e.g., Introduction to Marketing" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                A clear and concise title for the course.
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
 
-                    <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Course Description</FormLabel>
-                            <FormControl>
-                            <Textarea
-                                placeholder="Describe what the course is about..."
-                                className="resize-none"
-                                {...field}
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Course Description</FormLabel>
+                                <FormControl>
+                                <Textarea
+                                    placeholder="Describe what the course is about..."
+                                    className="resize-none"
+                                    {...field}
+                                />
+                                </FormControl>
+                                <FormDescription>
+                                A brief summary of the course content and learning objectives.
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <FormField
+                                control={form.control}
+                                name="category"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Category</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                        <SelectValue placeholder="Select a category" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="Management">Management</SelectItem>
+                                        <SelectItem value="Technical Skills">Technical Skills</SelectItem>
+                                        <SelectItem value="Compliance">Compliance</SelectItem>
+                                        <SelectItem value="Soft Skills">Soft Skills</SelectItem>
+                                    </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                    Categorize the course to help users find it.
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
                             />
-                            </FormControl>
-                            <FormDescription>
-                            A brief summary of the course content and learning objectives.
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <FormField
-                            control={form.control}
-                            name="category"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Category</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a category" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="Management">Management</SelectItem>
-                                    <SelectItem value="Technical Skills">Technical Skills</SelectItem>
-                                    <SelectItem value="Compliance">Compliance</SelectItem>
-                                    <SelectItem value="Soft Skills">Soft Skills</SelectItem>
-                                </SelectContent>
-                                </Select>
-                                <FormDescription>
-                                Categorize the course to help users find it.
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="imagePath"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Image Path</FormLabel>
-                                <FormControl>
-                                <Input placeholder="/images/course-cover.png" {...field} value={field.value ?? ''} />
-                                </FormControl>
-                                <FormDescription>
-                                Place image in `public/images` folder. Ex: /images/cover.png
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <FormField
-                            control={form.control}
-                            name="startDate"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                <FormLabel>Start Date</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
+                            <FormField
+                                control={form.control}
+                                name="imagePath"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Image Path</FormLabel>
                                     <FormControl>
-                                        <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                            "w-full justify-start text-left font-normal",
-                                            !field.value && "text-muted-foreground"
-                                        )}
-                                        >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {field.value ? (
-                                            format(new Date(field.value), "PPP")
-                                        ) : (
-                                            <span>Pick a start date</span>
-                                        )}
-                                        </Button>
+                                    <Input placeholder="/images/course-cover.png" {...field} value={field.value ?? ''} />
                                     </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value ? new Date(field.value) : undefined}
-                                        onSelect={(date) => field.onChange(date?.toISOString())}
-                                        initialFocus
-                                    />
-                                    </PopoverContent>
-                                </Popover>
-                                <FormDescription>
-                                    Optional: When the course becomes active.
-                                </FormDescription>
-                                <FormMessage />
+                                    <FormDescription>
+                                    Place image in `public/images` folder. Ex: /images/cover.png
+                                    </FormDescription>
+                                    <FormMessage />
                                 </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="endDate"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                <FormLabel>End Date</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <FormControl>
-                                        <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                            "w-full justify-start text-left font-normal",
-                                            !field.value && "text-muted-foreground"
-                                        )}
-                                        >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {field.value ? (
-                                            format(new Date(field.value), "PPP")
-                                        ) : (
-                                            <span>Pick an end date</span>
-                                        )}
-                                        </Button>
-                                    </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value ? new Date(field.value) : undefined}
-                                        onSelect={(date) => field.onChange(date?.toISOString())}
-                                        initialFocus
-                                    />
-                                    </PopoverContent>
-                                </Popover>
-                                <FormDescription>
-                                    Optional: When the course becomes archived.
-                                </FormDescription>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
+                                )}
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <FormField
+                                control={form.control}
+                                name="startDate"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                    <FormLabel>Start Date</FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <FormControl>
+                                            <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                                "w-full justify-start text-left font-normal",
+                                                !field.value && "text-muted-foreground"
+                                            )}
+                                            >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? (
+                                                format(new Date(field.value), "PPP")
+                                            ) : (
+                                                <span>Pick a start date</span>
+                                            )}
+                                            </Button>
+                                        </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={field.value ? new Date(field.value) : undefined}
+                                            onSelect={(date) => field.onChange(date?.toISOString())}
+                                            initialFocus
+                                        />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormDescription>
+                                        Optional: When the course becomes active.
+                                    </FormDescription>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="endDate"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                    <FormLabel>End Date</FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <FormControl>
+                                            <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                                "w-full justify-start text-left font-normal",
+                                                !field.value && "text-muted-foreground"
+                                            )}
+                                            >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? (
+                                                format(new Date(field.value), "PPP")
+                                            ) : (
+                                                <span>Pick an end date</span>
+                                            )}
+                                            </Button>
+                                        </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={field.value ? new Date(field.value) : undefined}
+                                            onSelect={(date) => field.onChange(date?.toISOString())}
+                                            initialFocus
+                                        />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormDescription>
+                                        Optional: When the course becomes archived.
+                                    </FormDescription>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                     </div>
                 </CardContent>
             </Card>
 
             <Card>
-                <CardContent className="pt-6">
-                    <div className="space-y-4">
-                        <div>
-                            <h3 className="text-lg font-medium">Course Content</h3>
-                             <p className="text-sm text-muted-foreground">
-                                Add modules and lessons. Use the Quiz Builder for interactive questions.
-                            </p>
-                        </div>
-                         <Separator />
-                        
-                        <div className="space-y-6">
-                            {fields.map((field, index) => (
-                                <Card key={field.id} className="p-4 border-dashed relative">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute top-2 right-2 h-8 w-8"
-                                        onClick={() => remove(index)}
-                                    >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                        <span className="sr-only">Remove Module</span>
-                                    </Button>
-                                    <div className="space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name={`modules.${index}.title`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                <FormLabel>Module {index + 1} Title</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="e.g., Fundamentals" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <LessonFields moduleIndex={index} control={form.control} />
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
+                <CardHeader>
+                    <CardTitle>Certificate Signatories</CardTitle>
+                    <CardDescription>
+                        Choose which signatories will appear on this course's certificate of completion.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <SignatoriesField control={form.control} />
+                </CardContent>
+            </Card>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null }] })}
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> Add Module
-                        </Button>
-                        <FormMessage>{form.formState.errors.modules?.message}</FormMessage>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Course Content</CardTitle>
+                    <CardDescription>
+                        Add modules and lessons. Use the Quiz Builder for interactive questions.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-6">
+                        {fields.map((field, index) => (
+                            <Card key={field.id} className="p-4 border-dashed relative">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute top-2 right-2 h-8 w-8"
+                                    onClick={() => remove(index)}
+                                >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                    <span className="sr-only">Remove Module</span>
+                                </Button>
+                                <div className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name={`modules.${index}.title`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                            <FormLabel>Module {index + 1} Title</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="e.g., Fundamentals" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <LessonFields moduleIndex={index} control={form.control} />
+                                </div>
+                            </Card>
+                        ))}
                     </div>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-6"
+                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null }] })}
+                    >
+                        <Plus className="mr-2 h-4 w-4" /> Add Module
+                    </Button>
+                    <FormMessage>{form.formState.errors.modules?.message}</FormMessage>
                 </CardContent>
             </Card>
             

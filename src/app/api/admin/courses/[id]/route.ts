@@ -63,6 +63,7 @@ const courseSchema = z.object({
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
+  signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -113,9 +114,13 @@ export async function GET(
 
         course.modules = modules;
 
+        const assignedSignatories = await db.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
+        const signatoryIds = assignedSignatories.map(s => s.signatory_id);
+
         return NextResponse.json({
             ...course,
             imagePath: course.imagePath ?? null,
+            signatoryIds,
         });
 
     } catch (error) {
@@ -145,7 +150,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, startDate, endDate } = parsedData.data;
+        const { title, description, category, modules, imagePath, startDate, endDate, signatoryIds } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
@@ -155,7 +160,17 @@ export async function PUT(
             [title, description, category, imagePath, startDate, endDate, courseId]
         );
 
-        // 2. Get existing module IDs to manage deletions
+        // 2. Update signatories
+        await db.run('DELETE FROM course_signatories WHERE course_id = ?', courseId);
+        if (signatoryIds && signatoryIds.length > 0) {
+            const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+            for (const signatoryId of signatoryIds) {
+                await stmt.run(courseId, signatoryId);
+            }
+            await stmt.finalize();
+        }
+
+        // 3. Get existing module IDs to manage deletions
         const existingModules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
         const existingModuleIds = new Set(existingModules.map(m => m.id));
         
@@ -169,7 +184,7 @@ export async function PUT(
         }
 
 
-        // 3. Upsert modules and lessons
+        // 4. Upsert modules and lessons
         for (const [moduleIndex, moduleData] of modules.entries()) {
             let moduleId = moduleData.id;
 

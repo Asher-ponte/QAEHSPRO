@@ -132,6 +132,16 @@ async function initializeDb() {
             );
         `);
 
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS course_signatories (
+                course_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (course_id, signatory_id),
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+            );
+        `);
+
 
         // Seed Users
         await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Demo User', 'Administration', 'System Administrator', 'Admin']);
@@ -200,6 +210,16 @@ async function initializeDb() {
                 value TEXT
             );
         `).catch(e => console.log("Could not create app_settings table, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS course_signatories (
+                course_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (course_id, signatory_id),
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+            );
+        `).catch(e => console.log("Could not create course_signatories table, it might exist already:", e.message));
 
         await dbInstance.exec(`
             ALTER TABLE signatories ADD COLUMN position TEXT;

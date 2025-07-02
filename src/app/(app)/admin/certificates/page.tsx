@@ -119,7 +119,7 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
                 <DialogHeader>
                     <DialogTitle>Add New Signatory</DialogTitle>
                     <DialogDescription>
-                        This signatory will appear on generated certificates.
+                        This signatory will be available to add to any course certificate.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -265,7 +265,9 @@ export default function ManageCertificatesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Certificate Signatories</CardTitle>
-          <CardDescription>A list of all signatories that will appear on certificates.</CardDescription>
+          <CardDescription>
+            Manage the global pool of signatories. You can assign specific signatories to each course on the course creation or edit page.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

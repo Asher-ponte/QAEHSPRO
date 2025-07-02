@@ -46,6 +46,7 @@ const courseSchema = z.object({
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
+  signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath, startDate, endDate } = parsedData.data;
+    const { title, description, category, modules, imagePath, startDate, endDate, signatoryIds } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
@@ -108,6 +109,15 @@ export async function POST(request: NextRequest) {
     const courseId = courseResult.lastID;
     if (!courseId) {
         throw new Error('Failed to create course');
+    }
+
+    // Assign signatories
+    if (signatoryIds && signatoryIds.length > 0) {
+        const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+        for (const signatoryId of signatoryIds) {
+            await stmt.run(courseId, signatoryId);
+        }
+        await stmt.finalize();
     }
 
     for (const [moduleIndex, moduleData] of modules.entries()) {
