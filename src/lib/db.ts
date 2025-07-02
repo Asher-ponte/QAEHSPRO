@@ -68,7 +68,6 @@ async function initializeDb() {
             user_id INTEGER NOT NULL,
             lesson_id INTEGER NOT NULL,
             completed BOOLEAN NOT NULL DEFAULT 0,
-            last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
             UNIQUE(user_id, lesson_id)
@@ -94,18 +93,19 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
         console.log("Database seeded successfully.");
-    } else {
-        // Run migrations for existing databases
-        const columns = await dbInstance.all("PRAGMA table_info(user_progress)");
-        const hasLastAccessedColumn = columns.some(col => col.name === 'last_accessed_at');
+    }
 
-        if (!hasLastAccessedColumn) {
-            console.log("Upgrading database: Adding 'last_accessed_at' to 'user_progress' table.");
-            await dbInstance.exec(`
-                ALTER TABLE user_progress ADD COLUMN last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP;
-            `);
-            console.log("Database upgrade complete.");
-        }
+    // Always run migrations to ensure schema is up-to-date.
+    // This is idempotent and safe to run multiple times.
+    const columns = await dbInstance.all("PRAGMA table_info(user_progress)");
+    const hasLastAccessedColumn = columns.some(col => col.name === 'last_accessed_at');
+
+    if (!hasLastAccessedColumn) {
+        console.log("Running migration: Adding 'last_accessed_at' to 'user_progress' table.");
+        await dbInstance.exec(`
+            ALTER TABLE user_progress ADD COLUMN last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+        `);
+        console.log("Migration complete.");
     }
 
 
