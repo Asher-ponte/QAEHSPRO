@@ -13,29 +13,8 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // Defensive check: see if the migration has run
-    const progressTableInfo = await db.all("PRAGMA table_info(user_progress)");
-    const hasLastAccessedColumn = progressTableInfo.some(col => col.name === 'last_accessed_at');
-
-    let courses: any[];
-
-    if (hasLastAccessedColumn) {
-      // If migration has run, get courses sorted by most recent activity
-      courses = await db.all(`
-        SELECT
-          c.*,
-          MAX(up.last_accessed_at) as lastAccessed
-        FROM courses c
-        JOIN modules m ON m.course_id = c.id
-        JOIN lessons l ON l.module_id = m.id
-        JOIN user_progress up ON up.lesson_id = l.id
-        WHERE up.user_id = ?
-        GROUP BY c.id
-        ORDER BY lastAccessed DESC
-      `, [userId]);
-    } else {
-      // Fallback if migration hasn't run yet. Get courses without sorting by time.
-      courses = await db.all(`
+    // Get all courses that the user has started (i.e., has an entry in user_progress).
+    const courses = await db.all(`
         SELECT DISTINCT c.*
         FROM courses c
         JOIN modules m ON m.course_id = c.id
@@ -43,7 +22,6 @@ export async function GET() {
         JOIN user_progress up ON up.lesson_id = l.id
         WHERE up.user_id = ?
       `, [userId]);
-    }
 
 
     if (courses.length === 0) {
@@ -100,7 +78,6 @@ export async function GET() {
         image: course.image,
         aiHint: course.aiHint,
         progress: progress,
-        lastAccessed: hasLastAccessedColumn ? course.lastAccessed : null, // Safely access property
         continueLessonId: firstUncompletedLessonResult?.id || allLessons[0]?.id || null,
       });
     }

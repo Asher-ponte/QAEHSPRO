@@ -1,3 +1,4 @@
+
 'use server';
 
 import { open, type Database } from 'sqlite';
@@ -94,20 +95,6 @@ async function initializeDb() {
         
         console.log("Database seeded successfully.");
     }
-
-    // Always run migrations to ensure schema is up-to-date.
-    // This is idempotent and safe to run multiple times.
-    const columns = await dbInstance.all("PRAGMA table_info(user_progress)");
-    const hasLastAccessedColumn = columns.some(col => col.name === 'last_accessed_at');
-
-    if (!hasLastAccessedColumn) {
-        console.log("Running migration: Adding 'last_accessed_at' to 'user_progress' table.");
-        await dbInstance.exec(`
-            ALTER TABLE user_progress ADD COLUMN last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP;
-        `);
-        console.log("Migration complete.");
-    }
-
 
     return dbInstance;
 }

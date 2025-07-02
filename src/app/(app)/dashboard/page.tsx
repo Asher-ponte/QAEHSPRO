@@ -17,9 +17,7 @@ import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/hooks/use-user"
 import { useToast } from "@/hooks/use-toast"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { differenceInDays, parseISO } from 'date-fns'
 
 interface Course {
   id: string;
@@ -28,7 +26,6 @@ interface Course {
   category: string;
   image: string;
   aiHint: string;
-  lastAccessed: string | null;
   continueLessonId: number | null;
 }
 
@@ -37,28 +34,6 @@ interface Stats {
     skillsAcquired: number;
 }
 
-function formatLastAccessed(dateString: string | null): string {
-  if (!dateString) return 'NEVER';
-  try {
-    const lastAccessedDate = parseISO(dateString);
-    const today = new Date();
-    const daysAgo = differenceInDays(today, lastAccessedDate);
-
-    if (daysAgo === 0) {
-      return 'TODAY';
-    }
-    if (daysAgo === 1) {
-      return 'YESTERDAY';
-    }
-    if (daysAgo <= 30) {
-      return `${daysAgo} DAYS AGO`;
-    }
-    return 'OVER 30 DAYS AGO';
-  } catch (error) {
-    console.error("Date formatting error:", error);
-    return 'UNKNOWN';
-  }
-}
 
 function CourseListSkeleton() {
   return (
@@ -199,7 +174,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center">
             <CardTitle>Courses In Progress ({courses.length})</CardTitle>
             <Link href="/courses" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
-              Other Courses In Progress
+              Browse All Courses
               <ExternalLink className="h-4 w-4" />
             </Link>
           </div>
@@ -221,10 +196,9 @@ export default function DashboardPage() {
                   <div className="flex-grow space-y-2">
                       <h3 className="font-semibold leading-tight">{course.title}</h3>
                       <div className="flex items-center gap-2">
-                          <Progress value={course.progress} className="h-2" />
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">{course.progress}% Complete</span>
+                          <Progress value={course.progress} className="h-2 bg-primary/20" />
+                          <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
                       </div>
-                      <Badge variant="outline" className="font-mono text-xs">LAST ACTIVE: {formatLastAccessed(course.lastAccessed)}</Badge>
                   </div>
                   <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
                   <div className="hidden md:flex flex-col items-center gap-2 w-48">

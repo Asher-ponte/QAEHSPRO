@@ -17,13 +17,12 @@ export async function GET(
     }
     const userId = user.id;
 
-    // When a user views a lesson, create a progress entry if it doesn't exist,
-    // and update the last accessed timestamp.
+    // When a user views a lesson, create a progress entry if it doesn't exist.
+    // This marks the course as "in-progress".
     await db.run(
-      `INSERT INTO user_progress (user_id, lesson_id, completed, last_accessed_at)
-       VALUES (?, ?, 0, CURRENT_TIMESTAMP)
-       ON CONFLICT(user_id, lesson_id) DO UPDATE SET
-       last_accessed_at = CURRENT_TIMESTAMP`,
+      `INSERT INTO user_progress (user_id, lesson_id, completed)
+       VALUES (?, ?, 0)
+       ON CONFLICT(user_id, lesson_id) DO NOTHING`,
       [userId, lessonId]
     );
 
