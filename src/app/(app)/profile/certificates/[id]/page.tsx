@@ -4,7 +4,9 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Loader2, Printer, Award } from "lucide-react"
+import { ArrowLeft, Loader2, Download, Award } from "lucide-react"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
 import { Button } from "@/components/ui/button"
 import { Certificate } from "@/components/certificate"
@@ -19,7 +21,7 @@ interface CertificateData {
   companyLogoPath: string | null;
   user: { username: string };
   course: { title: string };
-  signatories: { name: string; signatureImagePath: string }[];
+  signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
 function CertificateSkeleton() {
@@ -52,6 +54,7 @@ function CertificateSkeleton() {
 export default function CertificatePage() {
   const [data, setData] = useState<CertificateData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const params = useParams<{ id: string }>()
   const { toast } = useToast();
   const router = useRouter();
@@ -80,8 +83,52 @@ export default function CertificatePage() {
     fetchCertificate();
   }, [params.id, router, toast]);
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownload = async () => {
+    if (!data || isDownloading) return;
+    setIsDownloading(true);
+
+    const certificateElement = document.getElementById('certificate-print-area');
+    if (!certificateElement) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not find certificate element to download.",
+        });
+        setIsDownloading(false);
+        return;
+    }
+
+    try {
+        const canvas = await html2canvas(certificateElement, {
+            scale: 2, // Increase scale for better quality
+            useCORS: true,
+            backgroundColor: null,
+        });
+        const imgData = canvas.toDataURL('image/png');
+
+        // Use canvas dimensions to create a PDF of the same size
+        const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'px',
+            format: [canvas.width, canvas.height]
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`certificate-${data.certificateNumber || data.id}.pdf`);
+
+    } catch (error) {
+        console.error("Failed to download certificate:", error);
+        toast({
+            variant: "destructive",
+            title: "Download Failed",
+            description: "An error occurred while generating the PDF.",
+        });
+    } finally {
+        setIsDownloading(false);
+    }
   }
 
   return (
@@ -95,9 +142,13 @@ export default function CertificatePage() {
                 <h1 className="text-3xl font-bold font-headline">Certificate of Completion</h1>
             </div>
         </div>
-        <Button onClick={handlePrint} disabled={isLoading}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print Certificate
+        <Button onClick={handleDownload} disabled={isLoading || isDownloading}>
+            {isDownloading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+                <Download className="mr-2 h-4 w-4" />
+            )}
+            Download Certificate
         </Button>
       </div>
 
