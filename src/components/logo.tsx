@@ -6,8 +6,8 @@ export function Logo() {
       <Image 
         src="/images/logo.png" 
         alt="QAEHS PRO Logo" 
-        width={40} 
-        height={40} 
+        width={50} 
+        height={50} 
         className="rounded-lg"
         unoptimized
       />
