@@ -3,10 +3,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  serverExternalPackages: ['sqlite3', '@mapbox/node-pre-gyp'],
-  experimental: {
-    nodeMiddleware: true,
-  },
+  serverExternalPackages: ['sqlite3', '@mapbox/node-pre-gyp', 'bcrypt'],
   typescript: {
     ignoreBuildErrors: true,
   },
