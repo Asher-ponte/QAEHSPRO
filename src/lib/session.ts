@@ -9,17 +9,20 @@ interface User {
   username: string;
 }
 
-export async function getCurrentUser(): Promise<User | null> {
-  const cookieStore = cookies();
-  const sessionId = cookieStore.get('session')?.value;
-
+/**
+ * Validates a session ID against the database.
+ * This is designed to be used from server-side logic like middleware.
+ * It does NOT handle cookie operations.
+ * @param sessionId The session ID to validate.
+ * @returns The user object if the session is valid, otherwise null.
+ */
+export async function validateSession(sessionId: string): Promise<User | null> {
   if (!sessionId) {
     return null;
   }
 
   try {
     const db = await getDb();
-    // Find the session and check if it has expired
     const session = await db.get(
       "SELECT user_id, expires_at FROM sessions WHERE id = ?",
       sessionId
@@ -30,8 +33,6 @@ export async function getCurrentUser(): Promise<User | null> {
             // Clean up expired session from DB
             await db.run("DELETE FROM sessions WHERE id = ?", sessionId);
         }
-        // Also clear the cookie from the user's browser
-        cookieStore.delete('session'); 
         return null;
     }
 
@@ -42,4 +43,29 @@ export async function getCurrentUser(): Promise<User | null> {
       console.error("Error validating session:", error);
       return null;
   }
+}
+
+
+/**
+ * Gets the current user from the session cookie.
+ * This is for use in Server Components, Route Handlers, and Server Actions.
+ * It reads the cookie and clears it if validation fails.
+ */
+export async function getCurrentUser(): Promise<User | null> {
+  const cookieStore = cookies();
+  const sessionId = cookieStore.get('session')?.value;
+
+  if (!sessionId) {
+    return null;
+  }
+  
+  const user = await validateSession(sessionId);
+
+  if (!user) {
+    // If validation fails, ensure the browser cookie is cleared on the next response.
+    cookieStore.delete('session');
+    return null;
+  }
+  
+  return user;
 }
