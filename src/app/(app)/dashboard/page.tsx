@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -181,7 +182,7 @@ export default function DashboardPage() {
                           <h3 className="font-semibold">{course.title}</h3>
                           <p className="text-sm text-muted-foreground">{course.category}</p>
                       </div>
-                      <span className="font-semibold">{course.progress}%</span>
+                      <span className="font-semibold text-accent">{course.progress}%</span>
                   </div>
                   <Progress value={course.progress} aria-label={`${course.title} progress`} />
                   </div>
