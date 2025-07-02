@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { validateSession } from '@/lib/session'
+
+export const runtime = 'nodejs';
  
 export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('session');
@@ -32,14 +34,6 @@ export async function middleware(request: NextRequest) {
  
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - assets (for images, etc)
-     * - favicon.ico (favicon file)
-     */
     '/((?!api|_next/static|_next/image|assets|favicon.ico).*)',
   ],
 }
