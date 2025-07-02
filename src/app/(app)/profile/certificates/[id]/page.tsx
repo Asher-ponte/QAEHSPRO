@@ -18,7 +18,9 @@ interface CertificateData {
   completion_date: string;
   certificateNumber: string | null;
   companyName: string;
+  companyAddress: string | null;
   companyLogoPath: string | null;
+  companyLogo2Path: string | null;
   user: { username: string };
   course: { title: string };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
@@ -106,9 +108,9 @@ export default function CertificatePage() {
         });
         const imgData = canvas.toDataURL('image/png');
 
-        // Create a portrait A4 PDF
+        // Create a landscape A4 PDF
         const pdf = new jsPDF({
-            orientation: 'portrait',
+            orientation: 'landscape',
             unit: 'pt',
             format: 'a4'
         });
@@ -116,18 +118,7 @@ export default function CertificatePage() {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         
-        const imgProps = pdf.getImageProperties(imgData);
-        const imgWidth = imgProps.width;
-        const imgHeight = imgProps.height;
-        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-
-        const w = imgWidth * ratio;
-        const h = imgHeight * ratio;
-        
-        const x = (pdfWidth - w) / 2;
-        const y = (pdfHeight - h) / 2;
-        
-        pdf.addImage(imgData, 'PNG', x, y, w, h);
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`certificate-${data.certificateNumber || data.id}.pdf`);
 
     } catch (error) {
