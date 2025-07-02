@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 const signatorySchema = z.object({
   name: z.string().min(1, "Name is required."),
+  position: z.string().min(1, "Position is required."),
   signatureImagePath: z.string().min(1, "Signature image path is required."),
 });
 
@@ -29,9 +30,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { name, signatureImagePath } = parsedData.data;
+    const { name, position, signatureImagePath } = parsedData.data;
 
-    const result = await db.run('INSERT INTO signatories (name, signatureImagePath) VALUES (?, ?)', [name, signatureImagePath]);
+    const result = await db.run('INSERT INTO signatories (name, position, signatureImagePath) VALUES (?, ?, ?)', [name, position, signatureImagePath]);
     const newSignatory = await db.get('SELECT * FROM signatories WHERE id = ?', result.lastID);
 
     return NextResponse.json(newSignatory, { status: 201 });

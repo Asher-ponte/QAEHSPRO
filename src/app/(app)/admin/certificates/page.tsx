@@ -60,11 +60,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 interface Signatory {
   id: number;
   name: string;
+  position: string | null;
   signatureImagePath: string;
 }
 
 const signatoryFormSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters." }),
+  position: z.string().min(3, { message: "Position must be at least 3 characters." }),
   signatureImagePath: z.string().min(1, { message: "Signature image path is required." }),
 })
 
@@ -77,7 +79,7 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
 
     const form = useForm<SignatoryFormValues>({
         resolver: zodResolver(signatoryFormSchema),
-        defaultValues: { name: "", signatureImagePath: "" },
+        defaultValues: { name: "", position: "", signatureImagePath: "" },
     });
 
     async function onSubmit(values: SignatoryFormValues) {
@@ -129,7 +131,20 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
                                 <FormItem>
                                     <FormLabel>Full Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Jane Doe, CEO" {...field} />
+                                        <Input placeholder="e.g., Jane Doe" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="position"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Position / Title</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Chief Executive Officer" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -257,6 +272,7 @@ export default function ManageCertificatesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Position</TableHead>
                 <TableHead>Signature</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
@@ -266,6 +282,7 @@ export default function ManageCertificatesPage() {
                 Array.from({ length: 2 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
@@ -274,6 +291,7 @@ export default function ManageCertificatesPage() {
                 signatories.map((signatory) => (
                   <TableRow key={signatory.id}>
                     <TableCell className="font-medium">{signatory.name}</TableCell>
+                    <TableCell>{signatory.position}</TableCell>
                     <TableCell>
                         <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
                     </TableCell>
@@ -287,7 +305,7 @@ export default function ManageCertificatesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={4} className="h-24 text-center">
                     No signatories found. Add one to get started.
                   </TableCell>
                 </TableRow>

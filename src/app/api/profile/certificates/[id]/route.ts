@@ -26,7 +26,7 @@ export async function GET(
         }
         
         const course = await db.get('SELECT title FROM courses WHERE id = ?', certificate.course_id);
-        const signatories = await db.all('SELECT name, signatureImagePath FROM signatories');
+        const signatories = await db.all('SELECT name, position, signatureImagePath FROM signatories');
 
         const responseData = {
             id: certificate.id,

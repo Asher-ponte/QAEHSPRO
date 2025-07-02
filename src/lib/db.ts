@@ -104,12 +104,13 @@ async function initializeDb() {
         CREATE TABLE IF NOT EXISTS signatories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            position TEXT,
             signatureImagePath TEXT NOT NULL
         );
         `);
 
         // Seed Users
-        await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['Demo User']);
+        await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', '/images/placeholder.png')");
@@ -145,9 +146,14 @@ async function initializeDb() {
             CREATE TABLE IF NOT EXISTS signatories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                position TEXT,
                 signatureImagePath TEXT NOT NULL
             );
         `).catch(e => console.log("Could not create signatories table, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            ALTER TABLE signatories ADD COLUMN position TEXT;
+        `).catch(e => console.log("Could not add position column to signatories, it might exist already:", e.message));
     }
 
 
@@ -158,5 +164,7 @@ export async function getDb() {
     if (!db) {
         db = await initializeDb();
     }
+    // Every time, ensure the admin user exists. This is self-healing.
+    await db.run('INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)', [1, 'admin']);
     return db;
 }

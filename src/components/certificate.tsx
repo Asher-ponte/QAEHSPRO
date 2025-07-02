@@ -10,7 +10,7 @@ interface CertificateData {
   completion_date: string;
   user: { username: string };
   course: { title: string };
-  signatories: { name: string; signatureImagePath: string }[];
+  signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
 export function Certificate({ data }: { data: CertificateData }) {
@@ -56,6 +56,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                                 <div className="w-48 border-t border-foreground pt-2">
                                     <p className="text-sm font-semibold">{s.name}</p>
+                                    {s.position && <p className="text-xs text-muted-foreground">{s.position}</p>}
                                 </div>
                             </div>
                         ))}
