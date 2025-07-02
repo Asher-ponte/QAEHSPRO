@@ -17,7 +17,8 @@ interface User {
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const sessionId = cookies().get('session_id')?.value;
+    const cookieStore = cookies();
+    const sessionId = cookieStore.get('session_id')?.value;
     
     if (!sessionId) {
       return null;
