@@ -94,7 +94,10 @@ export async function POST(
                 const certificateNumber = `QAEHS-${datePrefix}-${serialString}`;
                 
                 await db.run(
-                    'INSERT OR IGNORE INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)',
+                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)
+                     ON CONFLICT(user_id, course_id) DO UPDATE SET
+                        completion_date = excluded.completion_date,
+                        certificate_number = excluded.certificate_number`,
                     [userId, courseId, new Date().toISOString(), certificateNumber]
                 );
                 const newCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);

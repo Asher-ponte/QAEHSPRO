@@ -60,7 +60,25 @@ export async function GET() {
         continue;
       }; 
 
-      const progress = Math.floor((completedLessons.length / totalLessons) * 100);
+      let progress = Math.floor((completedLessons.length / totalLessons) * 100);
+
+      // Refresher logic
+      if (progress === 100) {
+          const certificate = await db.get(
+              `SELECT completion_date FROM certificates WHERE user_id = ? AND course_id = ?`,
+              [userId, course.id]
+          );
+
+          if (certificate && course.endDate) {
+              const completionDate = new Date(certificate.completion_date);
+              const courseEndDate = new Date(course.endDate);
+              if (courseEndDate > completionDate) {
+                  // This is a refresher course, so treat it as "in-progress" for the dashboard.
+                  progress = 0;
+              }
+          }
+      }
+
 
       if (progress === 100) {
         coursesCompletedCount++;

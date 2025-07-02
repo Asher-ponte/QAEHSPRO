@@ -8,6 +8,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Lightbulb, Target, ExternalLink, Award } from "lucide-react"
@@ -208,7 +209,10 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>My Courses</CardTitle>
+            <div>
+              <CardTitle>Required Training Course</CardTitle>
+              <CardDescription>All courses you are currently enrolled in.</CardDescription>
+            </div>
             <Link href="/courses" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
               Browse All Courses
               <ExternalLink className="h-4 w-4" />
