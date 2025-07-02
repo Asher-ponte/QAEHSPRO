@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { validateSession } from '@/lib/session'
-
-export const runtime = 'nodejs';
  
 export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('session');
