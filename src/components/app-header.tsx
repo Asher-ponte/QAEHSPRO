@@ -4,7 +4,7 @@
 import Link from "next/link"
 import React from "react"
 import { usePathname } from "next/navigation"
-import { BookOpen, Home, Menu, Shield, Sparkles } from "lucide-react"
+import { BookOpen, Home, Menu, Shield } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
@@ -28,6 +28,7 @@ const navDefinition = [
 export function AppHeader() {
   const pathname = usePathname()
   const { user } = useUser()
+  const [isSheetOpen, setIsSheetOpen] = React.useState(false)
 
   const links = React.useMemo(() => {
     return navDefinition.filter(link => {
@@ -68,7 +69,7 @@ export function AppHeader() {
       </div>
       <div className="flex items-center gap-2">
         <UserNav />
-        <Sheet>
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="md:hidden">
               <Menu className="h-6 w-6" />
@@ -78,7 +79,7 @@ export function AppHeader() {
           <SheetContent side="left">
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <nav className="grid gap-6 text-lg font-medium mt-6">
-              <Link href="/dashboard" className="mb-4">
+              <Link href="/dashboard" className="mb-4" onClick={() => setIsSheetOpen(false)}>
                 <Logo />
               </Link>
               {links.map((link) => (
@@ -91,6 +92,7 @@ export function AppHeader() {
                       ? "text-primary"
                       : "text-muted-foreground"
                   )}
+                  onClick={() => setIsSheetOpen(false)}
                 >
                   <link.icon className="h-5 w-5" />
                   {link.label}
