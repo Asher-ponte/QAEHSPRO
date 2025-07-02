@@ -13,11 +13,16 @@ async function initializeDb() {
 
     const dbPath = path.join(process.cwd(), 'db.sqlite');
     
-    // Ensure the public/images directory exists.
+    // Ensure the public/images and public/images/signatures directories exist.
     const imagesDir = path.join(process.cwd(), 'public', 'images');
     if (!fs.existsSync(imagesDir)) {
         fs.mkdirSync(imagesDir, { recursive: true });
         console.log("Created public/images directory.");
+    }
+    const signaturesDir = path.join(process.cwd(), 'public', 'images', 'signatures');
+    if (!fs.existsSync(signaturesDir)) {
+        fs.mkdirSync(signaturesDir, { recursive: true });
+        console.log("Created public/images/signatures directory.");
     }
 
     const dbExists = fs.existsSync(dbPath);
@@ -28,26 +33,6 @@ async function initializeDb() {
     });
 
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
-
-    // Migration for switching to local image paths
-    if (dbExists) {
-        const courseColumns = await dbInstance.all("PRAGMA table_info(courses)");
-        if (courseColumns.some(col => col.name === 'image')) {
-            await dbInstance.exec('ALTER TABLE courses RENAME COLUMN image TO imagePath').catch(console.error);
-        }
-        if (courseColumns.some(col => col.name === 'aiHint')) {
-             // SQLite's DROP COLUMN is tricky; we'll just ignore the column in the app
-        }
-
-        const lessonColumns = await dbInstance.all("PRAGMA table_info(lessons)");
-        if (lessonColumns.some(col => col.name === 'imageUrl')) {
-            await dbInstance.exec('ALTER TABLE lessons RENAME COLUMN imageUrl TO imagePath').catch(console.error);
-        }
-         if (lessonColumns.some(col => col.name === 'imageAiHint')) {
-            // SQLite's DROP COLUMN is tricky; we'll just ignore the column in the app
-        }
-    }
-
 
     if (!dbExists) {
         console.log("Database not found, initializing schema and seeding data...");
@@ -103,6 +88,26 @@ async function initializeDb() {
         );
         `);
 
+        await dbInstance.exec(`
+        CREATE TABLE IF NOT EXISTS certificates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            course_id INTEGER NOT NULL,
+            completion_date TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+            UNIQUE(user_id, course_id)
+        );
+        `);
+
+        await dbInstance.exec(`
+        CREATE TABLE IF NOT EXISTS signatories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            signatureImagePath TEXT NOT NULL
+        );
+        `);
+
         // Seed Users
         await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['Demo User']);
         
@@ -122,7 +127,29 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
         console.log("Database seeded successfully.");
+    } else {
+        // Run migrations for existing databases
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS certificates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                course_id INTEGER NOT NULL,
+                completion_date TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                UNIQUE(user_id, course_id)
+            );
+        `).catch(e => console.log("Could not create certificates table, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS signatories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                signatureImagePath TEXT NOT NULL
+            );
+        `).catch(e => console.log("Could not create signatories table, it might exist already:", e.message));
     }
+
 
     return dbInstance;
 }

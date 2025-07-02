@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon } from "lucide-react"
 import Link from "next/link"
 
 const adminActions = [
@@ -30,10 +30,10 @@ const adminActions = [
     href: "/admin/analytics",
   },
   {
-    title: "Platform Settings",
-    description: "Configure integrations and system settings.",
-    icon: <Settings className="h-8 w-8 text-primary" />,
-    href: "#",
+    title: "Manage Certificates",
+    description: "Configure signatories for certificates.",
+    icon: <Ribbon className="h-8 w-8 text-primary" />,
+    href: "/admin/certificates",
   },
 ]
 

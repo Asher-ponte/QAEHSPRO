@@ -53,6 +53,22 @@ export async function POST(
         let nextLessonId: number | null = null;
         if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
             nextLessonId = allLessons[currentIndex + 1].id;
+        } else {
+            // Course is complete, create certificate if all lessons are done
+            const completedLessons = await db.get(
+                `SELECT COUNT(*) as count FROM user_progress up
+                 JOIN lessons l ON up.lesson_id = l.id
+                 JOIN modules m ON l.module_id = m.id
+                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
+                 [userId, courseId]
+            );
+
+            if (allLessons.length > 0 && completedLessons.count === allLessons.length) {
+                await db.run(
+                    'INSERT OR IGNORE INTO certificates (user_id, course_id, completion_date) VALUES (?, ?, ?)',
+                    [userId, courseId, new Date().toISOString()]
+                );
+            }
         }
         
         await db.run('COMMIT');

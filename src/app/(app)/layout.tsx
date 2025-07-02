@@ -1,3 +1,4 @@
+
 "use client"
 
 import { type ReactNode } from "react"
@@ -13,7 +14,7 @@ export default function AppLayout({
     <UserProvider>
       <div className="flex min-h-screen flex-col bg-background">
         <AppHeader />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 no-print">{children}</main>
       </div>
     </UserProvider>
   )
