@@ -190,27 +190,22 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
         case 'document':
             const hasImage = !!lesson.imagePath;
             return (
-                <div className={cn("grid grid-cols-1 gap-8", hasImage && "lg:grid-cols-3")}>
-                    <article className={cn(
-                        "prose dark:prose-invert max-w-none",
-                        hasImage ? "lg:col-span-2" : "lg:col-span-3"
-                    )}>
+                <div className="space-y-6">
+                    {hasImage && (
+                        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                            <Image
+                                src={lesson.imagePath!}
+                                alt={lesson.title}
+                                fill
+                                className="object-cover"
+                            />
+                        </div>
+                    )}
+                    <article className="prose dark:prose-invert max-w-none">
                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {lesson.content || "No content available."}
                         </ReactMarkdown>
                     </article>
-                    {hasImage && (
-                        <aside className="lg:col-span-1">
-                            <div className="relative aspect-[4/3] w-full">
-                                <Image
-                                    src={lesson.imagePath!}
-                                    alt={lesson.title}
-                                    fill
-                                    className="object-cover rounded-lg"
-                                />
-                            </div>
-                        </aside>
-                    )}
                 </div>
             );
         case 'quiz':
@@ -318,9 +313,9 @@ export default function LessonPage() {
                 <p className="text-muted-foreground max-w-md">
                     This lesson could not be loaded. It might have been moved, or you may not have access to it.
                 </p>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/courses/${params.id}`}>
-                      <ArrowLeft />
+                <Button asChild variant="outline">
+                  <Link href={`/courses/${params.id}`} className="flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" />
                       Return to Course Overview
                   </Link>
                 </Button>
@@ -339,9 +334,9 @@ export default function LessonPage() {
 
     return (
         <div className="space-y-6 pb-24 md:pb-6">
-            <Button asChild variant="outline" size="sm" className="self-start">
-                <Link href={`/courses/${lesson.course_id}`}>
-                    <ArrowLeft />
+            <Button asChild variant="outline">
+                <Link href={`/courses/${lesson.course_id}`} className="inline-flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
                     <span className="truncate">Back to "{lesson.course_title}"</span>
                 </Link>
             </Button>
@@ -351,7 +346,7 @@ export default function LessonPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                          <div className="flex items-center gap-4">
                             {getIcon()}
-                            <CardTitle className="text-2xl md:text-3xl font-bold font-headline break-words">{lesson.title}</CardTitle>
+                            <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                         </div>
                         {lesson.completed && (
                             <Badge variant="secondary" className="text-green-600 border-green-600">
