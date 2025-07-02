@@ -155,7 +155,9 @@ export default function CertificatePage() {
 
       {isLoading && <CertificateSkeleton />}
       {!isLoading && data && (
-        <Certificate data={data} />
+        <div className="w-full overflow-x-auto">
+            <Certificate data={data} />
+        </div>
       )}
        {!isLoading && !data && (
         <div className="text-center py-12">
