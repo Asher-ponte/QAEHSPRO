@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Bar, BarChart, Line, LineChart, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 import { ArrowLeft, BookOpen, Users, UserCheck, BadgeCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ interface AnalyticsData {
     };
     courseEnrollmentData: { name: string; "Enrollments": number }[];
     completionOverTimeData: { date: string; completions: number }[];
+    courseCompletionRateData: { name: string; "Completion Rate": number }[];
 }
 
 const enrollmentChartConfig = {
@@ -50,6 +51,13 @@ const completionChartConfig = {
   },
 } satisfies ChartConfig
 
+const completionRateChartConfig = {
+  "Completion Rate": {
+    label: "Completion Rate (%)",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig
+
 function AnalyticsSkeleton() {
     return (
         <div className="space-y-6">
@@ -59,7 +67,8 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             </div>
@@ -135,7 +144,7 @@ export default function ViewAnalyticsPage() {
                     ))}
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <Card>
                         <CardHeader>
                             <CardTitle>Top 5 Most Enrolled Courses</CardTitle>
@@ -161,6 +170,44 @@ export default function ViewAnalyticsPage() {
                                         content={<ChartTooltipContent indicator="dot" />}
                                     />
                                     <Bar dataKey="Enrollments" fill="var(--color-Enrollments)" radius={4} />
+                                </BarChart>
+                            </ChartContainer>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Top 5 Course Completion Rates</CardTitle>
+                            <CardDescription>
+                                The courses with the highest completion rates.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ChartContainer config={completionRateChartConfig} className="min-h-[200px] w-full">
+                                <BarChart accessibilityLayer data={data.courseCompletionRateData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                                    <XAxis type="number" dataKey="Completion Rate" hide domain={[0, 100]} />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        tickLine={false} 
+                                        axisLine={false}
+                                        tickMargin={10}
+                                        width={120} 
+                                        className="truncate"
+                                    />
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={<ChartTooltipContent indicator="dot" />}
+                                    />
+                                    <Bar dataKey="Completion Rate" fill="var(--color-Completion-Rate)" radius={4}>
+                                       <LabelList
+                                        position="right"
+                                        offset={8}
+                                        className="fill-foreground"
+                                        fontSize={12}
+                                        formatter={(value: number) => `${value}%`}
+                                      />
+                                    </Bar>
                                 </BarChart>
                             </ChartContainer>
                         </CardContent>

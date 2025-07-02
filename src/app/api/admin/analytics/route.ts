@@ -40,6 +40,27 @@ export async function GET() {
             completions: count,
         }));
 
+        // Course Completion Rate Data (Top 5)
+        const courseCompletionRateDataRaw = await db.all(`
+            SELECT
+                c.title,
+                CAST(COUNT(DISTINCT cert.user_id) AS REAL) as completedCount,
+                CAST(COUNT(DISTINCT e.user_id) AS REAL) as enrolledCount
+            FROM courses c
+            LEFT JOIN enrollments e ON c.id = e.course_id
+            LEFT JOIN certificates cert ON c.id = cert.course_id
+            GROUP BY c.id
+            HAVING enrolledCount > 0
+        `);
+
+        const courseCompletionRateData = courseCompletionRateDataRaw
+            .map(c => ({
+                name: c.title,
+                "Completion Rate": c.enrolledCount > 0 ? Math.round((c.completedCount / c.enrolledCount) * 100) : 0,
+            }))
+            .sort((a, b) => b["Completion Rate"] - a["Completion Rate"])
+            .slice(0, 5);
+
 
         const analyticsData = {
             stats: {
@@ -50,6 +71,7 @@ export async function GET() {
             },
             courseEnrollmentData: courseEnrollmentData.map(c => ({ name: c.title, "Enrollments": c.enrollmentCount })),
             completionOverTimeData,
+            courseCompletionRateData,
         };
 
         return NextResponse.json(analyticsData);
