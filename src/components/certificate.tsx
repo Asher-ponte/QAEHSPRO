@@ -101,9 +101,9 @@ export function Certificate({ data }: { data: CertificateData }) {
                                             className="object-contain invert-0 dark:invert"
                                         />
                                     </div>
-                                    <div className="w-48 border-t border-foreground pt-2">
-                                        <p className="text-sm font-semibold">{s.name}</p>
-                                        {s.position && <p className="text-xs text-muted-foreground">{s.position}</p>}
+                                    <div className="border-t border-foreground pt-2 text-center">
+                                        <p className="text-sm font-semibold whitespace-nowrap">{s.name}</p>
+                                        {s.position && <p className="text-xs text-muted-foreground whitespace-nowrap">{s.position}</p>}
                                     </div>
                                 </div>
                             ))}
