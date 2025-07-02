@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -41,8 +40,8 @@ export function Certificate({ data }: { data: CertificateData }) {
     }, [data.certificateNumber]);
 
     return (
-        <div id="certificate-print-area" className="bg-background">
-            <div id="certificate-to-download" className="w-[1123px] mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[297/210]">
+        <div id="certificate-print-area" className="w-full overflow-x-auto">
+            <div id="certificate-to-download" className="w-[1123px] mx-auto p-4 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[297/210]">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col h-full text-center">
@@ -78,8 +77,8 @@ export function Certificate({ data }: { data: CertificateData }) {
 
                     {/* Main Content */}
                     <main className="py-2">
-                        <p className="text-xl mt-2">This certificate is proudly presented to</p>
-                        <div className="my-2">
+                        <p className="text-xl">This certificate is proudly presented to</p>
+                        <div className="my-4">
                            <h1 className="text-7xl font-bold text-black dark:text-white">
                                 {data.user.username}
                             </h1>
