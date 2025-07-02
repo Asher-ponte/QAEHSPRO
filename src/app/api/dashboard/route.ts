@@ -18,8 +18,41 @@ export async function GET() {
             c.id,
             c.title,
             c.category,
-            (SELECT COUNT(l.id) FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id) as totalLessons,
-            (SELECT COUNT(up.id) FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE m.course_id = c.id AND up.user_id = ? AND up.completed = 1) as completedLessons
+            c.image,
+            c.aiHint,
+            (
+                SELECT COUNT(l.id) 
+                FROM lessons l 
+                JOIN modules m ON l.module_id = m.id 
+                WHERE m.course_id = c.id
+            ) as totalLessons,
+            (
+                SELECT COUNT(up.id) 
+                FROM user_progress up 
+                JOIN lessons l ON up.lesson_id = l.id 
+                JOIN modules m ON l.module_id = m.id 
+                WHERE m.course_id = c.id AND up.user_id = ? AND up.completed = 1
+            ) as completedLessons,
+            (
+                SELECT MAX(up.last_accessed_at) 
+                FROM user_progress up 
+                JOIN lessons l ON up.lesson_id = l.id 
+                JOIN modules m ON l.module_id = m.id 
+                WHERE m.course_id = c.id AND up.user_id = ?
+            ) as lastAccessed,
+            (
+                SELECT l.id
+                FROM lessons l
+                JOIN modules m ON l.module_id = m.id
+                WHERE m.course_id = c.id
+                AND l.id NOT IN (
+                    SELECT up.lesson_id
+                    FROM user_progress up
+                    WHERE up.user_id = ? AND up.completed = 1
+                )
+                ORDER BY m."order" ASC, l."order" ASC
+                LIMIT 1
+            ) as continueLessonId
         FROM courses c
         WHERE c.id IN (
             SELECT DISTINCT m.course_id
@@ -28,7 +61,8 @@ export async function GET() {
             JOIN modules m ON l.module_id = m.id
             WHERE up.user_id = ?
         )
-    `, [userId, userId]);
+        ORDER BY lastAccessed DESC
+    `, [userId, userId, userId, userId]);
 
     let coursesCompleted = 0;
     const skillsAcquired = new Set<string>();
@@ -37,24 +71,18 @@ export async function GET() {
     for (const course of coursesWithProgress) {
         const total = course.totalLessons;
         const completed = course.completedLessons;
-
-        if (total === 0) {
-             myCourses.push({
-                id: course.id,
-                title: course.title,
-                category: course.category,
-                progress: 0,
-            });
-            continue; 
-        }
         
-        const progress = Math.floor((completed / total) * 100);
+        const progress = total > 0 ? Math.floor((completed / total) * 100) : 0;
 
         myCourses.push({
             id: course.id,
             title: course.title,
             category: course.category,
+            image: course.image,
+            aiHint: course.aiHint,
             progress: progress,
+            lastAccessed: course.lastAccessed,
+            continueLessonId: course.continueLessonId,
         });
 
         if (progress === 100) {
@@ -68,7 +96,7 @@ export async function GET() {
         coursesCompleted: coursesCompleted,
         skillsAcquired: skillsAcquired.size,
       },
-      myCourses: myCourses.slice(0, 3), // Limit to 3 courses
+      myCourses: myCourses,
     };
 
     return NextResponse.json(dashboardData);

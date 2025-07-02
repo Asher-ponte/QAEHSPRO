@@ -68,6 +68,7 @@ async function initializeDb() {
             user_id INTEGER NOT NULL,
             lesson_id INTEGER NOT NULL,
             completed BOOLEAN NOT NULL DEFAULT 0,
+            last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
             UNIQUE(user_id, lesson_id)

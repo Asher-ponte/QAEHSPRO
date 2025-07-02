@@ -9,25 +9,86 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target } from "lucide-react"
+import { Lightbulb, Target, ExternalLink } from "lucide-react"
 import Link from 'next/link'
+import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/hooks/use-user"
 import { useToast } from "@/hooks/use-toast"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { differenceInDays, parseISO } from 'date-fns'
 
 interface Course {
   id: string;
   title: string;
   progress: number;
   category: string;
+  image: string;
+  aiHint: string;
+  lastAccessed: string | null;
+  continueLessonId: number | null;
 }
 
 interface Stats {
     coursesCompleted: number;
     skillsAcquired: number;
+}
+
+function formatLastAccessed(dateString: string | null): string {
+  if (!dateString) return 'NEVER';
+  try {
+    const lastAccessedDate = parseISO(dateString);
+    const today = new Date();
+    const daysAgo = differenceInDays(today, lastAccessedDate);
+
+    if (daysAgo === 0) {
+      return 'TODAY';
+    }
+    if (daysAgo === 1) {
+      return 'YESTERDAY';
+    }
+    if (daysAgo <= 30) {
+      return `${daysAgo} DAYS AGO`;
+    }
+    return 'OVER 30 DAYS AGO';
+  } catch (error) {
+    console.error("Date formatting error:", error);
+    return 'UNKNOWN';
+  }
+}
+
+function CourseListSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-5 w-40" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <div className="flex items-center gap-4 p-4">
+              <Skeleton className="h-20 w-28 rounded-md flex-shrink-0" />
+              <div className="flex-grow space-y-3">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-2 w-full" />
+                  <Skeleton className="h-5 w-1/2" />
+              </div>
+              <Skeleton className="h-20 w-px mx-4" />
+              <div className="w-48">
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function DashboardPage() {
@@ -38,14 +99,10 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // The main app layout now handles auth checking. We just need to wait for the
-    // user to be loaded before fetching the dashboard data.
     if (isUserLoading) {
         return;
     }
     if (!user) {
-        // This should not be reached if the layout guard is working, but as a
-        // safeguard, we prevent fetching data.
         setIsLoading(false);
         return;
     }
@@ -88,7 +145,6 @@ export default function DashboardPage() {
     },
   ]
 
-  // While user is loading, or if we are fetching dashboard data, show skeletons.
   if (isUserLoading || isLoading) {
     return (
       <div className="flex flex-col gap-6">
@@ -111,34 +167,7 @@ export default function DashboardPage() {
               </Card>
           ))}
         </div>
-  
-        <Card>
-          <CardHeader>
-            <CardTitle>My Courses</CardTitle>
-            <CardDescription>
-              Continue where you left off.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1">
-             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="block -mx-6 px-6 py-3">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Skeleton className="h-5 w-48 mb-2" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                    <Skeleton className="h-5 w-12" />
-                  </div>
-                  <Skeleton className="h-4 w-full" />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" disabled>View All Courses</Button>
-          </CardFooter>
-        </Card>
+        <CourseListSkeleton />
       </div>
     )
   }
@@ -159,7 +188,7 @@ export default function DashboardPage() {
                     {stat.icon}
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
+                    <div className="text-2xl font-bold">{stat.value ?? 0}</div>
                 </CardContent>
             </Card>
         ))}
@@ -167,38 +196,61 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>My Courses</CardTitle>
-          <CardDescription>
-            Continue where you left off.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <CardTitle>Courses In Progress ({courses.length})</CardTitle>
+            <Link href="/courses" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+              Other Courses In Progress
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-1">
+        <CardContent className="space-y-4">
           {courses.length > 0 ? (
             courses.map((course) => (
-              <Link href={`/courses/${course.id}`} key={course.title} className="block hover:bg-muted/50 -mx-6 px-6 py-3 rounded-lg transition-colors">
-                  <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                      <div>
-                          <h3 className="font-semibold">{course.title}</h3>
-                          <p className="text-sm text-muted-foreground">{course.category}</p>
+              <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 p-4">
+                  <div className="relative h-20 w-28 flex-shrink-0">
+                    <Image
+                        src={course.image || 'https://placehold.co/200x150'}
+                        alt={course.title}
+                        fill
+                        className="rounded-md object-cover"
+                        data-ai-hint={course.aiHint}
+                    />
+                  </div>
+                  <div className="flex-grow space-y-2">
+                      <h3 className="font-semibold leading-tight">{course.title}</h3>
+                      <div className="flex items-center gap-2">
+                          <Progress value={course.progress} className="h-2" />
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">{course.progress}% Complete</span>
                       </div>
-                      <span className="font-semibold text-accent">{course.progress}%</span>
+                      <Badge variant="outline" className="font-mono text-xs">LAST ACTIVE: {formatLastAccessed(course.lastAccessed)}</Badge>
                   </div>
-                  <Progress value={course.progress} aria-label={`${course.title} progress`} />
+                  <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                  <div className="hidden md:flex flex-col items-center gap-2 w-48">
+                    {course.progress === 100 || !course.continueLessonId ? (
+                        <Button asChild variant="outline" className="w-full">
+                            <Link href={`/courses/${course.id}`}>Review Course</Link>
+                        </Button>
+                    ) : (
+                        <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                            <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
+                        </Button>
+                    )}
                   </div>
-              </Link>
+                </div>
+              </Card>
             ))
           ) : (
-             <div className="px-6 py-3">
-                <p className="text-muted-foreground">You have no courses in progress.</p>
-             </div>
+            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                <p>You have no courses in progress.</p>
+                <p className="text-sm">Explore the course catalog to get started!</p>
+                <Button asChild variant="link" className="mt-2">
+                    <Link href="/courses">Browse Courses</Link>
+                </Button>
+            </div>
           )}
         </CardContent>
-        <CardFooter>
-            <Link href="/courses">
-                <Button variant="outline">View All Courses</Button>
-            </Link>
-        </CardFooter>
       </Card>
     </div>
   )

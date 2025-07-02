@@ -17,11 +17,14 @@ export async function GET(
     }
     const userId = user.id;
 
-    // When a user views a lesson, create a progress entry if it doesn't exist.
-    // This marks the course as "started" for the dashboard.
+    // When a user views a lesson, create a progress entry if it doesn't exist,
+    // and update the last accessed timestamp.
     await db.run(
-        'INSERT OR IGNORE INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 0)',
-        [userId, lessonId]
+      `INSERT INTO user_progress (user_id, lesson_id, completed, last_accessed_at)
+       VALUES (?, ?, 0, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id, lesson_id) DO UPDATE SET
+       last_accessed_at = CURRENT_TIMESTAMP`,
+      [userId, lessonId]
     );
 
     const lesson = await db.get(
