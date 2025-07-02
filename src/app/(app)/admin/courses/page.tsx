@@ -3,7 +3,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -205,6 +205,105 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
     );
 }
 
+interface UserProgress {
+    id: number;
+    username: string;
+    department: string;
+    progress: number;
+}
+
+function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+    const [progressData, setProgressData] = useState<UserProgress[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (open && course) {
+            const fetchProgress = async () => {
+                setIsLoading(true);
+                try {
+                    const res = await fetch(`/api/admin/courses/${course.id}/progress`);
+                    if (!res.ok) {
+                        throw new Error('Failed to load user progress.');
+                    }
+                    const data = await res.json();
+                    setProgressData(data);
+                } catch (error) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: error instanceof Error ? error.message : 'Could not load data.'
+                    });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchProgress();
+        }
+    }, [open, course, toast]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>User Progress for "{course?.title}"</DialogTitle>
+                    <DialogDescription>
+                        Track the completion progress of all enrolled users for this course.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    {isLoading ? (
+                        <div className="space-y-4">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-4 p-2">
+                                    <Skeleton className="h-5 w-1/3" />
+                                    <Skeleton className="h-5 w-1/3" />
+                                    <Skeleton className="h-4 w-1/3" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-96">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>User</TableHead>
+                                        <TableHead>Department</TableHead>
+                                        <TableHead className="w-[180px]">Progress</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {progressData.length > 0 ? progressData.map(user => (
+                                        <TableRow key={user.id}>
+                                            <TableCell className="font-medium">{user.username}</TableCell>
+                                            <TableCell>{user.department}</TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <Progress value={user.progress} className="h-2" />
+                                                    <span className="text-xs font-medium text-muted-foreground">{user.progress}%</span>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                       <TableRow>
+                                           <TableCell colSpan={3} className="h-24 text-center">
+                                                No users are enrolled in this course yet.
+                                           </TableCell>
+                                       </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function ManageCoursesPage() {
   const [courses, setCourses] = useState<CourseAdminView[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -212,6 +311,7 @@ export default function ManageCoursesPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [courseToDelete, setCourseToDelete] = useState<CourseAdminView | null>(null)
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
+  const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
   const { toast } = useToast()
 
   const fetchCourses = async () => {
@@ -276,6 +376,10 @@ export default function ManageCoursesPage() {
   
   const openEnrollmentDialog = (course: CourseAdminView) => {
     setCourseToEnroll(course);
+  };
+
+  const openProgressDialog = (course: CourseAdminView) => {
+    setCourseForProgress(course);
   };
 
   return (
@@ -369,6 +473,10 @@ export default function ManageCoursesPage() {
                               <Users className="mr-2 h-4 w-4" />
                               <span>Enroll Users</span>
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openProgressDialog(course)}>
+                                <BarChart className="mr-2 h-4 w-4" />
+                                <span>View Progress</span>
+                            </DropdownMenuItem>
                            <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                              <Trash2 className="mr-2 h-4 w-4" />
                              <span>Delete</span>
@@ -411,6 +519,17 @@ export default function ManageCoursesPage() {
         onOpenChange={(open) => {
             if (!open) {
                 setCourseToEnroll(null)
+                fetchCourses()
+            }
+        }}
+       />
+
+       <ViewProgressDialog
+        course={courseForProgress}
+        open={!!courseForProgress}
+        onOpenChange={(open) => {
+            if (!open) {
+                setCourseForProgress(null)
             }
         }}
        />
