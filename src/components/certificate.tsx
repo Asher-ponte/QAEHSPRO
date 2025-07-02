@@ -39,7 +39,7 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     return (
         <div id="certificate-print-area" className="bg-background">
-            <div className="max-w-4xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
+            <div className="max-w-2xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">
@@ -78,21 +78,10 @@ export function Certificate({ data }: { data: CertificateData }) {
                         on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                     </p>
 
-                    <div className="flex flex-col sm:flex-row justify-between items-end w-full pt-12 mt-8 border-t">
-                        <div className="flex flex-col items-start text-left min-w-[150px] mt-4">
-                            {qrCodeDataUrl && (
-                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={100} height={100} />
-                            )}
-                            {data.certificateNumber && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    Certificate No: {data.certificateNumber}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="flex flex-wrap justify-center gap-x-8 gap-y-4">
+                    <div className="flex flex-col items-center w-full pt-12 mt-8 space-y-12 border-t">
+                        <div className="flex flex-wrap justify-center gap-x-16 gap-y-8">
                             {data.signatories.map((s, i) => (
-                                <div key={i} className="flex flex-col items-center min-w-[200px] mt-4">
+                                <div key={i} className="flex flex-col items-center min-w-[200px]">
                                     <div className="relative h-16 w-48 mb-2">
                                         <Image 
                                             src={s.signatureImagePath} 
@@ -107,6 +96,17 @@ export function Certificate({ data }: { data: CertificateData }) {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="flex flex-col items-center">
+                            {qrCodeDataUrl && (
+                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={100} height={100} />
+                            )}
+                            {data.certificateNumber && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    Certificate No: {data.certificateNumber}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
