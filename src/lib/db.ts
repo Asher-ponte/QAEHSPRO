@@ -101,8 +101,7 @@ async function initializeDb() {
             completion_date TEXT NOT NULL,
             certificate_number TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
-            UNIQUE(user_id, course_id)
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
         `);
 
@@ -182,8 +181,7 @@ async function initializeDb() {
                 completion_date TEXT NOT NULL,
                 certificate_number TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
-                UNIQUE(user_id, course_id)
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
             );
         `).catch(e => console.log("Could not create certificates table, it might exist already:", e.message));
 

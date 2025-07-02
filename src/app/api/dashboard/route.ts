@@ -65,7 +65,7 @@ export async function GET() {
       // Refresher logic
       if (progress === 100) {
           const certificate = await db.get(
-              `SELECT completion_date FROM certificates WHERE user_id = ? AND course_id = ?`,
+              `SELECT completion_date FROM certificates WHERE user_id = ? AND course_id = ? ORDER BY completion_date DESC LIMIT 1`,
               [userId, course.id]
           );
 
