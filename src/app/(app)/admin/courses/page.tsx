@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
 import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart } from "lucide-react"
 
@@ -52,6 +52,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface CourseAdminView {
   id: number;
@@ -313,6 +321,24 @@ export default function ManageCoursesPage() {
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
   const { toast } = useToast()
+  
+  const [filters, setFilters] = useState({ title: '', category: 'all' });
+
+  useEffect(() => {
+    try {
+        const savedFilters = localStorage.getItem('courseAdminFilters');
+        if (savedFilters) {
+            setFilters(JSON.parse(savedFilters));
+        }
+    } catch (error) {
+        console.error("Failed to parse filters from localStorage", error);
+        setFilters({ title: '', category: 'all' });
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('courseAdminFilters', JSON.stringify(filters));
+  }, [filters]);
 
   const fetchCourses = async () => {
     setIsLoading(true);
@@ -368,6 +394,22 @@ export default function ManageCoursesPage() {
       setCourseToDelete(null);
     }
   };
+  
+  const handleFilterChange = (key: 'title' | 'category', value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({ title: '', category: 'all' });
+  };
+  
+  const filteredCourses = useMemo(() => {
+    return courses.filter(course => {
+      const titleMatch = course.title.toLowerCase().includes(filters.title.toLowerCase());
+      const categoryMatch = filters.category === 'all' || course.category === filters.category;
+      return titleMatch && categoryMatch;
+    });
+  }, [courses, filters]);
 
   const openDeleteDialog = (course: CourseAdminView) => {
     setCourseToDelete(course);
@@ -381,6 +423,8 @@ export default function ManageCoursesPage() {
   const openProgressDialog = (course: CourseAdminView) => {
     setCourseForProgress(course);
   };
+
+  const filtersAreActive = filters.title !== '' || filters.category !== 'all';
 
   return (
     <div className="flex flex-col gap-6">
@@ -406,7 +450,33 @@ export default function ManageCoursesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Existing Courses</CardTitle>
-          <CardDescription>A list of all courses in the platform.</CardDescription>
+          <CardDescription>
+            A list of all courses in the platform. Use the filters below to refine your search.
+          </CardDescription>
+          <div className="flex flex-wrap items-center gap-4 pt-4">
+              <Input
+                  placeholder="Filter by course title..."
+                  value={filters.title}
+                  onChange={(e) => handleFilterChange('title', e.target.value)}
+                  className="max-w-sm"
+              />
+              <Select
+                  value={filters.category}
+                  onValueChange={(value) => handleFilterChange('category', value)}
+              >
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                      <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="Management">Management</SelectItem>
+                      <SelectItem value="Technical Skills">Technical Skills</SelectItem>
+                      <SelectItem value="Compliance">Compliance</SelectItem>
+                      <SelectItem value="Soft Skills">Soft Skills</SelectItem>
+                  </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={clearFilters} disabled={!filtersAreActive}>Clear Filters</Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -434,8 +504,8 @@ export default function ManageCoursesPage() {
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : courses.length > 0 ? (
-                courses.map((course) => (
+              ) : filteredCourses.length > 0 ? (
+                filteredCourses.map((course) => (
                   <TableRow key={course.id}>
                     <TableCell className="font-medium">{course.title}</TableCell>
                     <TableCell><Badge variant="outline">{course.category}</Badge></TableCell>
@@ -489,7 +559,7 @@ export default function ManageCoursesPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
-                    No courses found.
+                    No courses found{filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
               )}
