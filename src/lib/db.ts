@@ -12,6 +12,14 @@ async function initializeDb() {
     const sqlite3Driver = (await import('sqlite3')).default;
 
     const dbPath = path.join(process.cwd(), 'db.sqlite');
+    
+    // Ensure the public/images directory exists.
+    const imagesDir = path.join(process.cwd(), 'public', 'images');
+    if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
+        console.log("Created public/images directory.");
+    }
+
     const dbExists = fs.existsSync(dbPath);
     
     const dbInstance = await open({
