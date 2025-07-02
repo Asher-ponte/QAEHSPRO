@@ -313,12 +313,17 @@ export default function LessonPage() {
 
     if (!lesson) {
         return (
-             <div className="space-y-6 text-center">
-                <Link href={`/courses/${params.id}`} className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary">
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Course
-                </Link>
-                <p>Lesson not found.</p>
+             <div className="flex flex-col items-center justify-center text-center gap-4 py-12">
+                <h2 className="text-2xl font-bold">Lesson Not Found</h2>
+                <p className="text-muted-foreground max-w-md">
+                    This lesson could not be loaded. It might have been moved, or you may not have access to it.
+                </p>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/courses/${params.id}`}>
+                      <ArrowLeft />
+                      Return to Course Overview
+                  </Link>
+                </Button>
              </div>
         );
     }
@@ -334,10 +339,12 @@ export default function LessonPage() {
 
     return (
         <div className="space-y-6 pb-24 md:pb-6">
-            <Link href={`/courses/${lesson.course_id}`} className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="truncate">Back to "{lesson.course_title}"</span>
-            </Link>
+            <Button asChild variant="outline" size="sm" className="self-start">
+                <Link href={`/courses/${lesson.course_id}`}>
+                    <ArrowLeft />
+                    <span className="truncate">Back to "{lesson.course_title}"</span>
+                </Link>
+            </Button>
 
             <Card>
                 <CardHeader>
