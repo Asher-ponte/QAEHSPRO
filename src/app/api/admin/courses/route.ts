@@ -11,10 +11,12 @@ export async function GET() {
         c.title,
         c.category,
         COUNT(DISTINCT m.id) as moduleCount,
-        COUNT(DISTINCT l.id) as lessonCount
+        COUNT(DISTINCT l.id) as lessonCount,
+        COUNT(DISTINCT e.user_id) as enrolledCount
       FROM courses c
       LEFT JOIN modules m ON c.id = m.course_id
       LEFT JOIN lessons l ON m.id = l.module_id
+      LEFT JOIN enrollments e ON c.id = e.course_id
       GROUP BY c.id
       ORDER BY c.title
     `)

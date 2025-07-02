@@ -58,6 +58,7 @@ interface CourseAdminView {
   category: string;
   moduleCount: number;
   lessonCount: number;
+  enrolledCount: number;
 }
 
 interface User {
@@ -307,6 +308,7 @@ export default function ManageCoursesPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead className="text-center">Enrolled</TableHead>
                 <TableHead className="text-center">Modules</TableHead>
                 <TableHead className="text-center">Lessons</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
@@ -320,6 +322,7 @@ export default function ManageCoursesPage() {
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -328,6 +331,7 @@ export default function ManageCoursesPage() {
                   <TableRow key={course.id}>
                     <TableCell className="font-medium">{course.title}</TableCell>
                     <TableCell><Badge variant="outline">{course.category}</Badge></TableCell>
+                    <TableCell className="text-center">{course.enrolledCount}</TableCell>
                     <TableCell className="text-center">{course.moduleCount}</TableCell>
                     <TableCell className="text-center">{course.lessonCount}</TableCell>
                     <TableCell>
@@ -366,7 +370,7 @@ export default function ManageCoursesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No courses found.
                   </TableCell>
                 </TableRow>

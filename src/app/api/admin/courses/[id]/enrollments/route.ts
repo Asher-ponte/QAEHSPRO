@@ -18,7 +18,7 @@ export async function GET(
             SELECT user_id FROM enrollments WHERE course_id = ?
         `, [courseId]);
         
-        const enrolledUserIds = enrollments.map(e => e.course_id);
+        const enrolledUserIds = enrollments.map(e => e.user_id);
         
         return NextResponse.json(enrolledUserIds);
     } catch (error) {
