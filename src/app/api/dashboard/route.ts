@@ -13,103 +13,69 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // 1. Get all of the user's progress records.
-    // Using SELECT * and checking for the column in JS makes this resilient.
-    const allUserProgress = await db.all('SELECT * FROM user_progress WHERE user_id = ?', [userId]);
+    // 1. Get all courses that the user has interacted with, and find the most recent interaction time for sorting.
+    const courses = await db.all(`
+      SELECT
+        c.*,
+        MAX(up.last_accessed_at) as lastAccessed
+      FROM courses c
+      JOIN modules m ON m.course_id = c.id
+      JOIN lessons l ON l.module_id = m.id
+      JOIN user_progress up ON up.lesson_id = l.id
+      WHERE up.user_id = ?
+      GROUP BY c.id
+      ORDER BY lastAccessed DESC
+    `, [userId]);
 
-    // If the user has no progress, return empty data.
-    if (allUserProgress.length === 0) {
+    // If the user has no progress at all, return empty dashboard data.
+    if (courses.length === 0) {
       return NextResponse.json({
         stats: { coursesCompleted: 0, skillsAcquired: 0 },
         myCourses: [],
       });
     }
 
-    const progressMap = new Map(allUserProgress.map(p => [p.lesson_id, p]));
-    const lessonIdsWithProgress = Array.from(progressMap.keys());
-
-    // 2. Get the course info for each lesson the user has touched.
-    const courseInfoForLessons = await db.all(`
-      SELECT
-        l.id as lesson_id,
-        m.course_id,
-        c.title,
-        c.category,
-        c.image,
-        c.aiHint
-      FROM lessons l
-      JOIN modules m ON l.module_id = m.id
-      JOIN courses c ON m.course_id = c.id
-      WHERE l.id IN (${lessonIdsWithProgress.map(() => '?').join(',')})
-    `, lessonIdsWithProgress);
-
-    // 3. Group lessons by course
-    const courseDataMap = new Map();
-    for (const lessonInfo of courseInfoForLessons) {
-        if (!courseDataMap.has(lessonInfo.course_id)) {
-            courseDataMap.set(lessonInfo.course_id, {
-                id: lessonInfo.course_id,
-                title: lessonInfo.title,
-                category: lessonInfo.category,
-                image: lessonInfo.image,
-                aiHint: lessonInfo.aiHint,
-                lessons: [], // We'll populate this next
-            });
-        }
-    }
-
-    // 4. Get ALL lessons for the courses the user has started.
-    // This is needed to accurately calculate total progress (e.g., 1 out of 10 lessons).
-    const courseIds = Array.from(courseDataMap.keys());
-    const allLessonsForCourses = await db.all(`
-        SELECT l.id, m.course_id
-        FROM lessons l
-        JOIN modules m ON l.module_id = m.id
-        WHERE m.course_id IN (${courseIds.map(() => '?').join(',')})
-        ORDER BY m."order", l."order"
-    `, courseIds);
-
-    for (const lesson of allLessonsForCourses) {
-        if (courseDataMap.has(lesson.course_id)) {
-            courseDataMap.get(lesson.course_id).lessons.push(lesson);
-        }
-    }
-
-    // 5. Process the data in JavaScript
-    let coursesCompleted = 0;
-    const skillsAcquired = new Set<string>();
     const myCourses = [];
+    const skillsAcquired = new Set<string>();
+    let coursesCompletedCount = 0;
 
-    for (const course of courseDataMap.values()) {
-      const totalLessons = course.lessons.length;
-      if (totalLessons === 0) continue;
+    // 2. For each of those courses, get the detailed progress info.
+    for (const course of courses) {
+      const allLessons = await db.all(
+        'SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?',
+        [course.id]
+      );
+      
+      const completedLessons = await db.all(
+        `SELECT l.id FROM lessons l 
+         JOIN user_progress up ON l.id = up.lesson_id 
+         JOIN modules m ON l.module_id = m.id 
+         WHERE m.course_id = ? AND up.user_id = ? AND up.completed = 1`,
+        [course.id, userId]
+      );
 
-      let completedLessons = 0;
-      let lastAccessedTimestamp = 0;
+      const totalLessons = allLessons.length;
+      if (totalLessons === 0) continue; // Skip courses with no lessons
 
-      for (const lesson of course.lessons) {
-        const progressRecord = progressMap.get(lesson.id);
-        if (progressRecord) {
-          if (progressRecord.completed) {
-            completedLessons++;
-          }
-          // Safely check for the `last_accessed_at` property
-          if (progressRecord.last_accessed_at) {
-            const ts = new Date(progressRecord.last_accessed_at).getTime();
-            if (ts > lastAccessedTimestamp) {
-              lastAccessedTimestamp = ts;
-            }
-          }
-        }
-      }
+      const progress = Math.floor((completedLessons.length / totalLessons) * 100);
 
-      const progress = Math.floor((completedLessons / totalLessons) * 100);
       if (progress === 100) {
-        coursesCompleted++;
+        coursesCompletedCount++;
         skillsAcquired.add(course.category);
       }
 
-      const firstUncompletedLesson = course.lessons.find(l => !progressMap.get(l.id)?.completed);
+      // Find the first lesson in the course that is not marked as complete for the user.
+      const firstUncompletedLessonResult = await db.get(
+        `SELECT l.id FROM lessons l
+         JOIN modules m ON l.module_id = m.id
+         WHERE m.course_id = ? AND l.id NOT IN (
+           SELECT up2.lesson_id from user_progress up2 
+           WHERE up2.user_id = ? AND up2.completed = 1 AND up2.lesson_id IS NOT NULL
+         )
+         ORDER BY m."order", l."order"
+         LIMIT 1`,
+        [course.id, userId]
+      );
 
       myCourses.push({
         id: course.id,
@@ -118,21 +84,14 @@ export async function GET() {
         image: course.image,
         aiHint: course.aiHint,
         progress: progress,
-        lastAccessed: lastAccessedTimestamp > 0 ? new Date(lastAccessedTimestamp).toISOString() : null,
-        continueLessonId: firstUncompletedLesson?.id || null,
+        lastAccessed: course.lastAccessed,
+        continueLessonId: firstUncompletedLessonResult?.id || allLessons[0]?.id || null,
       });
     }
-
-    // 6. Sort by last accessed date
-    myCourses.sort((a, b) => {
-      const dateA = a.lastAccessed ? new Date(a.lastAccessed).getTime() : 0;
-      const dateB = b.lastAccessed ? new Date(b.lastAccessed).getTime() : 0;
-      return dateB - dateA;
-    });
-
+    
     const dashboardData = {
       stats: {
-        coursesCompleted: coursesCompleted,
+        coursesCompleted: coursesCompletedCount,
         skillsAcquired: skillsAcquired.size,
       },
       myCourses: myCourses,
