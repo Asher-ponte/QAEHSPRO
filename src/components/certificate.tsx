@@ -50,7 +50,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <header className="mb-2">
                         <div className="flex justify-center items-center gap-x-8 gap-y-4 mb-4">
                            {data.companyLogoPath && (
-                                <div className="relative h-20 w-40">
+                                <div className="relative h-24 w-48">
                                     <Image 
                                         src={data.companyLogoPath} 
                                         alt={`${data.companyName} Logo`} 
@@ -60,7 +60,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                             {data.companyLogo2Path && (
-                                 <div className="relative h-20 w-40">
+                                 <div className="relative h-24 w-48">
                                     <Image 
                                         src={data.companyLogo2Path} 
                                         alt={`${data.companyName} Secondary Logo`} 
@@ -70,28 +70,28 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                         </div>
-                        <h1 className="text-3xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                        <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                          {data.companyAddress && (
-                            <p className="text-sm text-muted-foreground mt-1">{data.companyAddress}</p>
+                            <p className="text-lg text-muted-foreground mt-1">{data.companyAddress}</p>
                         )}
                     </header>
 
                     {/* Main Content */}
                     <main className="py-2">
-                        <h2 className="text-xl font-semibold text-muted-foreground tracking-widest uppercase pt-2">
+                        <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase pt-2">
                             Certificate of Completion
                         </h2>
-                        <p className="text-base mt-4">This certificate is proudly presented to</p>
-                        <h1 className="text-6xl font-bold my-2 text-black dark:text-white">
+                        <p className="text-lg mt-4">This certificate is proudly presented to</p>
+                        <h1 className="text-7xl font-bold my-4 text-black dark:text-white">
                             {data.user.username}
                         </h1>
-                        <p className="text-base max-w-2xl mx-auto">
+                        <p className="text-lg">
                             for successfully completing the course
                         </p>
-                        <h3 className="text-3xl font-semibold my-2">
+                        <h3 className="text-4xl font-semibold my-2">
                            "{data.course.title}"
                         </h3>
-                        <p className="text-base mt-2">
+                        <p className="text-lg mt-2">
                             on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                         </p>
                     </main>
