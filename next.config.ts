@@ -4,7 +4,7 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
-    serverComponentsExternalPackages: ['sqlite3'],
+    serverComponentsExternalPackages: ['sqlite3', '@mapbox/node-pre-gyp'],
   },
   typescript: {
     ignoreBuildErrors: true,

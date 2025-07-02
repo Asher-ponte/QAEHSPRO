@@ -1,10 +1,24 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { validateSession } from '@/lib/session'
+
+export const runtime = 'nodejs'
  
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Manually exclude routes to avoid running middleware on static assets and API routes.
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next/static') ||
+    pathname.startsWith('/_next/image') ||
+    pathname.startsWith('/assets') ||
+    pathname.includes('favicon.ico')
+  ) {
+    return NextResponse.next();
+  }
+
   const sessionCookie = request.cookies.get('session');
   const sessionId = sessionCookie?.value;
-  const { pathname } = request.nextUrl;
 
   const authenticatedRoutes = ['/dashboard', '/courses', '/admin', '/recommendations'];
   const isProtectedRoute = authenticatedRoutes.some(route => pathname.startsWith(route));
@@ -28,10 +42,4 @@ export async function middleware(request: NextRequest) {
   }
  
   return NextResponse.next()
-}
- 
-export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|assets|favicon.ico).*)',
-  ],
 }
