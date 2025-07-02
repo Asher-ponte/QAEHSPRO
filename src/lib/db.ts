@@ -122,7 +122,7 @@ async function initializeDb() {
 
 
         // Seed Users
-        await dbInstance.run('INSERT INTO users (username, department) VALUES (?, ?)', ['admin', 'Administration']);
+        await dbInstance.run('INSERT INTO users (username, department) VALUES (?, ?)', ['Demo User', 'Administration']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png')");
@@ -194,6 +194,6 @@ export async function getDb() {
         db = await initializeDb();
     }
     // Every time, ensure the admin user exists. This is self-healing.
-    await db.run('INSERT OR IGNORE INTO users (id, username, department) VALUES (?, ?, ?)', [1, 'admin', 'Administration']);
+    await db.run('INSERT OR IGNORE INTO users (id, username, department) VALUES (?, ?, ?)', [1, 'Demo User', 'Administration']);
     return db;
 }
