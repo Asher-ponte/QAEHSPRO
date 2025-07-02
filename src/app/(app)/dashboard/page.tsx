@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target, ExternalLink } from "lucide-react"
+import { Lightbulb, Target, ExternalLink, Award } from "lucide-react"
 import Link from 'next/link'
 import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -149,6 +149,20 @@ export default function DashboardPage() {
               </Card>
           ))}
         </div>
+        <Card>
+            <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 w-full">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className="space-y-2 flex-grow">
+                            <Skeleton className="h-5 w-1/2" />
+                            <Skeleton className="h-4 w-3/4" />
+                        </div>
+                    </div>
+                    <Skeleton className="h-10 w-full sm:w-48" />
+                </div>
+            </CardContent>
+        </Card>
         <CourseListSkeleton />
       </div>
     )
@@ -175,6 +189,21 @@ export default function DashboardPage() {
             </Card>
         ))}
       </div>
+
+      <Card>
+        <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+                <Award className="h-10 w-10 text-primary flex-shrink-0" />
+                <div>
+                    <h3 className="font-semibold text-lg">View Your Achievements</h3>
+                    <p className="text-muted-foreground text-sm">Access all of your earned course certificates.</p>
+                </div>
+            </div>
+            <Button asChild className="w-full sm:w-auto flex-shrink-0">
+                <Link href="/profile/certificates">View My Certificates</Link>
+            </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
