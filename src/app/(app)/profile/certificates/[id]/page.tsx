@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -101,23 +102,45 @@ export default function CertificatePage() {
 
     try {
         const canvas = await html2canvas(certificateElement, {
-            scale: 2, // Increase scale for better quality
+            scale: 3, // Increased scale for better quality
             useCORS: true,
             backgroundColor: null,
+            windowWidth: certificateElement.scrollWidth,
+            windowHeight: certificateElement.scrollHeight
         });
-        const imgData = canvas.toDataURL('image/png');
+        const imgData = canvas.toDataURL('image/png', 1.0);
 
         // Create a landscape A4 PDF
         const pdf = new jsPDF({
             orientation: 'landscape',
-            unit: 'pt',
+            unit: 'mm',
             format: 'a4'
         });
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const canvasRatio = canvasWidth / canvasHeight;
+
+        // We want to fill the width of the PDF page, and let the height be calculated
+        // based on the original aspect ratio to avoid distortion.
+        const imgWidth = pdfWidth;
+        const imgHeight = imgWidth / canvasRatio;
+
+        // In case the calculated height is more than the pdf height, we should fit by height instead.
+        let finalImgWidth = imgWidth;
+        let finalImgHeight = imgHeight;
+        if (imgHeight > pdfHeight) {
+            finalImgHeight = pdfHeight;
+            finalImgWidth = finalImgHeight * canvasRatio;
+        }
         
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        // Center the image on the page
+        const xOffset = (pdfWidth - finalImgWidth) / 2;
+        const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
         pdf.save(`certificate-${data.certificateNumber || data.id}.pdf`);
 
     } catch (error) {
