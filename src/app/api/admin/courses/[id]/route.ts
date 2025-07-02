@@ -68,14 +68,14 @@ export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
-    const { id: courseId } = params;
-
-    if (!courseId) {
-        return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
-    }
-
     try {
+        const db = await getDb();
+        const { id: courseId } = params;
+
+        if (!courseId) {
+            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        }
+
         const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
         if (!course) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
@@ -119,14 +119,15 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
-    const { id: courseId } = params;
-
-    if (!courseId) {
-        return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
-    }
-
+    let db;
     try {
+        db = await getDb();
+        const { id: courseId } = params;
+
+        if (!courseId) {
+            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        }
+
         const data = await request.json();
         const parsedData = courseSchema.safeParse(data);
 
@@ -220,7 +221,9 @@ export async function PUT(
         return NextResponse.json(updatedCourse, { status: 200 });
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (db) {
+            await db.run('ROLLBACK').catch(console.error);
+        }
         console.error("Failed to update course:", error);
         return NextResponse.json({ error: 'Failed to update course due to a server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
@@ -231,14 +234,15 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb()
-    const { id: courseId } = params
-
-    if (!courseId) {
-        return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
-    }
-
+    let db;
     try {
+        db = await getDb()
+        const { id: courseId } = params
+
+        if (!courseId) {
+            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        }
+
         await db.run('BEGIN TRANSACTION');
 
         // By deleting the course, ON DELETE CASCADE will handle deleting all associated
@@ -255,7 +259,9 @@ export async function DELETE(
         return NextResponse.json({ success: true, message: `Course ${courseId} deleted successfully.` });
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (db) {
+            await db.run('ROLLBACK').catch(console.error);
+        }
         console.error("Failed to delete course:", error);
         return NextResponse.json({ error: 'Failed to delete course due to a server error' }, { status: 500 });
     }
