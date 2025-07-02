@@ -17,6 +17,13 @@ export async function POST(
     }
     const userId = user.id;
 
+    if (user.role !== 'Admin') {
+        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        if (!enrollment) {
+            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+    }
+
     try {
         // Use a transaction to ensure atomicity
         await db.run('BEGIN TRANSACTION');

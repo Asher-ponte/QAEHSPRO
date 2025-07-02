@@ -12,19 +12,27 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const userId = user.id;
+    const courseId = params.id;
 
-    const course = await db.get('SELECT * FROM courses WHERE id = ?', params.id)
+    const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
     
     if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
     }
 
+    if (user.role !== 'Admin') {
+        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        if (!enrollment) {
+            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+    }
+
     const modules = await db.all(
         `SELECT id, title FROM modules WHERE course_id = ? ORDER BY "order" ASC`,
-        params.id
+        courseId
     );
 
-    const certificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, params.id]);
+    const certificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
 
     const courseDetail = { ...course, modules: [] as any[], isCompleted: !!certificate };
 

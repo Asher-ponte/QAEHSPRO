@@ -17,22 +17,27 @@ export async function GET(
     }
     const userId = user.id;
 
-    // When a user views a lesson, ensure they are enrolled and create a progress entry.
-    await db.run('BEGIN TRANSACTION');
+    // Admins are automatically enrolled to view content.
+    // Employees must be enrolled beforehand.
+    if (user.role === 'Admin') {
+        await db.run(
+            `INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)`,
+            [userId, courseId]
+        );
+    } else {
+        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        if (!enrollment) {
+            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+    }
 
-    await db.run(
-        `INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)`,
-        [userId, courseId]
-    );
-
+    // When a user views a lesson, create a progress entry if it doesn't exist.
     await db.run(
       `INSERT INTO user_progress (user_id, lesson_id, completed)
        VALUES (?, ?, 0)
        ON CONFLICT(user_id, lesson_id) DO NOTHING`,
       [userId, lessonId]
     );
-
-    await db.run('COMMIT');
 
     const lesson = await db.get(
         `SELECT 
@@ -60,8 +65,6 @@ export async function GET(
 
     return NextResponse.json(lessonWithBoolean)
   } catch (error) {
-    const db = await getDb().catch(() => null);
-    if(db) await db.run('ROLLBACK').catch(console.error);
     console.error(error)
     return NextResponse.json({ error: 'Failed to fetch lesson' }, { status: 500 })
   }
