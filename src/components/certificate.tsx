@@ -39,7 +39,7 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     return (
         <div id="certificate-print-area" className="bg-background">
-            <div id="certificate-to-download" className="max-w-2xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
+            <div id="certificate-to-download" className="max-w-4xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">
@@ -55,7 +55,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                         </div>
                     )}
 
-                    <h1 className="text-4xl font-bold tracking-wider text-primary">QAEHS PRO ACADEMY</h1>
+                    <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                     
                     <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase">
                         Certificate of Completion
@@ -81,7 +81,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <div className="flex flex-col items-center w-full pt-12 mt-8 space-y-12 border-t">
                         <div className="flex flex-wrap justify-center gap-x-16 gap-y-8">
                             {data.signatories.map((s, i) => (
-                                <div key={i} className="flex flex-col items-center min-w-[200px]">
+                                <div key={i} className="flex flex-col items-center min-w-0">
                                     <div className="relative h-16 w-48 mb-2">
                                         <Image 
                                             src={s.signatureImagePath} 
