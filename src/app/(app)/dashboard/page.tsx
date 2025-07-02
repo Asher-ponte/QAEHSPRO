@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -18,6 +17,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useUser } from "@/hooks/use-user"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 
 interface Course {
   id: string;
@@ -119,6 +124,9 @@ export default function DashboardPage() {
     },
   ]
 
+  const inProgressCourses = courses.filter(course => course.progress < 100);
+  const completedCourses = courses.filter(course => course.progress === 100);
+
   if (isUserLoading || isLoading) {
     return (
       <div className="flex flex-col gap-6">
@@ -171,65 +179,95 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Courses In Progress ({courses.length})</CardTitle>
+            <CardTitle>My Courses</CardTitle>
             <Link href="/courses" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
               Browse All Courses
               <ExternalLink className="h-4 w-4" />
             </Link>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {courses.length > 0 ? (
-            courses.map((course) => (
-              <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
-    
-                    {/* Left part: Image and Details */}
-                    <div className="flex flex-grow items-center gap-4">
-                        <div className="relative h-20 w-28 flex-shrink-0">
-                            <Image
-                                src={course.imagePath || 'https://placehold.co/200x150'}
-                                alt={course.title}
-                                fill
-                                className="rounded-md object-cover"
-                            />
-                        </div>
-                        <div className="flex-grow space-y-2">
-                            <h3 className="font-semibold leading-tight">{course.title}</h3>
-                            <div className="flex items-center gap-2">
-                                <Progress value={course.progress} className="h-2 bg-primary/20" />
-                                <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
+        <CardContent>
+          <Tabs defaultValue="in-progress" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="in-progress">In Progress ({inProgressCourses.length})</TabsTrigger>
+              <TabsTrigger value="completed">Completed ({completedCourses.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="in-progress" className="mt-4 space-y-4">
+              {inProgressCourses.length > 0 ? (
+                inProgressCourses.map((course) => (
+                  <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
+                        <div className="flex flex-grow items-center gap-4">
+                            <div className="relative h-20 w-28 flex-shrink-0">
+                                <Image
+                                    src={course.imagePath || 'https://placehold.co/200x150'}
+                                    alt={course.title}
+                                    fill
+                                    className="rounded-md object-cover"
+                                />
+                            </div>
+                            <div className="flex-grow space-y-2">
+                                <h3 className="font-semibold leading-tight">{course.title}</h3>
+                                <div className="flex items-center gap-2">
+                                    <Progress value={course.progress} className="h-2 bg-primary/20" />
+                                    <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Separator for desktop */}
-                    <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
-                    
-                    {/* Right part: Button */}
-                    <div className="flex-shrink-0 w-full md:w-48">
-                        {course.progress === 100 || !course.continueLessonId ? (
-                            <Button asChild variant="outline" className="w-full">
-                                <Link href={`/courses/${course.id}`}>Review Course</Link>
-                            </Button>
-                        ) : (
+                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                        <div className="flex-shrink-0 w-full md:w-48">
                             <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                                 <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
                             </Button>
-                        )}
+                        </div>
                     </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                    <p>You have no courses in progress.</p>
+                    <p className="text-sm">Explore the course catalog to get started!</p>
+                    <Button asChild variant="link" className="mt-2">
+                        <Link href="/courses">Browse Courses</Link>
+                    </Button>
                 </div>
-              </Card>
-            ))
-          ) : (
-            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                <p>You have no courses in progress.</p>
-                <p className="text-sm">Explore the course catalog to get started!</p>
-                <Button asChild variant="link" className="mt-2">
-                    <Link href="/courses">Browse Courses</Link>
-                </Button>
-            </div>
-          )}
+              )}
+            </TabsContent>
+            <TabsContent value="completed" className="mt-4 space-y-4">
+              {completedCourses.length > 0 ? (
+                completedCourses.map((course) => (
+                  <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                     <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
+                        <div className="flex flex-grow items-center gap-4">
+                            <div className="relative h-20 w-28 flex-shrink-0">
+                                <Image
+                                    src={course.imagePath || 'https://placehold.co/200x150'}
+                                    alt={course.title}
+                                    fill
+                                    className="rounded-md object-cover"
+                                />
+                            </div>
+                            <div className="flex-grow">
+                                <h3 className="font-semibold leading-tight">{course.title}</h3>
+                                <p className="text-sm text-muted-foreground mt-1">Completed</p>
+                            </div>
+                        </div>
+                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                        <div className="flex-shrink-0 w-full md:w-48">
+                            <Button asChild variant="outline" className="w-full">
+                                <Link href={`/courses/${course.id}`}>Review Course</Link>
+                            </Button>
+                        </div>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                    <p>You haven't completed any courses yet.</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
