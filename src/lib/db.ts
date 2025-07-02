@@ -94,6 +94,18 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
         console.log("Database seeded successfully.");
+    } else {
+        // Run migrations for existing databases
+        const columns = await dbInstance.all("PRAGMA table_info(user_progress)");
+        const hasLastAccessedColumn = columns.some(col => col.name === 'last_accessed_at');
+
+        if (!hasLastAccessedColumn) {
+            console.log("Upgrading database: Adding 'last_accessed_at' to 'user_progress' table.");
+            await dbInstance.exec(`
+                ALTER TABLE user_progress ADD COLUMN last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+            `);
+            console.log("Database upgrade complete.");
+        }
     }
 
 
