@@ -55,6 +55,8 @@ const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
+  imageUrl: z.string().url().optional().or(z.literal('')).nullable(),
+  imageAiHint: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -202,11 +204,15 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         if (value === 'quiz') {
             newLesson.questions = newLesson.questions || [];
             newLesson.content = null;
+            newLesson.imageUrl = null;
+            newLesson.imageAiHint = null;
         } else if (value === 'document') {
             newLesson.content = newLesson.content || "";
             newLesson.questions = undefined;
         } else {
             newLesson.content = null;
+            newLesson.imageUrl = null;
+            newLesson.imageAiHint = null;
             newLesson.questions = undefined;
         }
 
@@ -268,26 +274,62 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                 />
                             </div>
                             {lessonType === 'document' && (
-                                <FormField
-                                    control={control}
-                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Lesson Content</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                placeholder="Write your lesson content here... Supports Markdown."
-                                                className="min-h-[200px]"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Use Markdown for formatting, like # for headings and * for bold.
-                                        </FormDescription>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={control}
+                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                            <FormLabel>Lesson Content</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Write your lesson content here... Supports Markdown."
+                                                    className="min-h-[200px] lg:min-h-[300px]"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Use Markdown for formatting.
+                                            </FormDescription>
+                                            <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="space-y-4">
+                                        <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imageUrl`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Image URL</FormLabel>
+                                                    <FormControl>
+                                                    <Input placeholder="https://placehold.co/600x400" {...field} value={field.value ?? ''} />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Optional image to display with the content.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imageAiHint`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>AI Image Hint</FormLabel>
+                                                    <FormControl>
+                                                    <Input placeholder="e.g., business meeting" {...field} value={field.value ?? ''} />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Keywords to help AI find a relevant image.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
                             )}
                              {lessonType === 'quiz' && (
                                <div className="space-y-2">
@@ -303,7 +345,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: null })}
+                onClick={() => append({ title: "", type: "video", content: null, imageUrl: null, imageAiHint: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -404,6 +446,8 @@ export default function EditCoursePage() {
           title: lesson.title,
           type: lesson.type,
           content: lesson.content,
+          imageUrl: lesson.imageUrl,
+          imageAiHint: lesson.imageAiHint,
           questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
             text: q.text,
             options: q.options.map(o => ({ text: o.text })),
@@ -634,7 +678,7 @@ export default function EditCoursePage() {
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null }] })}
+                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imageUrl: null, imageAiHint: null }] })}
                         >
                             <Plus className="mr-2 h-4 w-4" /> Add Module
                         </Button>

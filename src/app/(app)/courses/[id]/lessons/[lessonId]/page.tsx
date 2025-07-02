@@ -3,6 +3,7 @@
 
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +22,8 @@ interface Lesson {
   title: string;
   type: 'video' | 'document' | 'quiz';
   content: string | null;
+  imageUrl: string | null;
+  imageAiHint: string | null;
   course_id: number;
   course_title: string;
   completed: boolean;
@@ -186,12 +189,31 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
                 </div>
             );
         case 'document':
+            const hasImage = !!lesson.imageUrl;
             return (
-                <article className="prose dark:prose-invert max-w-none overflow-x-auto">
-                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {lesson.content || "No content available."}
-                    </ReactMarkdown>
-                </article>
+                <div className={cn("grid grid-cols-1 gap-8", hasImage && "lg:grid-cols-3")}>
+                    <article className={cn(
+                        "prose dark:prose-invert max-w-none",
+                        hasImage ? "lg:col-span-2" : "lg:col-span-3"
+                    )}>
+                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {lesson.content || "No content available."}
+                        </ReactMarkdown>
+                    </article>
+                    {hasImage && (
+                        <aside className="lg:col-span-1">
+                            <div className="relative aspect-[4/3] w-full">
+                                <Image
+                                    src={lesson.imageUrl!}
+                                    alt={lesson.title}
+                                    fill
+                                    data-ai-hint={lesson.imageAiHint || ''}
+                                    className="object-cover rounded-lg"
+                                />
+                            </div>
+                        </aside>
+                    )}
+                </div>
             );
         case 'quiz':
             return <QuizContent lesson={lesson} onComplete={onComplete} />;

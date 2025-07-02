@@ -28,6 +28,8 @@ const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
+  imageUrl: z.string().url().optional().or(z.literal('')).nullable(),
+  imageAiHint: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -98,8 +100,8 @@ export async function POST(request: NextRequest) {
             }
 
             await db.run(
-                'INSERT INTO lessons (module_id, title, type, content, "order") VALUES (?, ?, ?, ?, ?)',
-                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1]
+                'INSERT INTO lessons (module_id, title, type, content, "order", imageUrl, imageAiHint) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imageUrl, lessonData.imageAiHint]
             );
         }
     }

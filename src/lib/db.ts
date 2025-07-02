@@ -21,6 +21,18 @@ async function initializeDb() {
 
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
+    // Migration for adding imageUrl and imageAiHint to lessons
+    if (dbExists) {
+        const lessonColumns = await dbInstance.all("PRAGMA table_info(lessons)");
+        if (!lessonColumns.some(col => col.name === 'imageUrl')) {
+            await dbInstance.exec('ALTER TABLE lessons ADD COLUMN imageUrl TEXT');
+        }
+        if (!lessonColumns.some(col => col.name === 'imageAiHint')) {
+            await dbInstance.exec('ALTER TABLE lessons ADD COLUMN imageAiHint TEXT');
+        }
+    }
+
+
     if (!dbExists) {
         console.log("Database not found, initializing schema and seeding data...");
         await dbInstance.exec(`
@@ -59,6 +71,8 @@ async function initializeDb() {
             type TEXT NOT NULL CHECK(type IN ('video', 'document', 'quiz')),
             content TEXT,
             "order" INTEGER NOT NULL,
+            imageUrl TEXT,
+            imageAiHint TEXT,
             FOREIGN KEY (module_id) REFERENCES modules (id) ON DELETE CASCADE
         );
         `);
@@ -90,7 +104,7 @@ async function initializeDb() {
         
         // Seed Lessons for Module 1
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imageUrl, imageAiHint) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, 'https://placehold.co/600x400', 'leadership concepts')");
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
         console.log("Database seeded successfully.");
