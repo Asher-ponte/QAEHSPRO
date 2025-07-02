@@ -182,34 +182,42 @@ export default function DashboardPage() {
           {courses.length > 0 ? (
             courses.map((course) => (
               <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-4 p-4">
-                  <div className="relative h-20 w-28 flex-shrink-0">
-                    <Image
-                        src={course.imagePath || 'https://placehold.co/200x150'}
-                        alt={course.title}
-                        fill
-                        className="rounded-md object-cover"
-                    />
-                  </div>
-                  <div className="flex-grow space-y-2">
-                      <h3 className="font-semibold leading-tight">{course.title}</h3>
-                      <div className="flex items-center gap-2">
-                          <Progress value={course.progress} className="h-2 bg-primary/20" />
-                          <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
-                      </div>
-                  </div>
-                  <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
-                  <div className="hidden md:flex flex-col items-center gap-2 w-48">
-                    {course.progress === 100 || !course.continueLessonId ? (
-                        <Button asChild variant="outline" className="w-full">
-                            <Link href={`/courses/${course.id}`}>Review Course</Link>
-                        </Button>
-                    ) : (
-                        <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                            <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
-                        </Button>
-                    )}
-                  </div>
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
+    
+                    {/* Left part: Image and Details */}
+                    <div className="flex flex-grow items-center gap-4">
+                        <div className="relative h-20 w-28 flex-shrink-0">
+                            <Image
+                                src={course.imagePath || 'https://placehold.co/200x150'}
+                                alt={course.title}
+                                fill
+                                className="rounded-md object-cover"
+                            />
+                        </div>
+                        <div className="flex-grow space-y-2">
+                            <h3 className="font-semibold leading-tight">{course.title}</h3>
+                            <div className="flex items-center gap-2">
+                                <Progress value={course.progress} className="h-2 bg-primary/20" />
+                                <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Separator for desktop */}
+                    <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                    
+                    {/* Right part: Button */}
+                    <div className="flex-shrink-0 w-full md:w-48">
+                        {course.progress === 100 || !course.continueLessonId ? (
+                            <Button asChild variant="outline" className="w-full">
+                                <Link href={`/courses/${course.id}`}>Review Course</Link>
+                            </Button>
+                        ) : (
+                            <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                                <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
+                            </Button>
+                        )}
+                    </div>
                 </div>
               </Card>
             ))
