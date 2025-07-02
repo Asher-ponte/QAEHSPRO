@@ -109,14 +109,25 @@ async function initializeDb() {
         );
         `);
 
+         await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS enrollments (
+                user_id INTEGER NOT NULL,
+                course_id INTEGER NOT NULL,
+                PRIMARY KEY(user_id, course_id),
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            );
+        `);
+
+
         // Seed Users
         await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['admin']);
         
         // Seed Courses
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (3, 'Cybersecurity Basics', 'Understand common threats and best practices to keep our systems secure.', '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (4, 'Effective Communication', 'Master the art of clear, concise, and persuasive communication.', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (3, 'Cybersecurity Basics', 'Understand common threats and best practices to keep our systems secure.', 'Compliance', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (4, 'Effective Communication', 'Master the art of clear, concise, and persuasive communication.', 'Soft Skills', '/images/placeholder.png')");
         
         // Seed Modules for Course 1
         await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (1, 1, 'Module 1: Introduction', 1)");
@@ -127,6 +138,9 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png')");
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
+        // Seed initial enrollment for the admin user
+        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
+
         console.log("Database seeded successfully.");
     } else {
         // Run migrations for existing databases
@@ -150,6 +164,16 @@ async function initializeDb() {
                 signatureImagePath TEXT NOT NULL
             );
         `).catch(e => console.log("Could not create signatories table, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS enrollments (
+                user_id INTEGER NOT NULL,
+                course_id INTEGER NOT NULL,
+                PRIMARY KEY(user_id, course_id),
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            );
+        `).catch(e => console.log("Could not create enrollments table, it might exist already:", e.message));
 
         await dbInstance.exec(`
             ALTER TABLE signatories ADD COLUMN position TEXT;

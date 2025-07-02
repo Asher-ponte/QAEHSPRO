@@ -13,15 +13,13 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // Get all courses that the user has started (i.e., has an entry in user_progress).
+    // Get all courses the user is enrolled in.
     const courses = await db.all(`
-        SELECT DISTINCT c.*
-        FROM courses c
-        JOIN modules m ON m.course_id = c.id
-        JOIN lessons l ON l.module_id = m.id
-        JOIN user_progress up ON up.lesson_id = l.id
-        WHERE up.user_id = ?
-      `, [userId]);
+        SELECT c.*
+        FROM enrollments e
+        JOIN courses c ON e.course_id = c.id
+        WHERE e.user_id = ?
+    `, [userId]);
 
 
     if (courses.length === 0) {
@@ -50,7 +48,17 @@ export async function GET() {
       );
 
       const totalLessons = allLessons.length;
-      if (totalLessons === 0) continue; 
+      if (totalLessons === 0) {
+        myCourses.push({
+            id: course.id,
+            title: course.title,
+            category: course.category,
+            imagePath: course.imagePath,
+            progress: 0,
+            continueLessonId: null,
+        });
+        continue;
+      }; 
 
       const progress = Math.floor((completedLessons.length / totalLessons) * 100);
 

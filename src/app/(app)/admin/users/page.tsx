@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
@@ -5,7 +6,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, UserPlus, Users } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, UserPlus, BookCopy } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -61,6 +62,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface User {
   id: number;
@@ -154,12 +158,154 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
     );
 }
 
+interface CourseAdminView {
+  id: number;
+  title: string;
+}
+
+function ManageEnrollmentsDialog({ user, open, onOpenChange }: { user: User | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+    const [allCourses, setAllCourses] = useState<CourseAdminView[]>([]);
+    const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
+    const [isLoading, setIsLoading] = useState(true);
+    const [isUpdating, setIsUpdating] = useState<number | null>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (open && user) {
+            const fetchData = async () => {
+                setIsLoading(true);
+                try {
+                    const [coursesRes, enrollmentsRes] = await Promise.all([
+                        fetch('/api/admin/courses'),
+                        fetch(`/api/admin/enrollments/${user.id}`)
+                    ]);
+
+                    if (!coursesRes.ok || !enrollmentsRes.ok) {
+                        throw new Error('Failed to load enrollment data.');
+                    }
+
+                    const coursesData = await coursesRes.json();
+                    const enrolledIdsData = await enrollmentsRes.json();
+
+                    setAllCourses(coursesData);
+                    setEnrolledCourseIds(new Set(enrolledIdsData));
+
+                } catch (error) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: error instanceof Error ? error.message : 'Could not load data.'
+                    });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchData();
+        }
+    }, [open, user, toast]);
+
+    const handleEnrollmentChange = async (courseId: number, enroll: boolean) => {
+        if (!user) return;
+        setIsUpdating(courseId);
+        
+        const url = '/api/admin/enrollments';
+        const method = enroll ? 'POST' : 'DELETE';
+        
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, courseId: courseId })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `Failed to ${enroll ? 'enroll' : 'un-enroll'} user.`);
+            }
+            
+            setEnrolledCourseIds(prev => {
+                const newSet = new Set(prev);
+                if (enroll) {
+                    newSet.add(courseId);
+                } else {
+                    newSet.delete(courseId);
+                }
+                return newSet;
+            });
+
+            toast({
+                title: 'Success',
+                description: `User ${enroll ? 'enrolled in' : 'un-enrolled from'} course successfully.`
+            });
+
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'An unknown error occurred.'
+            });
+        } finally {
+            setIsUpdating(null);
+        }
+    };
+
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Manage Enrollments</DialogTitle>
+                    <DialogDescription>
+                        Enroll or un-enroll {user?.username} from courses. Changes are saved automatically.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    {isLoading ? (
+                        <div className="space-y-4">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="flex items-center space-x-2">
+                                    <Skeleton className="h-4 w-4" />
+                                    <Skeleton className="h-4 w-[250px]" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-72">
+                            <div className="space-y-4 pr-6">
+                            {allCourses.length > 0 ? allCourses.map(course => (
+                                <div key={course.id} className="flex items-center space-x-3">
+                                    <Checkbox
+                                        id={`course-${course.id}`}
+                                        checked={enrolledCourseIds.has(course.id)}
+                                        onCheckedChange={(checked) => handleEnrollmentChange(course.id, !!checked)}
+                                        disabled={isUpdating === course.id}
+                                    />
+                                    <Label htmlFor={`course-${course.id}`} className="flex-grow font-normal cursor-pointer">
+                                        {course.title}
+                                    </Label>
+                                    {isUpdating === course.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                                </div>
+                            )) : <p className="text-sm text-muted-foreground text-center">No courses available to enroll.</p>}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function ManageUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToEnroll, setUserToEnroll] = useState<User | null>(null);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -219,6 +365,10 @@ export default function ManageUsersPage() {
     setShowDeleteDialog(true);
   };
   
+  const openEnrollmentDialog = (user: User) => {
+    setUserToEnroll(user);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -283,6 +433,10 @@ export default function ManageUsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                           <DropdownMenuItem onSelect={() => openEnrollmentDialog(user)}>
+                             <BookCopy className="mr-2 h-4 w-4" />
+                             <span>Manage Enrollments</span>
+                           </DropdownMenuItem>
                            <DropdownMenuItem disabled>
                              <Edit className="mr-2 h-4 w-4" />
                              <span>Edit (Soon)</span>
@@ -326,6 +480,16 @@ export default function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ManageEnrollmentsDialog 
+        user={userToEnroll}
+        open={!!userToEnroll}
+        onOpenChange={(open) => {
+            if (!open) {
+                setUserToEnroll(null)
+            }
+        }}
+       />
     </div>
   )
 }
