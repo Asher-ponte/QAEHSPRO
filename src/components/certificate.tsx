@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -49,7 +50,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <header className="mb-2">
                         <div className="flex justify-center items-center gap-x-8 gap-y-4 mb-4">
                            {data.companyLogoPath && (
-                                <div className="relative h-16 w-32">
+                                <div className="relative h-20 w-40">
                                     <Image 
                                         src={data.companyLogoPath} 
                                         alt={`${data.companyName} Logo`} 
@@ -59,7 +60,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                             {data.companyLogo2Path && (
-                                 <div className="relative h-16 w-32">
+                                 <div className="relative h-20 w-40">
                                     <Image 
                                         src={data.companyLogo2Path} 
                                         alt={`${data.companyName} Secondary Logo`} 
@@ -69,28 +70,28 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 </div>
                             )}
                         </div>
-                        <h1 className="text-2xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                        <h1 className="text-3xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                          {data.companyAddress && (
-                            <p className="text-xs text-muted-foreground mt-1">{data.companyAddress}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{data.companyAddress}</p>
                         )}
                     </header>
 
                     {/* Main Content */}
                     <main className="py-2">
-                        <h2 className="text-md font-semibold text-muted-foreground tracking-widest uppercase pt-2">
+                        <h2 className="text-xl font-semibold text-muted-foreground tracking-widest uppercase pt-2">
                             Certificate of Completion
                         </h2>
-                        <p className="text-sm mt-4">This certificate is proudly presented to</p>
-                        <h1 className="text-5xl font-bold my-2 text-black dark:text-white">
+                        <p className="text-base mt-4">This certificate is proudly presented to</p>
+                        <h1 className="text-6xl font-bold my-2 text-black dark:text-white">
                             {data.user.username}
                         </h1>
-                        <p className="text-sm max-w-2xl mx-auto">
+                        <p className="text-base max-w-2xl mx-auto">
                             for successfully completing the course
                         </p>
-                        <h3 className="text-2xl font-semibold my-2">
+                        <h3 className="text-3xl font-semibold my-2">
                            "{data.course.title}"
                         </h3>
-                        <p className="text-sm mt-2">
+                        <p className="text-base mt-2">
                             on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                         </p>
                     </main>
@@ -102,7 +103,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <footer className="flex justify-between items-end gap-x-8 gap-y-4">
                         <div className="flex flex-col items-center text-center">
                             {qrCodeDataUrl && (
-                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={70} height={70} />
+                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={80} height={80} />
                             )}
                             {data.certificateNumber && (
                                 <p className="text-xs text-muted-foreground mt-2">
@@ -123,8 +124,8 @@ export function Certificate({ data }: { data: CertificateData }) {
                                         />
                                     </div>
                                     <div className="border-t border-foreground pt-1 w-full">
-                                        <p className="text-sm font-semibold whitespace-nowrap">{s.name}</p>
-                                        {s.position && <p className="text-xs text-muted-foreground whitespace-nowrap">{s.position}</p>}
+                                        <p className="text-base font-semibold whitespace-nowrap">{s.name}</p>
+                                        {s.position && <p className="text-sm text-muted-foreground whitespace-nowrap">{s.position}</p>}
                                     </div>
                                 </div>
                             ))}
