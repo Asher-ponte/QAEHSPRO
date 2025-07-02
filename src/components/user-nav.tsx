@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, LogOut, Settings, User } from "lucide-react"
+import { CreditCard, Settings, User } from "lucide-react"
 import { useUser } from "@/hooks/use-user"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -58,15 +58,6 @@ export function UserNav() {
             <span>Settings</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <form action="/api/auth/logout" method="POST" className="w-full">
-            <button type="submit" className="flex items-center w-full">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </button>
-          </form>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

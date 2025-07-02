@@ -25,17 +25,7 @@ async function initializeDb() {
         await dbInstance.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL
-            );
-        `);
-
-        await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                expires_at DATETIME NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                username TEXT NOT NULL UNIQUE
             );
         `);
 
@@ -85,9 +75,7 @@ async function initializeDb() {
         `);
 
         // Seed Users
-        const bcrypt = await import('bcrypt');
-        const hashedPassword = await bcrypt.hash('password', 10);
-        await dbInstance.run('INSERT INTO users (username, password) VALUES (?, ?)', ['Demo User', hashedPassword]);
+        await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['Demo User']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, image, aiHint) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', 'https://placehold.co/600x400', 'leadership team')");
