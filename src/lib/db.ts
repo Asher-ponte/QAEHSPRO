@@ -1,14 +1,16 @@
+'use server';
 
-import sqlite3 from 'sqlite3';
+import * as sqlite3 from 'sqlite3';
 import { open, type Database } from 'sqlite';
 import path from 'path';
+import fs from 'fs';
 import bcrypt from 'bcrypt';
 
 let db: Database | null = null;
 
 async function initializeDb() {
     const dbPath = path.join(process.cwd(), 'db.sqlite');
-    const dbExists = require('fs').existsSync(dbPath);
+    const dbExists = fs.existsSync(dbPath);
     
     const dbInstance = await open({
         filename: dbPath,

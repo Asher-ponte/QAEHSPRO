@@ -3,7 +3,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  serverExternalPackages: ['sqlite3', '@mapbox/node-pre-gyp', 'bcrypt'],
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -18,6 +17,13 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  webpack: (config, { isServer }) => {
+    // This is required for packages with native Node.js dependencies.
+    if (isServer) {
+      config.externals.push('sqlite3', 'bcrypt');
+    }
+    return config;
   },
 };
 
