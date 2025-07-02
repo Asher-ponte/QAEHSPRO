@@ -4,41 +4,44 @@ import { validateSession } from '@/lib/session'
 export const runtime = 'nodejs'
  
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname } = request.nextUrl
+ 
+  // Define paths that should bypass the middleware
+  const excludedPaths = [
+    '/api/',
+    '/_next/static/',
+    '/_next/image/',
+    '/assets/',
+    '/favicon.ico',
+  ]
 
-  // Manually exclude routes to avoid running middleware on static assets and API routes.
-  if (
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/_next/static') ||
-    pathname.startsWith('/_next/image') ||
-    pathname.startsWith('/assets') ||
-    pathname.includes('favicon.ico')
-  ) {
-    return NextResponse.next();
+  // If the request path starts with an excluded path, do nothing.
+  if (excludedPaths.some(p => pathname.startsWith(p))) {
+    return NextResponse.next()
   }
-
-  const sessionCookie = request.cookies.get('session');
-  const sessionId = sessionCookie?.value;
-
-  const authenticatedRoutes = ['/dashboard', '/courses', '/admin', '/recommendations'];
-  const isProtectedRoute = authenticatedRoutes.some(route => pathname.startsWith(route));
-
-  // If on a protected route, the session MUST be valid.
-  if (isProtectedRoute) {
-    if (!sessionId || !(await validateSession(sessionId))) {
-      // Redirect to login and instruct the browser to delete the invalid cookie.
-      const response = NextResponse.redirect(new URL('/', request.url));
-      response.cookies.delete('session');
-      return response;
-    }
-  }
-
-  // If on the login/signup page with an already valid session, redirect to the dashboard.
-  if ((pathname === '/' || pathname === '/signup') && sessionId) {
-    const user = await validateSession(sessionId);
+ 
+  const sessionId = request.cookies.get('session')?.value
+  const user = sessionId ? await validateSession(sessionId) : null
+ 
+  const isAuthPage = pathname === '/' || pathname.startsWith('/signup')
+ 
+  if (isAuthPage) {
+    // If the user is on an auth page but is already logged in, redirect to the dashboard.
     if (user) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
+    // Otherwise, allow them to see the auth page.
+    return NextResponse.next()
+  }
+ 
+  // For any other page, if there is no valid user, redirect to the login page.
+  if (!user) {
+    const response = NextResponse.redirect(new URL('/', request.url))
+    // Clear the invalid session cookie if it exists.
+    if (sessionId) {
+      response.cookies.delete('session')
+    }
+    return response
   }
  
   return NextResponse.next()
