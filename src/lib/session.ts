@@ -4,6 +4,7 @@
 interface User {
   id: number;
   username: string;
+  department: string | null;
 }
 
 /**
@@ -15,6 +16,7 @@ interface User {
 export async function getCurrentUser(): Promise<User> {
   return {
     id: 1,
-    username: 'Demo User'
+    username: 'Demo User',
+    department: 'Administration'
   };
 }

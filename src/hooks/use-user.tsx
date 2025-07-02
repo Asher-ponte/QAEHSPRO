@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
@@ -5,6 +6,7 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 interface User {
   id: number;
   username: string;
+  department: string | null;
 }
 
 interface UserContextType {

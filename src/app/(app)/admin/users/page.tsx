@@ -69,10 +69,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 interface User {
   id: number;
   username: string;
+  department: string | null;
 }
 
 const userFormSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }),
+  department: z.string().min(2, { message: "Department must be at least 2 characters." }),
 })
 
 type UserFormValues = z.infer<typeof userFormSchema>
@@ -84,7 +86,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userFormSchema),
-        defaultValues: { username: "" },
+        defaultValues: { username: "", department: "" },
     });
 
     async function onSubmit(values: UserFormValues) {
@@ -137,6 +139,19 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                     <FormLabel>Username</FormLabel>
                                     <FormControl>
                                         <Input placeholder="e.g., janesmith" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="department"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Department</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Engineering" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -401,6 +416,7 @@ export default function ManageUsersPage() {
               <TableRow>
                 <TableHead className="w-[100px]">User ID</TableHead>
                 <TableHead>Username</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -410,6 +426,7 @@ export default function ManageUsersPage() {
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -418,6 +435,7 @@ export default function ManageUsersPage() {
                   <TableRow key={user.id}>
                     <TableCell className="font-mono text-muted-foreground">{user.id}</TableCell>
                     <TableCell className="font-medium">{user.username}</TableCell>
+                    <TableCell>{user.department}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -456,7 +474,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={4} className="h-24 text-center">
                     No users found.
                   </TableCell>
                 </TableRow>
