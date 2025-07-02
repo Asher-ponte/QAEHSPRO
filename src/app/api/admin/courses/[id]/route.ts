@@ -263,6 +263,7 @@ export async function DELETE(
             await db.run('ROLLBACK').catch(console.error);
         }
         console.error("Failed to delete course:", error);
-        return NextResponse.json({ error: 'Failed to delete course due to a server error' }, { status: 500 });
+        const details = error instanceof Error ? error.message : "An unknown error occurred.";
+        return NextResponse.json({ error: 'Failed to delete course due to a server error.', details }, { status: 500 });
     }
 }

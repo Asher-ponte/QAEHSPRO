@@ -88,7 +88,10 @@ export default function ManageCoursesPage() {
       });
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to delete course");
+        const message = errorData.details
+          ? `${errorData.error} Details: ${errorData.details}`
+          : errorData.error || "Failed to delete course";
+        throw new Error(message);
       }
       toast({
         title: "Success",
@@ -98,8 +101,8 @@ export default function ManageCoursesPage() {
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Could not delete course.",
+        title: "Error Deleting Course",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
       });
     } finally {
       setIsDeleting(null);
