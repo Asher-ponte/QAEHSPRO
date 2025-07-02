@@ -40,7 +40,9 @@ async function initializeDb() {
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
-                department TEXT
+                department TEXT,
+                position TEXT,
+                role TEXT NOT NULL DEFAULT 'Employee' CHECK(role IN ('Employee', 'Admin'))
             );
         `);
 
@@ -122,7 +124,7 @@ async function initializeDb() {
 
 
         // Seed Users
-        await dbInstance.run('INSERT INTO users (username, department) VALUES (?, ?)', ['Demo User', 'Administration']);
+        await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Demo User', 'Administration', 'System Administrator', 'Admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png')");
@@ -183,6 +185,14 @@ async function initializeDb() {
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN department TEXT;
         `).catch(e => console.log("Could not add department column to users, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            ALTER TABLE users ADD COLUMN position TEXT;
+        `).catch(e => console.log("Could not add position column to users, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            ALTER TABLE users ADD COLUMN role TEXT;
+        `).catch(e => console.log("Could not add role column to users, it might exist already:", e.message));
     }
 
 
@@ -194,6 +204,6 @@ export async function getDb() {
         db = await initializeDb();
     }
     // Every time, ensure the admin user exists. This is self-healing.
-    await db.run('INSERT OR IGNORE INTO users (id, username, department) VALUES (?, ?, ?)', [1, 'Demo User', 'Administration']);
+    await db.run("INSERT OR IGNORE INTO users (id, username, department, position, role) VALUES (?, ?, ?, ?, ?)", [1, 'Demo User', 'Administration', 'System Administrator', 'Admin']);
     return db;
 }

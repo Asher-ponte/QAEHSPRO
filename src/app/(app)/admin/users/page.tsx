@@ -61,16 +61,28 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 interface User {
   id: number;
   username: string;
   department: string | null;
+  position: string | null;
+  role: 'Employee' | 'Admin';
 }
 
 const userFormSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters." }),
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
+  position: z.string().min(2, { message: "Position must be at least 2 characters." }),
+  role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
 })
 
 type UserFormValues = z.infer<typeof userFormSchema>
@@ -82,7 +94,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userFormSchema),
-        defaultValues: { username: "", department: "" },
+        defaultValues: { username: "", department: "", position: "", role: "Employee" },
     });
 
     async function onSubmit(values: UserFormValues) {
@@ -149,6 +161,40 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                     <FormControl>
                                         <Input placeholder="e.g., Engineering" {...field} />
                                     </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="position"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Position</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Software Engineer" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="role"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Role</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a role" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="Employee">Employee</SelectItem>
+                                            <SelectItem value="Admin">Admin</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -264,9 +310,10 @@ export default function ManageUsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">User ID</TableHead>
                 <TableHead>Username</TableHead>
                 <TableHead>Department</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -274,18 +321,24 @@ export default function ManageUsersPage() {
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : users.length > 0 ? (
                 users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-mono text-muted-foreground">{user.id}</TableCell>
                     <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>{user.department}</TableCell>
+                    <TableCell>{user.position}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -320,7 +373,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     No users found.
                   </TableCell>
                 </TableRow>

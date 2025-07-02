@@ -1,6 +1,8 @@
+
 "use client"
 
 import Link from "next/link"
+import React from "react"
 import { usePathname } from "next/navigation"
 import { BookOpen, Home, Menu, Shield, Sparkles } from "lucide-react"
 
@@ -14,15 +16,27 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { useUser } from "@/hooks/use-user"
 
-const links = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/admin", label: "Admin", icon: Shield },
+const navDefinition = [
+  { href: "/dashboard", label: "Dashboard", icon: Home, adminOnly: false },
+  { href: "/courses", label: "Courses", icon: BookOpen, adminOnly: false },
+  { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ]
+
 
 export function AppHeader() {
   const pathname = usePathname()
+  const { user } = useUser()
+
+  const links = React.useMemo(() => {
+    return navDefinition.filter(link => {
+      if (link.adminOnly) {
+        return user?.role === 'Admin'
+      }
+      return true
+    })
+  }, [user])
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {

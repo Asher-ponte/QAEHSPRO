@@ -6,12 +6,14 @@ import { z } from 'zod';
 const userSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters long."),
   department: z.string().min(2, "Department must be at least 2 characters long."),
+  position: z.string().min(2, "Position must be at least 2 characters long."),
+  role: z.enum(["Employee", "Admin"]),
 });
 
 export async function GET() {
   try {
     const db = await getDb();
-    const users = await db.all('SELECT id, username, department FROM users ORDER BY username');
+    const users = await db.all('SELECT id, username, department, position, role FROM users ORDER BY username');
     return NextResponse.json(users);
   } catch (error) {
     console.error("Failed to fetch users:", error);
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { username, department } = parsedData.data;
+    const { username, department, position, role } = parsedData.data;
 
     // Check for existing username
     const existingUser = await db.get('SELECT id FROM users WHERE username = ?', username);
@@ -37,8 +39,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
 
-    const result = await db.run('INSERT INTO users (username, department) VALUES (?, ?)', [username, department]);
-    const newUser = await db.get('SELECT id, username, department FROM users WHERE id = ?', result.lastID);
+    const result = await db.run(
+      'INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)', 
+      [username, department, position, role]
+    );
+    const newUser = await db.get('SELECT id, username, department, position, role FROM users WHERE id = ?', result.lastID);
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {

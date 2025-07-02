@@ -7,6 +7,8 @@ interface User {
   id: number;
   username: string;
   department: string | null;
+  position: string | null;
+  role: 'Employee' | 'Admin';
 }
 
 interface UserContextType {
