@@ -21,14 +21,22 @@ async function initializeDb() {
 
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
-    // Migration for adding imageUrl and imageAiHint to lessons
+    // Migration for switching to local image paths
     if (dbExists) {
-        const lessonColumns = await dbInstance.all("PRAGMA table_info(lessons)");
-        if (!lessonColumns.some(col => col.name === 'imageUrl')) {
-            await dbInstance.exec('ALTER TABLE lessons ADD COLUMN imageUrl TEXT');
+        const courseColumns = await dbInstance.all("PRAGMA table_info(courses)");
+        if (courseColumns.some(col => col.name === 'image')) {
+            await dbInstance.exec('ALTER TABLE courses RENAME COLUMN image TO imagePath').catch(console.error);
         }
-        if (!lessonColumns.some(col => col.name === 'imageAiHint')) {
-            await dbInstance.exec('ALTER TABLE lessons ADD COLUMN imageAiHint TEXT');
+        if (courseColumns.some(col => col.name === 'aiHint')) {
+             // SQLite's DROP COLUMN is tricky; we'll just ignore the column in the app
+        }
+
+        const lessonColumns = await dbInstance.all("PRAGMA table_info(lessons)");
+        if (lessonColumns.some(col => col.name === 'imageUrl')) {
+            await dbInstance.exec('ALTER TABLE lessons RENAME COLUMN imageUrl TO imagePath').catch(console.error);
+        }
+         if (lessonColumns.some(col => col.name === 'imageAiHint')) {
+            // SQLite's DROP COLUMN is tricky; we'll just ignore the column in the app
         }
     }
 
@@ -48,8 +56,7 @@ async function initializeDb() {
                 title TEXT NOT NULL,
                 description TEXT NOT NULL,
                 category TEXT NOT NULL,
-                image TEXT,
-                aiHint TEXT
+                imagePath TEXT
             );
         `);
 
@@ -71,8 +78,7 @@ async function initializeDb() {
             type TEXT NOT NULL CHECK(type IN ('video', 'document', 'quiz')),
             content TEXT,
             "order" INTEGER NOT NULL,
-            imageUrl TEXT,
-            imageAiHint TEXT,
+            imagePath TEXT,
             FOREIGN KEY (module_id) REFERENCES modules (id) ON DELETE CASCADE
         );
         `);
@@ -93,10 +99,10 @@ async function initializeDb() {
         await dbInstance.run('INSERT INTO users (username) VALUES (?)', ['Demo User']);
         
         // Seed Courses
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, image, aiHint) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', 'https://placehold.co/600x400', 'leadership team')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, image, aiHint) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', 'https://placehold.co/600x400', 'programming code')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, image, aiHint) VALUES (3, 'Cybersecurity Basics', 'Understand common threats and best practices to keep our systems secure.', 'Compliance', 'https://placehold.co/600x400', 'cyber security')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, image, aiHint) VALUES (4, 'Effective Communication', 'Master the art of clear, concise, and persuasive communication.', 'Soft Skills', 'https://placehold.co/600x400', 'communication presentation')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (3, 'Cybersecurity Basics', 'Understand common threats and best practices to keep our systems secure.', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (4, 'Effective Communication', 'Master the art of clear, concise, and persuasive communication.', '/images/placeholder.png')");
         
         // Seed Modules for Course 1
         await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (1, 1, 'Module 1: Introduction', 1)");
@@ -104,7 +110,7 @@ async function initializeDb() {
         
         // Seed Lessons for Module 1
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imageUrl, imageAiHint) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, 'https://placehold.co/600x400', 'leadership concepts')");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png')");
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
         
         console.log("Database seeded successfully.");

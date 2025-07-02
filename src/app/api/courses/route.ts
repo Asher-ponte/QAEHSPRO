@@ -28,8 +28,7 @@ const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
-  imageUrl: z.string().url().optional().or(z.literal('')).nullable(),
-  imageAiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -43,8 +42,7 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   modules: z.array(moduleSchema),
-  image: z.string().url().optional().or(z.literal('')).nullable(),
-  aiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
 })
 
 export async function GET() {
@@ -68,15 +66,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules } = parsedData.data;
-    const image = parsedData.data.image || 'https://placehold.co/600x400'
-    const aiHint = parsedData.data.aiHint || 'education training'
+    const { title, description, category, modules, imagePath } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
     const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, image, aiHint) VALUES (?, ?, ?, ?, ?)',
-      [title, description, category, image, aiHint]
+      'INSERT INTO courses (title, description, category, imagePath) VALUES (?, ?, ?, ?)',
+      [title, description, category, imagePath]
     )
     const courseId = courseResult.lastID;
     if (!courseId) {
@@ -100,8 +96,8 @@ export async function POST(request: NextRequest) {
             }
 
             await db.run(
-                'INSERT INTO lessons (module_id, title, type, content, "order", imageUrl, imageAiHint) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imageUrl, lessonData.imageAiHint]
+                'INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)',
+                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]
             );
         }
     }

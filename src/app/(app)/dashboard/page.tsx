@@ -24,8 +24,7 @@ interface Course {
   title: string;
   progress: number;
   category: string;
-  image: string;
-  aiHint: string;
+  imagePath: string;
   continueLessonId: number | null;
 }
 
@@ -186,11 +185,10 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-4 p-4">
                   <div className="relative h-20 w-28 flex-shrink-0">
                     <Image
-                        src={course.image || 'https://placehold.co/200x150'}
+                        src={course.imagePath || 'https://placehold.co/200x150'}
                         alt={course.title}
                         fill
                         className="rounded-md object-cover"
-                        data-ai-hint={course.aiHint}
                     />
                   </div>
                   <div className="flex-grow space-y-2">

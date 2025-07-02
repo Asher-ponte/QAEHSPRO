@@ -54,8 +54,7 @@ const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
-  imageUrl: z.string().url().optional().or(z.literal('')).nullable(),
-  imageAiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -68,8 +67,7 @@ const courseSchema = z.object({
   title: z.string(),
   description: z.string(),
   category: z.string(),
-  image: z.string().url().optional().or(z.literal('')).nullable(),
-  aiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
 })
 
@@ -203,15 +201,13 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
         if (value === 'quiz') {
             newLesson.questions = newLesson.questions || [];
             newLesson.content = null;
-            newLesson.imageUrl = null;
-            newLesson.imageAiHint = null;
+            newLesson.imagePath = null;
         } else if (value === 'document') {
             newLesson.content = newLesson.content || "";
             newLesson.questions = undefined;
         } else {
             newLesson.content = null;
-            newLesson.imageUrl = null;
-            newLesson.imageAiHint = null;
+            newLesson.imagePath = null;
             newLesson.questions = undefined;
         }
 
@@ -294,40 +290,22 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                             </FormItem>
                                         )}
                                     />
-                                    <div className="space-y-4">
-                                        <FormField
-                                            control={control}
-                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imageUrl`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Image URL</FormLabel>
-                                                    <FormControl>
-                                                    <Input placeholder="https://placehold.co/600x400" {...field} value={field.value ?? ''} />
-                                                    </FormControl>
-                                                    <FormDescription>
-                                                        Optional image to display with the content.
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={control}
-                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imageAiHint`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>AI Image Hint</FormLabel>
-                                                    <FormControl>
-                                                    <Input placeholder="e.g., business meeting" {...field} value={field.value ?? ''} />
-                                                    </FormControl>
-                                                    <FormDescription>
-                                                        Keywords to help AI find a relevant image.
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
+                                    <FormField
+                                        control={control}
+                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Image Path</FormLabel>
+                                                <FormControl>
+                                                <Input placeholder="/images/lesson-image.png" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    Place image in `public/images` and enter path here.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
                             )}
                              {lessonType === 'quiz' && (
@@ -344,7 +322,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: null, imageUrl: null, imageAiHint: null })}
+                onClick={() => append({ title: "", type: "video", content: null, imagePath: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -364,8 +342,7 @@ export default function CreateCoursePage() {
       title: "",
       description: "",
       category: "",
-      image: "",
-      aiHint: "",
+      imagePath: "",
       modules: [],
     },
     mode: "onChange"
@@ -385,16 +362,14 @@ export default function CreateCoursePage() {
       title: values.title,
       description: values.description,
       category: values.category,
-      image: values.image,
-      aiHint: values.aiHint,
+      imagePath: values.imagePath,
       modules: values.modules.map(module => ({
         title: module.title,
         lessons: module.lessons.map(lesson => ({
           title: lesson.title,
           type: lesson.type,
           content: lesson.content,
-          imageUrl: lesson.imageUrl,
-          imageAiHint: lesson.imageAiHint,
+          imagePath: lesson.imagePath,
           questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
             text: q.text,
             options: q.options.map(o => ({ text: o.text })),
@@ -526,37 +501,21 @@ export default function CreateCoursePage() {
                         />
                          <FormField
                             control={form.control}
-                            name="image"
+                            name="imagePath"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Image URL</FormLabel>
+                                <FormLabel>Image Path</FormLabel>
                                 <FormControl>
-                                <Input placeholder="https://placehold.co/600x400" {...field} value={field.value ?? ''} />
+                                <Input placeholder="/images/course-cover.png" {...field} value={field.value ?? ''} />
                                 </FormControl>
                                 <FormDescription>
-                                A URL for the course cover image. Leave blank for a placeholder.
+                                Place image in `public/images` folder. Ex: /images/cover.png
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>
                             )}
                         />
                     </div>
-                     <FormField
-                        control={form.control}
-                        name="aiHint"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>AI Image Hint</FormLabel>
-                            <FormControl>
-                            <Input placeholder="e.g., leadership team" {...field} value={field.value ?? ''}/>
-                            </FormControl>
-                            <FormDescription>
-                            One or two keywords to help AI find a relevant image later.
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
                     </div>
                 </CardContent>
             </Card>
@@ -608,7 +567,7 @@ export default function CreateCoursePage() {
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imageUrl: null, imageAiHint: null }] })}
+                            onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null }] })}
                         >
                             <Plus className="mr-2 h-4 w-4" /> Add Module
                         </Button>

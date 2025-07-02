@@ -75,8 +75,7 @@ export async function GET() {
         id: course.id,
         title: course.title,
         category: course.category,
-        image: course.image,
-        aiHint: course.aiHint,
+        imagePath: course.imagePath,
         progress: progress,
         continueLessonId: firstUncompletedLessonResult?.id || allLessons[0]?.id || null,
       });

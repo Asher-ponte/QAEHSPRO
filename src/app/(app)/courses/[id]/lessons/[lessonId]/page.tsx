@@ -22,8 +22,7 @@ interface Lesson {
   title: string;
   type: 'video' | 'document' | 'quiz';
   content: string | null;
-  imageUrl: string | null;
-  imageAiHint: string | null;
+  imagePath: string | null;
   course_id: number;
   course_title: string;
   completed: boolean;
@@ -189,7 +188,7 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
                 </div>
             );
         case 'document':
-            const hasImage = !!lesson.imageUrl;
+            const hasImage = !!lesson.imagePath;
             return (
                 <div className={cn("grid grid-cols-1 gap-8", hasImage && "lg:grid-cols-3")}>
                     <article className={cn(
@@ -204,10 +203,9 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
                         <aside className="lg:col-span-1">
                             <div className="relative aspect-[4/3] w-full">
                                 <Image
-                                    src={lesson.imageUrl!}
+                                    src={lesson.imagePath!}
                                     alt={lesson.title}
                                     fill
-                                    data-ai-hint={lesson.imageAiHint || ''}
                                     className="object-cover rounded-lg"
                                 />
                             </div>

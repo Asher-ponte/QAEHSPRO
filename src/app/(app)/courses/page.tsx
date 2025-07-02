@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -20,8 +21,7 @@ interface Course {
   title: string;
   description: string;
   category: string;
-  image: string;
-  aiHint: string;
+  imagePath: string;
 }
 
 export default function CoursesPage() {
@@ -89,11 +89,10 @@ export default function CoursesPage() {
               <Card className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300">
                 <CardHeader className="p-0">
                   <Image
-                    src={course.image}
+                    src={course.imagePath || 'https://placehold.co/600x400'}
                     alt={course.title}
                     width={600}
                     height={400}
-                    data-ai-hint={course.aiHint}
                     className="rounded-t-lg object-cover aspect-video"
                   />
                 </CardHeader>

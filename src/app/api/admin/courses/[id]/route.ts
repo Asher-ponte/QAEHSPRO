@@ -45,8 +45,7 @@ const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
-  imageUrl: z.string().url().optional().or(z.literal('')).nullable(),
-  imageAiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -61,8 +60,7 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   modules: z.array(moduleSchema),
-  image: z.string().url().optional().or(z.literal('')).nullable(),
-  aiHint: z.string().optional().nullable(),
+  imagePath: z.string().optional().nullable(),
 })
 
 
@@ -98,8 +96,7 @@ export async function GET(
                 return { 
                     ...lesson, 
                     content: lesson.content ?? null,
-                    imageUrl: lesson.imageUrl ?? null,
-                    imageAiHint: lesson.imageAiHint ?? null,
+                    imagePath: lesson.imagePath ?? null,
                 };
             });
         }
@@ -108,8 +105,7 @@ export async function GET(
 
         return NextResponse.json({
             ...course,
-            image: course.image ?? null,
-            aiHint: course.aiHint ?? null,
+            imagePath: course.imagePath ?? null,
         });
 
     } catch (error) {
@@ -138,16 +134,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules } = parsedData.data;
-        const image = parsedData.data.image || 'https://placehold.co/600x400';
-        const aiHint = parsedData.data.aiHint || 'education training';
+        const { title, description, category, modules, imagePath } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
         // 1. Update the course itself
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, image = ?, aiHint = ? WHERE id = ?',
-            [title, description, category, image, aiHint, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ? WHERE id = ?',
+            [title, description, category, imagePath, courseId]
         );
 
         // 2. Get existing module IDs to manage deletions
@@ -207,14 +201,14 @@ export async function PUT(
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
                     // Update existing lesson
                      await db.run(
-                        'UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imageUrl = ?, imageAiHint = ? WHERE id = ?',
-                        [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imageUrl, lessonData.imageAiHint, lessonData.id]
+                        'UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?',
+                        [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]
                     );
                 } else {
                      // Insert new lesson
                     await db.run(
-                        'INSERT INTO lessons (module_id, title, type, content, "order", imageUrl, imageAiHint) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                        [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imageUrl, lessonData.imageAiHint]
+                        'INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)',
+                        [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]
                     );
                 }
             }

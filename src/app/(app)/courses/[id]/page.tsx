@@ -34,8 +34,7 @@ interface Course {
   id: string;
   title: string;
   description: string;
-  image: string;
-  aiHint: string;
+  imagePath: string;
   modules: Module[];
 }
 
@@ -160,10 +159,9 @@ export default function CourseDetailPage() {
         <Card className="overflow-hidden">
           <div className="w-full aspect-[3/2] relative">
             <Image
-              src={course.image}
+              src={course.imagePath || 'https://placehold.co/600x400'}
               alt={course.title}
               fill
-              data-ai-hint={course.aiHint}
               className="object-cover"
             />
           </div>
