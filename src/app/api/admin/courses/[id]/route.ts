@@ -92,28 +92,49 @@ export async function GET(
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
 
-        const modules = await db.all('SELECT * FROM modules WHERE course_id = ? ORDER BY "order" ASC', courseId);
+        const modulesAndLessons = await db.all(`
+            SELECT 
+                m.id as module_id, 
+                m.title as module_title, 
+                l.id as lesson_id,
+                l.title as lesson_title,
+                l.type as lesson_type,
+                l.content as lesson_content,
+                l.imagePath as lesson_imagePath
+            FROM modules m
+            LEFT JOIN lessons l ON m.id = l.module_id
+            WHERE m.course_id = ?
+            ORDER BY m."order" ASC, l."order" ASC
+        `, courseId);
         
-        for (const module of modules) {
-            const lessons = await db.all('SELECT * FROM lessons WHERE module_id = ? ORDER BY "order" ASC', module.id);
-            module.lessons = lessons.map(lesson => {
-                if (lesson.type === 'quiz') {
-                    return {
-                        ...lesson,
-                        questions: transformDbToQuestionsFormat(lesson.content),
-                        content: null, // Clear content as it's now in questions
-                    };
-                }
-                return { 
-                    ...lesson, 
-                    content: lesson.content ?? null,
-                    imagePath: lesson.imagePath ?? null,
+        const modulesMap = new Map<number, any>();
+        for (const row of modulesAndLessons) {
+             if (!modulesMap.has(row.module_id)) {
+                modulesMap.set(row.module_id, {
+                    id: row.module_id,
+                    title: row.module_title,
+                    lessons: []
+                });
+            }
+            if (row.lesson_id) {
+                const lesson: any = {
+                    id: row.lesson_id,
+                    title: row.lesson_title,
+                    type: row.lesson_type,
+                    imagePath: row.lesson_imagePath ?? null,
                 };
-            });
+
+                if (row.lesson_type === 'quiz') {
+                    lesson.questions = transformDbToQuestionsFormat(row.lesson_content);
+                    lesson.content = null;
+                } else {
+                    lesson.content = row.lesson_content ?? null;
+                }
+                modulesMap.get(row.module_id).lessons.push(lesson);
+            }
         }
-
-        course.modules = modules;
-
+        course.modules = Array.from(modulesMap.values());
+        
         const assignedSignatories = await db.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
         const signatoryIds = assignedSignatories.map(s => s.signatory_id);
 

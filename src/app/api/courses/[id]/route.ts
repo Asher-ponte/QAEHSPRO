@@ -27,30 +27,50 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         }
     }
 
-    const modules = await db.all(
-        `SELECT id, title FROM modules WHERE course_id = ? ORDER BY "order" ASC`,
-        courseId
+    // Fetch all modules and lessons in one go, including modules without lessons
+    const modulesAndLessons = await db.all(
+        `SELECT 
+            m.id as module_id, 
+            m.title as module_title, 
+            m."order" as module_order,
+            l.id as lesson_id, 
+            l.title as lesson_title, 
+            l.type as lesson_type, 
+            l."order" as lesson_order,
+            CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
+        FROM modules m
+        LEFT JOIN lessons l ON m.id = l.module_id
+        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
+        WHERE m.course_id = ? 
+        ORDER BY m."order" ASC, l."order" ASC`,
+        [userId, courseId]
     );
 
     const certificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
 
     const courseDetail = { ...course, modules: [] as any[], isCompleted: !!certificate };
 
-    for (const module of modules) {
-        const lessons = await db.all(
-            `SELECT 
-                l.id, 
-                l.title, 
-                l.type, 
-                CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
-             FROM lessons l
-             LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
-             WHERE l.module_id = ? 
-             ORDER BY l."order" ASC`,
-            [userId, module.id]
-        );
-        courseDetail.modules.push({ ...module, lessons });
+    // Process the flat list into a nested structure
+    const modulesMap = new Map<number, any>();
+    for (const row of modulesAndLessons) {
+        if (!modulesMap.has(row.module_id)) {
+            modulesMap.set(row.module_id, {
+                id: row.module_id,
+                title: row.module_title,
+                lessons: []
+            });
+        }
+        if (row.lesson_id) { // Only add lesson if it exists
+            modulesMap.get(row.module_id).lessons.push({
+                id: row.lesson_id,
+                title: row.lesson_title,
+                type: row.lesson_type,
+                completed: !!row.completed
+            });
+        }
     }
+    
+    courseDetail.modules = Array.from(modulesMap.values());
 
     if (courseDetail.modules.length === 0) {
       courseDetail.modules.push({

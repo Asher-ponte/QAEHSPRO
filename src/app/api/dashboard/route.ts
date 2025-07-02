@@ -13,99 +13,87 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // Get all courses the user is enrolled in.
-    const courses = await db.all(`
-        SELECT c.*
+    // 1. Get all courses the user is enrolled in, joining with the latest certificate.
+    const enrolledCourses = await db.all(`
+        SELECT 
+            c.*,
+            (SELECT MAX(cert.completion_date) FROM certificates cert WHERE cert.user_id = e.user_id AND cert.course_id = e.course_id) as lastCompletionDate
         FROM enrollments e
         JOIN courses c ON e.course_id = c.id
         WHERE e.user_id = ?
     `, [userId]);
 
 
-    if (courses.length === 0) {
+    if (enrolledCourses.length === 0) {
       return NextResponse.json({
         stats: { coursesCompleted: 0, skillsAcquired: 0 },
         myCourses: [],
       });
     }
 
-    const myCourses = [];
+    const courseIds = enrolledCourses.map(c => c.id);
+    const courseIdsPlaceholder = courseIds.map(() => '?').join(',');
+
+    // 2. Get all lessons for these courses, ordered correctly.
+    const allLessons = await db.all(`
+        SELECT l.id, m.course_id, m."order" as module_order, l."order" as lesson_order
+        FROM lessons l
+        JOIN modules m ON l.module_id = m.id
+        WHERE m.course_id IN (${courseIdsPlaceholder})
+        ORDER BY m.course_id, m."order", l."order"
+    `, courseIds);
+
+    // 3. Get all of the user's completed lessons for these courses.
+    const completedLessonIdsResult = await db.all(`
+        SELECT up.lesson_id
+        FROM user_progress up
+        JOIN lessons l ON up.lesson_id = l.id
+        JOIN modules m ON l.module_id = m.id
+        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${courseIdsPlaceholder})
+    `, [userId, ...courseIds]);
+    const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
+
+    // 4. Process the data in memory.
+    const lessonsByCourse = allLessons.reduce((acc, l) => {
+        if (!acc[l.course_id]) acc[l.course_id] = [];
+        acc[l.course_id].push(l);
+        return acc;
+    }, {} as Record<number, typeof allLessons>);
+
     const skillsAcquired = new Set<string>();
     let coursesCompletedCount = 0;
 
-    for (const course of courses) {
-      const allLessons = await db.all(
-        'SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?',
-        [course.id]
-      );
-      
-      const completedLessons = await db.all(
-        `SELECT l.id FROM lessons l 
-         JOIN user_progress up ON l.id = up.lesson_id 
-         JOIN modules m ON l.module_id = m.id 
-         WHERE m.course_id = ? AND up.user_id = ? AND up.completed = 1`,
-        [course.id, userId]
-      );
+    const myCourses = enrolledCourses.map(course => {
+        const courseLessons = lessonsByCourse[course.id] || [];
+        const totalLessons = courseLessons.length;
+        const completedCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
 
-      const totalLessons = allLessons.length;
-      if (totalLessons === 0) {
-        myCourses.push({
+        let progress = totalLessons > 0 ? Math.floor((completedCount / totalLessons) * 100) : 0;
+        
+        // Refresher logic
+        if (progress === 100 && course.endDate && course.lastCompletionDate) {
+            if (new Date(course.endDate) > new Date(course.lastCompletionDate)) {
+                progress = 0; // It's a refresher, so reset progress for the dashboard view
+            }
+        }
+        
+        if (progress === 100) {
+            coursesCompletedCount++;
+            skillsAcquired.add(course.category);
+        }
+
+        const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
+        const continueLessonId = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+
+        return {
             id: course.id,
             title: course.title,
             category: course.category,
             imagePath: course.imagePath,
-            progress: 0,
-            continueLessonId: null,
-        });
-        continue;
-      }; 
-
-      let progress = Math.floor((completedLessons.length / totalLessons) * 100);
-
-      // Refresher logic
-      if (progress === 100) {
-          const certificate = await db.get(
-              `SELECT completion_date FROM certificates WHERE user_id = ? AND course_id = ? ORDER BY completion_date DESC LIMIT 1`,
-              [userId, course.id]
-          );
-
-          if (certificate && course.endDate) {
-              const completionDate = new Date(certificate.completion_date);
-              const courseEndDate = new Date(course.endDate);
-              if (courseEndDate > completionDate) {
-                  // This is a refresher course, so treat it as "in-progress" for the dashboard.
-                  progress = 0;
-              }
-          }
-      }
-
-
-      if (progress === 100) {
-        coursesCompletedCount++;
-        skillsAcquired.add(course.category);
-      }
-
-      const firstUncompletedLessonResult = await db.get(
-        `SELECT l.id FROM lessons l
-         JOIN modules m ON l.module_id = m.id
-         WHERE m.course_id = ? AND l.id NOT IN (
-           SELECT up2.lesson_id from user_progress up2 
-           WHERE up2.user_id = ? AND up2.completed = 1 AND up2.lesson_id IS NOT NULL
-         )
-         ORDER BY m."order", l."order"
-         LIMIT 1`,
-        [course.id, userId]
-      );
-
-      myCourses.push({
-        id: course.id,
-        title: course.title,
-        category: course.category,
-        imagePath: course.imagePath,
-        progress: progress,
-        continueLessonId: firstUncompletedLessonResult?.id || allLessons[0]?.id || null,
-      });
-    }
+            progress: progress,
+            continueLessonId: continueLessonId,
+        };
+    });
     
     const dashboardData = {
       stats: {
