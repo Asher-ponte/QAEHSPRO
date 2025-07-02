@@ -1,6 +1,6 @@
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import bcrypt from 'bcrypt';
 import { z } from 'zod';
 
 const signupSchema = z.object({
@@ -10,6 +10,7 @@ const signupSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const bcrypt = (await import('bcrypt')).default;
     const db = await getDb();
     const data = await request.json();
 
