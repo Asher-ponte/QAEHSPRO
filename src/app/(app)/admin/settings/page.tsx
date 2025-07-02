@@ -29,9 +29,11 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
+  companyAddress: z.string().optional(),
   companyLogoPath: z.string().optional(),
   companyLogo2Path: z.string().optional(),
 })
@@ -45,7 +47,7 @@ export default function PlatformSettingsPage() {
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
-        defaultValues: { companyName: "", companyLogoPath: "", companyLogo2Path: "" },
+        defaultValues: { companyName: "", companyAddress: "", companyLogoPath: "", companyLogo2Path: "" },
     });
 
     useEffect(() => {
@@ -57,6 +59,7 @@ export default function PlatformSettingsPage() {
                 const data = await res.json();
                 form.reset({
                   companyName: data.companyName,
+                  companyAddress: data.companyAddress || "",
                   companyLogoPath: data.companyLogoPath || "",
                   companyLogo2Path: data.companyLogo2Path || ""
                 });
@@ -139,6 +142,22 @@ export default function PlatformSettingsPage() {
                                             <FormControl>
                                                 <Input placeholder="Your Company LLC" {...field} />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="companyAddress"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Company Address</FormLabel>
+                                            <FormControl>
+                                                <Textarea placeholder="123 Main St, Anytown, USA 12345" {...field} value={field.value ?? ''} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                The physical address of the company. This will appear on certificates.
+                                            </FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}

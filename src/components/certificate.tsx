@@ -11,6 +11,7 @@ interface CertificateData {
   completion_date: string;
   certificateNumber: string | null;
   companyName: string;
+  companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
   user: { username: string };
@@ -69,6 +70,10 @@ export function Certificate({ data }: { data: CertificateData }) {
 
                     <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                     
+                    {data.companyAddress && (
+                        <p className="text-base text-muted-foreground -mt-4">{data.companyAddress}</p>
+                    )}
+
                     <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase">
                         Certificate of Completion
                     </h2>
