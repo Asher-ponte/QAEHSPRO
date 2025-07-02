@@ -1,11 +1,11 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
+    const bcrypt = (await import('bcrypt')).default;
     const db = await getDb();
     const formData = await request.formData();
     const username = formData.get('username') as string | null;
