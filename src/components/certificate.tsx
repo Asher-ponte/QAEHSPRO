@@ -46,23 +46,21 @@ export function Certificate({ data }: { data: CertificateData }) {
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">
                     <div className="flex justify-center items-center gap-8 mb-4">
                         {data.companyLogoPath && (
-                            <div className="relative h-24 w-auto max-w-xs">
+                            <div className="relative h-24 w-48">
                                 <Image 
                                     src={data.companyLogoPath} 
                                     alt={`${data.companyName} Logo`} 
-                                    width={150} 
-                                    height={96}
+                                    fill
                                     className="object-contain"
                                 />
                             </div>
                         )}
                         {data.companyLogo2Path && (
-                            <div className="relative h-24 w-auto max-w-xs">
+                             <div className="relative h-24 w-48">
                                 <Image 
                                     src={data.companyLogo2Path} 
                                     alt={`${data.companyName} Secondary Logo`} 
-                                    width={150} 
-                                    height={96}
+                                    fill
                                     className="object-contain"
                                 />
                             </div>
