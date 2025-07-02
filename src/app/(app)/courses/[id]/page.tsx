@@ -208,6 +208,7 @@ export default function CourseDetailPage() {
               alt={course.title}
               fill
               className="object-cover"
+              data-ai-hint="course cover"
             />
           </div>
           <CardContent className="p-6">

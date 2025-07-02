@@ -237,6 +237,7 @@ export default function DashboardPage() {
                                     alt={course.title}
                                     fill
                                     className="rounded-md object-cover"
+                                    data-ai-hint="course thumbnail"
                                 />
                             </div>
                             <div className="flex-grow space-y-2">
@@ -278,6 +279,7 @@ export default function DashboardPage() {
                                     alt={course.title}
                                     fill
                                     className="rounded-md object-cover"
+                                    data-ai-hint="course thumbnail"
                                 />
                             </div>
                             <div className="flex-grow">

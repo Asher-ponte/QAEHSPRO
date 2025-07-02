@@ -118,6 +118,7 @@ export default function CoursesPage() {
                         width={600}
                         height={400}
                         className="rounded-t-lg object-cover aspect-video"
+                        data-ai-hint="course cover"
                     />
                      {status && status.text !== 'Active' && (
                         <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
