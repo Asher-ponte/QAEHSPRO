@@ -106,11 +106,11 @@ export default function CertificatePage() {
         });
         const imgData = canvas.toDataURL('image/png');
 
-        // Use canvas dimensions to create a PDF of the same size
+        // Create a landscape A4 PDF
         const pdf = new jsPDF({
             orientation: 'landscape',
-            unit: 'px',
-            format: [canvas.width, canvas.height]
+            unit: 'pt',
+            format: 'a4'
         });
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
