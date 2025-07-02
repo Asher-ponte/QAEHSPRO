@@ -10,9 +10,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['"PT Sans"', 'sans-serif'],
-        headline: ['"Space Grotesk"', 'sans-serif'],
-        code: ['"JetBrains Mono"', 'monospace'],
+        body: ['"Roboto"', 'sans-serif'],
+        headline: ['"Manrope"', 'sans-serif'],
+        code: ['"Roboto Mono"', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',
