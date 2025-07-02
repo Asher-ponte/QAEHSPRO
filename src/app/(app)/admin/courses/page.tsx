@@ -51,6 +51,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Progress } from "@/components/ui/progress"
 
 interface CourseAdminView {
   id: number;
@@ -59,6 +60,7 @@ interface CourseAdminView {
   moduleCount: number;
   lessonCount: number;
   enrolledCount: number;
+  completionRate: number;
 }
 
 interface User {
@@ -309,6 +311,7 @@ export default function ManageCoursesPage() {
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-center">Enrolled</TableHead>
+                <TableHead className="w-[180px]">Completion Rate</TableHead>
                 <TableHead className="text-center">Modules</TableHead>
                 <TableHead className="text-center">Lessons</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
@@ -321,6 +324,7 @@ export default function ManageCoursesPage() {
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
@@ -332,6 +336,12 @@ export default function ManageCoursesPage() {
                     <TableCell className="font-medium">{course.title}</TableCell>
                     <TableCell><Badge variant="outline">{course.category}</Badge></TableCell>
                     <TableCell className="text-center">{course.enrolledCount}</TableCell>
+                    <TableCell>
+                        <div className="flex items-center gap-2">
+                            <Progress value={course.completionRate} className="h-2" />
+                            <span className="text-xs font-medium text-muted-foreground">{course.completionRate}%</span>
+                        </div>
+                    </TableCell>
                     <TableCell className="text-center">{course.moduleCount}</TableCell>
                     <TableCell className="text-center">{course.lessonCount}</TableCell>
                     <TableCell>
@@ -370,7 +380,7 @@ export default function ManageCoursesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     No courses found.
                   </TableCell>
                 </TableRow>
