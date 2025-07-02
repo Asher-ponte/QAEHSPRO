@@ -5,14 +5,14 @@ export function Logo() {
     <div className="flex items-center gap-2">
       <Image 
         src="/images/logo.png" 
-        alt="QAEHS PRO Logo" 
+        alt="QAEHS PRO ACADEMY Logo" 
         width={50} 
         height={50} 
         className="rounded-lg"
         unoptimized
       />
       <span className="text-2xl font-bold font-headline text-primary">
-        QAEHS PRO
+        QAEHS PRO ACADEMY
       </span>
     </div>
   );

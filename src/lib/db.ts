@@ -155,7 +155,7 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
 
         // Seed App Settings
-        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
 
 
@@ -230,7 +230,7 @@ async function initializeDb() {
         `).catch(e => console.log("Could not add certificate_number column to certificates, it might exist already:", e.message));
 
         // Seed default settings if they don't exist for existing dbs
-        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     }
 
