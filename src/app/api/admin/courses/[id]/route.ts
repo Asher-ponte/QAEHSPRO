@@ -59,9 +59,19 @@ const courseSchema = z.object({
   title: z.string(),
   description: z.string(),
   category: z.string(),
-  modules: z.array(moduleSchema),
   imagePath: z.string().optional().nullable(),
-})
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  modules: z.array(moduleSchema),
+}).refine(data => {
+    if (data.startDate && data.endDate) {
+        return new Date(data.endDate) >= new Date(data.startDate);
+    }
+    return true;
+}, {
+    message: "End date must be on or after the start date.",
+    path: ["endDate"],
+});
 
 
 export async function GET(
@@ -135,14 +145,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath } = parsedData.data;
+        const { title, description, category, modules, imagePath, startDate, endDate } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
         // 1. Update the course itself
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ? WHERE id = ?',
-            [title, description, category, imagePath, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, startDate = ?, endDate = ? WHERE id = ?',
+            [title, description, category, imagePath, startDate, endDate, courseId]
         );
 
         // 2. Get existing module IDs to manage deletions

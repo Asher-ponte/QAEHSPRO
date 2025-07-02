@@ -24,7 +24,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         params.id
     );
 
-    const courseDetail = { ...course, modules: [] as any[] };
+    const certificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, params.id]);
+
+    const courseDetail = { ...course, modules: [] as any[], isCompleted: !!certificate };
 
     for (const module of modules) {
         const lessons = await db.all(

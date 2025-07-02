@@ -4,6 +4,7 @@
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
 import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart } from "lucide-react"
+import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -60,6 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 interface CourseAdminView {
   id: number;
@@ -69,6 +71,8 @@ interface CourseAdminView {
   lessonCount: number;
   enrolledCount: number;
   completionRate: number;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 interface User {
@@ -76,6 +80,24 @@ interface User {
   username: string;
   department: string | null;
 }
+
+function getCourseStatus(
+    startDate?: string | null,
+    endDate?: string | null
+): { text: "Active" | "Scheduled" | "Archived"; variant: "default" | "secondary" | "outline" } {
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (start && now < start) {
+        return { text: "Scheduled", variant: "secondary" };
+    }
+    if (end && now > end) {
+        return { text: "Archived", variant: "outline" };
+    }
+    return { text: "Active", variant: "default" };
+}
+
 
 function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -483,11 +505,10 @@ export default function ManageCoursesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Active Dates</TableHead>
                 <TableHead className="text-center">Enrolled</TableHead>
                 <TableHead className="w-[180px]">Completion Rate</TableHead>
-                <TableHead className="text-center">Modules</TableHead>
-                <TableHead className="text-center">Lessons</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -496,69 +517,75 @@ export default function ManageCoursesPage() {
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
-                    <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredCourses.length > 0 ? (
-                filteredCourses.map((course) => (
-                  <TableRow key={course.id}>
-                    <TableCell className="font-medium">{course.title}</TableCell>
-                    <TableCell><Badge variant="outline">{course.category}</Badge></TableCell>
-                    <TableCell className="text-center">{course.enrolledCount}</TableCell>
-                    <TableCell>
-                        <div className="flex items-center gap-2">
-                            <Progress value={course.completionRate} className="h-2" />
-                            <span className="text-xs font-medium text-muted-foreground">{course.completionRate}%</span>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-center">{course.moduleCount}</TableCell>
-                    <TableCell className="text-center">{course.lessonCount}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting === course.id}>
-                            {isDeleting === course.id ? (
-                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <>
-                                 <span className="sr-only">Open menu</span>
-                                 <MoreHorizontal className="h-4 w-4" />
-                                </>
-                            )}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                           <Link href={`/admin/courses/edit/${course.id}`}>
-                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                               <Edit className="mr-2 h-4 w-4" />
-                               <span>Edit</span>
-                             </DropdownMenuItem>
-                           </Link>
-                            <DropdownMenuItem onSelect={() => openEnrollmentDialog(course)}>
-                              <Users className="mr-2 h-4 w-4" />
-                              <span>Enroll Users</span>
+                filteredCourses.map((course) => {
+                  const status = getCourseStatus(course.startDate, course.endDate);
+                  return (
+                    <TableRow key={course.id}>
+                        <TableCell className="font-medium">{course.title}</TableCell>
+                        <TableCell>
+                            <Badge variant={status.variant}>{status.text}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                            {course.startDate ? format(new Date(course.startDate), "MMM d, yyyy") : "N/A"} - 
+                            {course.endDate ? format(new Date(course.endDate), "MMM d, yyyy") : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-center">{course.enrolledCount}</TableCell>
+                        <TableCell>
+                            <div className="flex items-center gap-2">
+                                <Progress value={course.completionRate} className="h-2" />
+                                <span className="text-xs font-medium text-muted-foreground">{course.completionRate}%</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting === course.id}>
+                                {isDeleting === course.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <>
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    </>
+                                )}
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <Link href={`/admin/courses/edit/${course.id}`}>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                <span>Edit</span>
+                                </DropdownMenuItem>
+                            </Link>
+                                <DropdownMenuItem onSelect={() => openEnrollmentDialog(course)}>
+                                <Users className="mr-2 h-4 w-4" />
+                                <span>Enroll Users</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => openProgressDialog(course)}>
+                                    <BarChart className="mr-2 h-4 w-4" />
+                                    <span>View Progress</span>
+                                </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Delete</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => openProgressDialog(course)}>
-                                <BarChart className="mr-2 h-4 w-4" />
-                                <span>View Progress</span>
-                            </DropdownMenuItem>
-                           <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
-                             <Trash2 className="mr-2 h-4 w-4" />
-                             <span>Delete</span>
-                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                  )}
+                )
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No courses found{filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>

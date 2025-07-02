@@ -4,42 +4,27 @@
 import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { Card, CardContent } from "@/components/ui/card"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils"
 
 
-// Loosened schema for a better UX during form building.
-// Strict validation is handled by the server.
 const quizOptionSchema = z.object({
   text: z.string(),
 });
@@ -68,8 +53,18 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   imagePath: z.string().optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
-})
+}).refine(data => {
+    if (data.startDate && data.endDate) {
+        return new Date(data.endDate) >= new Date(data.startDate);
+    }
+    return true;
+}, {
+    message: "End date must be on or after the start date.",
+    path: ["endDate"],
+});
 
 
 type CourseFormValues = z.infer<typeof courseSchema>
@@ -343,6 +338,8 @@ export default function CreateCoursePage() {
       description: "",
       category: "",
       imagePath: "",
+      startDate: null,
+      endDate: null,
       modules: [],
     },
     mode: "onChange"
@@ -357,12 +354,13 @@ export default function CreateCoursePage() {
   async function onSubmit(values: CourseFormValues) {
     setIsLoading(true)
 
-    // Create a clean payload to avoid sending extra react-hook-form props
     const payload = {
       title: values.title,
       description: values.description,
       category: values.category,
       imagePath: values.imagePath,
+      startDate: values.startDate,
+      endDate: values.endDate,
       modules: values.modules.map(module => ({
         title: module.title,
         lessons: module.lessons.map(lesson => ({
@@ -513,6 +511,90 @@ export default function CreateCoursePage() {
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>
+                            )}
+                        />
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <FormField
+                            control={form.control}
+                            name="startDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>Start Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                        >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {field.value ? (
+                                            format(new Date(field.value), "PPP")
+                                        ) : (
+                                            <span>Pick a start date</span>
+                                        )}
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value ? new Date(field.value) : undefined}
+                                        onSelect={(date) => field.onChange(date?.toISOString())}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormDescription>
+                                    Optional: When the course becomes active.
+                                </FormDescription>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="endDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>End Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                        >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {field.value ? (
+                                            format(new Date(field.value), "PPP")
+                                        ) : (
+                                            <span>Pick an end date</span>
+                                        )}
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value ? new Date(field.value) : undefined}
+                                        onSelect={(date) => field.onChange(date?.toISOString())}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormDescription>
+                                    Optional: When the course becomes archived.
+                                </FormDescription>
+                                <FormMessage />
+                                </FormItem>
                             )}
                         />
                     </div>

@@ -5,17 +5,20 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card"
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
 interface Lesson {
   id: number;
@@ -36,7 +39,37 @@ interface Course {
   description: string;
   imagePath: string;
   modules: Module[];
+  startDate: string | null;
+  endDate: string | null;
+  isCompleted: boolean;
 }
+
+type CourseStatus = 'Active' | 'Archived' | 'Scheduled';
+
+function getCourseStatusInfo(
+    startDate?: string | null,
+    endDate?: string | null
+): { status: CourseStatus; text: string; variant: "default" | "secondary" | "outline" } {
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (start && now < start) {
+        return { status: "Scheduled", text: `Scheduled to start on ${format(start, "MMM d")}`, variant: "secondary" };
+    }
+    if (end && now > end) {
+        return { status: "Archived", text: `Archived on ${format(end, "MMM d, yyyy")}`, variant: "outline" };
+    }
+    if (start && end) {
+        return { status: "Active", text: `Active until ${format(end, "MMM d, yyyy")}`, variant: "default" };
+    }
+    if(start) {
+        return { status: "Active", text: `Active since ${format(start, "MMM d, yyyy")}`, variant: "default" };
+    }
+
+    return { status: "Active", text: "Active", variant: "default" };
+}
+
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
@@ -56,7 +89,6 @@ export default function CourseDetailPage() {
         }
         const data = await res.json()
         
-        // Ensure 'completed' is a boolean
         const courseDataWithBooleans = {
             ...data,
             modules: data.modules.map((module: any) => ({
@@ -101,19 +133,32 @@ export default function CourseDetailPage() {
   let buttonHref = "#";
   let buttonDisabled = true;
 
+  const statusInfo = course ? getCourseStatusInfo(course.startDate, course.endDate) : null;
+  const canAccessContent = course?.isCompleted || statusInfo?.status === 'Active';
+
   if (course && allLessons.length > 0) {
-      if (firstUncompletedLesson) {
-          // There are uncompleted lessons
-          buttonText = hasStarted ? "Continue Course" : "Start Course";
-          buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
+      if (course.isCompleted) {
+          buttonText = "Review Course";
+          buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
           buttonDisabled = false;
-      } else {
-          // All lessons are completed
-          buttonText = "Course Completed";
+      } else if (statusInfo?.status === 'Active') {
+          if (firstUncompletedLesson) {
+              buttonText = hasStarted ? "Continue Course" : "Start Course";
+              buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
+              buttonDisabled = false;
+          } else {
+              buttonText = "Start Course";
+              buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
+              buttonDisabled = false;
+          }
+      } else if (statusInfo?.status === 'Scheduled') {
+          buttonText = "Course is Scheduled";
+          buttonDisabled = true;
+      } else if (statusInfo?.status === 'Archived') {
+          buttonText = "Course Archived";
           buttonDisabled = true;
       }
   } else if (course) {
-      // Course exists but has no lessons
       buttonText = "Content Coming Soon";
       buttonDisabled = true;
   }
@@ -179,6 +224,14 @@ export default function CourseDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>Course Content</CardTitle>
+            {statusInfo && (
+                <CardDescription>
+                   <Badge variant={statusInfo.variant} className="mt-2">
+                        <Clock className="mr-1.5 h-3 w-3" />
+                        {statusInfo.text}
+                   </Badge>
+                </CardDescription>
+            )}
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
@@ -189,7 +242,13 @@ export default function CourseDetailPage() {
                     <ul className="space-y-1">
                       {module.lessons.map((lesson) => (
                         <li key={lesson.id || lesson.title}>
-                           <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors">
+                           <Link
+                             href={`/courses/${course.id}/lessons/${lesson.id}`}
+                             className={cn(
+                                "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors",
+                                !canAccessContent && "pointer-events-none opacity-50"
+                             )}
+                           >
                             <div className="flex items-center min-w-0">
                                 {getIcon(lesson.type)}
                                 <span className="break-words flex-1">{lesson.title}</span>

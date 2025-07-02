@@ -42,9 +42,19 @@ const courseSchema = z.object({
   title: z.string(),
   description: z.string(),
   category: z.string(),
-  modules: z.array(moduleSchema),
   imagePath: z.string().optional().nullable(),
-})
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  modules: z.array(moduleSchema),
+}).refine(data => {
+    if (data.startDate && data.endDate) {
+        return new Date(data.endDate) >= new Date(data.startDate);
+    }
+    return true;
+}, {
+    message: "End date must be on or after the start date.",
+    path: ["endDate"],
+});
 
 export async function GET() {
   try {
@@ -87,13 +97,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath } = parsedData.data;
+    const { title, description, category, modules, imagePath, startDate, endDate } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
     const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, imagePath) VALUES (?, ?, ?, ?)',
-      [title, description, category, imagePath]
+      'INSERT INTO courses (title, description, category, imagePath, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?)',
+      [title, description, category, imagePath, startDate, endDate]
     )
     const courseId = courseResult.lastID;
     if (!courseId) {

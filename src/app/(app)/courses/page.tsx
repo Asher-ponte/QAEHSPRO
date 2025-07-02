@@ -22,7 +22,29 @@ interface Course {
   description: string;
   category: string;
   imagePath: string;
+  startDate: string | null;
+  endDate: string | null;
 }
+
+function getCourseStatus(
+    startDate?: string | null,
+    endDate?: string | null
+): { text: "Active" | "Scheduled" | "Archived"; variant: "default" | "secondary" | "outline" } | null {
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (!start && !end) return null; // No schedule, always active
+
+    if (start && now < start) {
+        return { text: "Scheduled", variant: "secondary" };
+    }
+    if (end && now > end) {
+        return { text: "Archived", variant: "outline" };
+    }
+    return { text: "Active", variant: "default" };
+}
+
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
@@ -84,28 +106,34 @@ export default function CoursesPage() {
             </Card>
           ))
         ) : (
-          filteredCourses.map((course) => (
-            <Link href={`/courses/${course.id}`} key={course.id}>
-              <Card className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300">
-                <CardHeader className="p-0">
-                  <Image
-                    src={course.imagePath || 'https://placehold.co/600x400'}
-                    alt={course.title}
-                    width={600}
-                    height={400}
-                    className="rounded-t-lg object-cover aspect-video"
-                  />
-                </CardHeader>
-                <CardContent className="flex-grow p-4">
-                  <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
-                  <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
-                  <CardDescription className="mt-2 text-sm break-words">
-                    {course.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            </Link>
-          ))
+          filteredCourses.map((course) => {
+              const status = getCourseStatus(course.startDate, course.endDate);
+              return (
+                <Link href={`/courses/${course.id}`} key={course.id}>
+                <Card className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300">
+                    <CardHeader className="p-0 relative">
+                    <Image
+                        src={course.imagePath || 'https://placehold.co/600x400'}
+                        alt={course.title}
+                        width={600}
+                        height={400}
+                        className="rounded-t-lg object-cover aspect-video"
+                    />
+                     {status && status.text !== 'Active' && (
+                        <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
+                    )}
+                    </CardHeader>
+                    <CardContent className="flex-grow p-4">
+                    <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
+                    <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
+                    <CardDescription className="mt-2 text-sm break-words">
+                        {course.description}
+                    </CardDescription>
+                    </CardContent>
+                </Card>
+                </Link>
+            )
+          })
         )}
       </div>
     </div>

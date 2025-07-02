@@ -10,6 +10,8 @@ export async function GET() {
         c.id,
         c.title,
         c.category,
+        c.startDate,
+        c.endDate,
         COUNT(DISTINCT m.id) as moduleCount,
         COUNT(DISTINCT l.id) as lessonCount,
         COUNT(DISTINCT e.user_id) as enrolledCount,

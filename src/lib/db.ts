@@ -52,7 +52,9 @@ async function initializeDb() {
                 title TEXT NOT NULL,
                 description TEXT NOT NULL,
                 category TEXT NOT NULL,
-                imagePath TEXT
+                imagePath TEXT,
+                startDate TEXT,
+                endDate TEXT
             );
         `);
 
@@ -193,6 +195,14 @@ async function initializeDb() {
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN role TEXT;
         `).catch(e => console.log("Could not add role column to users, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            ALTER TABLE courses ADD COLUMN startDate TEXT;
+        `).catch(e => console.log("Could not add startDate column to courses, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            ALTER TABLE courses ADD COLUMN endDate TEXT;
+        `).catch(e => console.log("Could not add endDate column to courses, it might exist already:", e.message));
     }
 
 
