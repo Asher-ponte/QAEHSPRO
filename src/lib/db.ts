@@ -1,20 +1,21 @@
 'use server';
 
-import * as sqlite3 from 'sqlite3';
 import { open, type Database } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
-import bcrypt from 'bcrypt';
 
 let db: Database | null = null;
 
 async function initializeDb() {
+    // Dynamically import sqlite3 to ensure it's loaded in the correct environment.
+    const sqlite3Driver = (await import('sqlite3')).default;
+
     const dbPath = path.join(process.cwd(), 'db.sqlite');
     const dbExists = fs.existsSync(dbPath);
     
     const dbInstance = await open({
         filename: dbPath,
-        driver: sqlite3.Database,
+        driver: sqlite3Driver.Database,
     });
 
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
@@ -84,6 +85,7 @@ async function initializeDb() {
         `);
 
         // Seed Users
+        const bcrypt = await import('bcrypt');
         const hashedPassword = await bcrypt.hash('password', 10);
         await dbInstance.run('INSERT INTO users (username, password) VALUES (?, ?)', ['Demo User', hashedPassword]);
         

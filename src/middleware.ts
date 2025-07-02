@@ -10,13 +10,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const sessionId = request.cookies.get('session')?.value
 
-  // 1. Validate the session
+  // Validate the session
   const user = await validateSession(sessionId || '')
 
-  // 2. Define which pages are for authentication
+  // Define which pages are for authentication
   const isAuthPage = pathname === '/' || pathname === '/signup'
 
-  // 3. Handle redirection logic
+  // Handle redirection logic
   if (isAuthPage) {
     // If the user is on an auth page but is already logged in,
     // redirect them to the dashboard.
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 4. If none of the above, allow the request to proceed
+  // If none of the above, allow the request to proceed
   return NextResponse.next()
 }
 
