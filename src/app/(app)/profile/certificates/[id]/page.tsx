@@ -116,7 +116,18 @@ export default function CertificatePage() {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        const imgProps = pdf.getImageProperties(imgData);
+        const imgWidth = imgProps.width;
+        const imgHeight = imgProps.height;
+        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+
+        const w = imgWidth * ratio;
+        const h = imgHeight * ratio;
+        
+        const x = (pdfWidth - w) / 2;
+        const y = (pdfHeight - h) / 2;
+        
+        pdf.addImage(imgData, 'PNG', x, y, w, h);
         pdf.save(`certificate-${data.certificateNumber || data.id}.pdf`);
 
     } catch (error) {
