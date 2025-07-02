@@ -215,12 +215,144 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
     );
 }
 
+function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User | null; onFormSubmit: () => void; open: boolean; onOpenChange: (open: boolean) => void; }) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+
+    const form = useForm<UserFormValues>({
+        resolver: zodResolver(userFormSchema),
+    });
+
+    useEffect(() => {
+        if (user) {
+            form.reset(user);
+        }
+    }, [user, open, form]);
+
+    async function onSubmit(values: UserFormValues) {
+        if (!user) return;
+        setIsSubmitting(true);
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to update user.");
+            }
+            toast({
+                title: "User Updated",
+                description: `User "${values.username}" has been updated successfully.`,
+            });
+            onFormSubmit();
+            onOpenChange(false);
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit User</DialogTitle>
+                    <DialogDescription>
+                        Update the user's details below.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="username"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Username</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., janesmith" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="department"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Department</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Engineering" {...field} value={field.value ?? ""} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="position"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Position</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Software Engineer" {...field} value={field.value ?? ""} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="role"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Role</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a role" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="Employee">Employee</SelectItem>
+                                            <SelectItem value="Admin">Admin</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Changes
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function ManageUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -278,6 +410,10 @@ export default function ManageUsersPage() {
   const openDeleteDialog = (user: User) => {
     setUserToDelete(user);
     setShowDeleteDialog(true);
+  };
+  
+  const openEditDialog = (user: User) => {
+    setUserToEdit(user);
   };
 
   return (
@@ -354,9 +490,9 @@ export default function ManageUsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                           <DropdownMenuItem disabled>
+                           <DropdownMenuItem onSelect={() => openEditDialog(user)} disabled={user.id === 1}>
                              <Edit className="mr-2 h-4 w-4" />
-                             <span>Edit (Soon)</span>
+                             <span>Edit</span>
                            </DropdownMenuItem>
                            <DropdownMenuItem 
                             onSelect={() => openDeleteDialog(user)} 
@@ -397,6 +533,17 @@ export default function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditUserForm
+        user={userToEdit}
+        onFormSubmit={fetchUsers}
+        open={!!userToEdit}
+        onOpenChange={(open) => {
+            if (!open) {
+                setUserToEdit(null);
+            }
+        }}
+      />
     </div>
   )
 }
