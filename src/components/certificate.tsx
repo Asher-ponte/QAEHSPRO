@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -14,7 +15,7 @@ interface CertificateData {
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
   user: { username: string };
-  course: { title: string };
+  course: { title: string; venue: string | null };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
@@ -92,6 +93,11 @@ export function Certificate({ data }: { data: CertificateData }) {
                         <p className="text-xl mt-2">
                             on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                         </p>
+                        {data.course.venue && (
+                            <p className="text-lg mt-1 text-muted-foreground">
+                                at {data.course.venue}
+                            </p>
+                        )}
                     </main>
 
                     {/* This div will grow to push the footer to the bottom */}

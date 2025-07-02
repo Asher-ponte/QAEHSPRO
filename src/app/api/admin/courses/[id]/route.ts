@@ -60,6 +60,7 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   imagePath: z.string().optional().nullable(),
+  venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -141,6 +142,7 @@ export async function GET(
         return NextResponse.json({
             ...course,
             imagePath: course.imagePath ?? null,
+            venue: course.venue ?? null,
             signatoryIds,
         });
 
@@ -171,14 +173,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, startDate, endDate, signatoryIds } = parsedData.data;
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, signatoryIds } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
         // 1. Update the course itself
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, startDate = ?, endDate = ? WHERE id = ?',
-            [title, description, category, imagePath, startDate, endDate, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ? WHERE id = ?',
+            [title, description, category, imagePath, venue, startDate, endDate, courseId]
         );
 
         // 2. Update signatories

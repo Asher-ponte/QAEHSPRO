@@ -25,7 +25,7 @@ export async function GET(
             return NextResponse.json({ error: 'Certificate not found or you do not have permission to view it.' }, { status: 404 });
         }
         
-        const course = await db.get('SELECT title FROM courses WHERE id = ?', certificate.course_id);
+        const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all(`
             SELECT s.name, s.position, s.signatureImagePath
             FROM signatories s
@@ -53,6 +53,7 @@ export async function GET(
             },
             course: {
                 title: course?.title || 'Unknown Course',
+                venue: course?.venue || null,
             },
             signatories: signatories,
         };

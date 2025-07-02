@@ -54,7 +54,8 @@ async function initializeDb() {
                 category TEXT NOT NULL,
                 imagePath TEXT,
                 startDate TEXT,
-                endDate TEXT
+                endDate TEXT,
+                venue TEXT
             );
         `);
 
@@ -147,8 +148,8 @@ async function initializeDb() {
         await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
         
         // Seed Courses
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
+        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png', 'Online')");
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (3, 'Cybersecurity Basics', 'Understand common threats and best practices to keep our systems secure.', 'Compliance', '/images/placeholder.png')");
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath) VALUES (4, 'Effective Communication', 'Master the art of clear, concise, and persuasive communication.', 'Soft Skills', '/images/placeholder.png')");
         
@@ -249,6 +250,10 @@ async function initializeDb() {
         await dbInstance.exec(`
             ALTER TABLE certificates ADD COLUMN certificate_number TEXT;
         `).catch(e => console.log("Could not add certificate_number column to certificates, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            ALTER TABLE courses ADD COLUMN venue TEXT;
+        `).catch(e => console.log("Could not add venue column to courses, it might exist already:", e.message));
 
         // Seed default settings if they don't exist for existing dbs
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);

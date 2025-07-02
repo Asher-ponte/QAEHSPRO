@@ -43,6 +43,7 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   imagePath: z.string().optional().nullable(),
+  venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -98,13 +99,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath, startDate, endDate, signatoryIds } = parsedData.data;
+    const { title, description, category, modules, imagePath, venue, startDate, endDate, signatoryIds } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
     const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, imagePath, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, description, category, imagePath, startDate, endDate]
+      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, description, category, imagePath, venue, startDate, endDate]
     )
     const courseId = courseResult.lastID;
     if (!courseId) {

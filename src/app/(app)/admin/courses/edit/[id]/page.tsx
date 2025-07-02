@@ -62,6 +62,7 @@ const courseSchema = z.object({
   description: z.string(),
   category: z.string(),
   imagePath: z.string().optional().nullable(),
+  venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -447,6 +448,7 @@ export default function EditCoursePage() {
       description: "",
       category: "",
       imagePath: "",
+      venue: "",
       startDate: null,
       endDate: null,
       modules: [],
@@ -499,6 +501,7 @@ export default function EditCoursePage() {
       description: values.description,
       category: values.category,
       imagePath: values.imagePath,
+      venue: values.venue,
       startDate: values.startDate,
       endDate: values.endDate,
       signatoryIds: values.signatoryIds,
@@ -680,6 +683,22 @@ export default function EditCoursePage() {
                                 )}
                             />
                         </div>
+                         <FormField
+                            control={form.control}
+                            name="venue"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Training Venue / Location</FormLabel>
+                                <FormControl>
+                                <Input placeholder="e.g., QAEHS Training Center, Dubai" {...field} value={field.value ?? ''} />
+                                </FormControl>
+                                <FormDescription>
+                                The physical location where the training was conducted. This will appear on the certificate.
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <FormField
                                 control={form.control}
