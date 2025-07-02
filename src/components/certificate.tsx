@@ -41,13 +41,13 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     return (
         <div id="certificate-print-area" className="bg-background">
-            <div id="certificate-to-download" className="max-w-5xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[297/210]">
+            <div id="certificate-to-download" className="max-w-4xl mx-auto p-8 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[210/297]">
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
-                <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+                <div className="relative z-10 flex flex-col items-center text-center space-y-4">
                     <div className="flex justify-center items-center gap-8 mb-4">
                         {data.companyLogoPath && (
-                            <div className="relative h-24 w-48">
+                            <div className="relative h-20 w-40">
                                 <Image 
                                     src={data.companyLogoPath} 
                                     alt={`${data.companyName} Logo`} 
@@ -57,7 +57,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                             </div>
                         )}
                         {data.companyLogo2Path && (
-                             <div className="relative h-24 w-48">
+                             <div className="relative h-20 w-40">
                                 <Image 
                                     src={data.companyLogo2Path} 
                                     alt={`${data.companyName} Secondary Logo`} 
@@ -68,38 +68,38 @@ export function Certificate({ data }: { data: CertificateData }) {
                         )}
                     </div>
 
-                    <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                    <h1 className="text-3xl font-bold tracking-wider text-primary">{data.companyName}</h1>
                     
                     {data.companyAddress && (
-                        <p className="text-base text-muted-foreground -mt-4">{data.companyAddress}</p>
+                        <p className="text-sm text-muted-foreground -mt-4">{data.companyAddress}</p>
                     )}
 
-                    <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase">
+                    <h2 className="text-xl font-semibold text-muted-foreground tracking-widest uppercase pt-2">
                         Certificate of Completion
                     </h2>
 
-                    <p className="text-lg">This certificate is proudly presented to</p>
+                    <p className="text-base pt-4">This certificate is proudly presented to</p>
 
-                    <h1 className="text-5xl font-bold">
+                    <h1 className="text-4xl font-bold">
                         {data.user.username}
                     </h1>
 
-                    <p className="text-lg max-w-2xl">
+                    <p className="text-base max-w-2xl">
                         for successfully completing the course
                     </p>
-                    <h3 className="text-3xl font-semibold">
+                    <h3 className="text-2xl font-semibold">
                        "{data.course.title}"
                     </h3>
 
-                    <p className="text-lg">
+                    <p className="text-base">
                         on {format(new Date(data.completion_date), "MMMM d, yyyy")}
                     </p>
 
-                    <div className="flex flex-col items-center w-full pt-12 mt-8 space-y-12 border-t">
-                        <div className="flex flex-wrap justify-center gap-x-16 gap-y-8">
+                    <div className="flex flex-col items-center w-full pt-8 mt-6 space-y-8">
+                        <div className="flex flex-wrap justify-center gap-x-12 gap-y-8">
                             {data.signatories.map((s, i) => (
                                 <div key={i} className="flex flex-col items-center min-w-0">
-                                    <div className="relative h-16 w-48 mb-2">
+                                    <div className="relative h-14 w-40 mb-2">
                                         <Image 
                                             src={s.signatureImagePath} 
                                             alt={`Signature of ${s.name}`} 
@@ -115,9 +115,9 @@ export function Certificate({ data }: { data: CertificateData }) {
                             ))}
                         </div>
 
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center absolute bottom-8">
                             {qrCodeDataUrl && (
-                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={100} height={100} />
+                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={80} height={80} />
                             )}
                             {data.certificateNumber && (
                                 <p className="text-xs text-muted-foreground mt-2">

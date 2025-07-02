@@ -108,9 +108,9 @@ export default function CertificatePage() {
         });
         const imgData = canvas.toDataURL('image/png');
 
-        // Create a landscape A4 PDF
+        // Create a portrait A4 PDF
         const pdf = new jsPDF({
-            orientation: 'landscape',
+            orientation: 'portrait',
             unit: 'pt',
             format: 'a4'
         });
