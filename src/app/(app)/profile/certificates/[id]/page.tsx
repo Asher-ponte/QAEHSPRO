@@ -16,6 +16,7 @@ interface CertificateData {
   completion_date: string;
   certificateNumber: string | null;
   companyName: string;
+  companyLogoPath: string | null;
   user: { username: string };
   course: { title: string };
   signatories: { name: string; signatureImagePath: string }[];

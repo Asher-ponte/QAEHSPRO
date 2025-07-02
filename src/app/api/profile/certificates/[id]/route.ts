@@ -27,13 +27,17 @@ export async function GET(
         
         const course = await db.get('SELECT title FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all('SELECT name, position, signatureImagePath FROM signatories');
-        const companyNameResult = await db.get("SELECT value FROM app_settings WHERE key = 'company_name'");
+        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path')");
+        
+        const companyName = settings.find(s => s.key === 'company_name')?.value || 'Your Company Name';
+        const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || null;
 
         const responseData = {
             id: certificate.id,
             completion_date: certificate.completion_date,
             certificateNumber: certificate.certificate_number,
-            companyName: companyNameResult?.value || 'Your Company Name',
+            companyName: companyName,
+            companyLogoPath: companyLogoPath,
             user: {
                 username: user.username,
             },

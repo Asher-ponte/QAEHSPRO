@@ -6,13 +6,12 @@ import Image from "next/image"
 import { format } from "date-fns"
 import QRCode from "qrcode"
 
-import { Logo } from "@/components/logo"
-
 interface CertificateData {
   id: number;
   completion_date: string;
   certificateNumber: string | null;
   companyName: string;
+  companyLogoPath: string | null;
   user: { username: string };
   course: { title: string };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
@@ -44,9 +43,20 @@ export function Certificate({ data }: { data: CertificateData }) {
                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
 
                 <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-                    <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
-                    <Logo />
+                    {data.companyLogoPath && (
+                         <div className="relative h-24 w-auto max-w-xs mb-4">
+                            <Image 
+                                src={data.companyLogoPath} 
+                                alt={`${data.companyName} Logo`} 
+                                width={150} 
+                                height={96}
+                                className="object-contain"
+                            />
+                        </div>
+                    )}
 
+                    <h1 className="text-4xl font-bold tracking-wider text-primary">{data.companyName}</h1>
+                    
                     <h2 className="text-2xl font-semibold text-muted-foreground tracking-widest uppercase">
                         Certificate of Completion
                     </h2>

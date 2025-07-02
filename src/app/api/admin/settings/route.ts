@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/session';
 
 const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
+  companyLogoPath: z.string().optional(),
 });
 
 async function checkAdmin() {
@@ -22,8 +23,10 @@ export async function GET() {
 
     try {
         const db = await getDb();
-        const result = await db.get("SELECT value FROM app_settings WHERE key = 'company_name'");
-        return NextResponse.json({ companyName: result?.value || '' });
+        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path')");
+        const companyName = settings.find(s => s.key === 'company_name')?.value || '';
+        const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || '';
+        return NextResponse.json({ companyName, companyLogoPath });
     } catch (error) {
         console.error("Failed to fetch settings:", error);
         return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
@@ -34,8 +37,9 @@ export async function PUT(request: NextRequest) {
     const isAdmin = await checkAdmin();
     if (isAdmin) return isAdmin;
     
+    let db;
     try {
-        const db = await getDb();
+        db = await getDb();
         const data = await request.json();
         const parsedData = settingsSchema.safeParse(data);
 
@@ -43,15 +47,27 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { companyName } = parsedData.data;
+        const { companyName, companyLogoPath } = parsedData.data;
+        
+        await db.run('BEGIN TRANSACTION');
         
         await db.run(
-            "UPDATE app_settings SET value = ? WHERE key = 'company_name'",
-            [companyName]
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            ['company_name', companyName]
         );
+        
+        await db.run(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            ['company_logo_path', companyLogoPath || '']
+        );
+        
+        await db.run('COMMIT');
 
         return NextResponse.json({ success: true, message: "Settings updated" });
     } catch (error) {
+        if (db) {
+            await db.run('ROLLBACK').catch(console.error);
+        }
         console.error("Failed to update settings:", error);
         return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
     }

@@ -27,9 +27,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
+  companyLogoPath: z.string().optional(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>
@@ -41,7 +43,7 @@ export default function PlatformSettingsPage() {
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
-        defaultValues: { companyName: "" },
+        defaultValues: { companyName: "", companyLogoPath: "" },
     });
 
     useEffect(() => {
@@ -51,7 +53,7 @@ export default function PlatformSettingsPage() {
                 const res = await fetch('/api/admin/settings');
                 if (!res.ok) throw new Error("Failed to fetch settings.");
                 const data = await res.json();
-                form.reset({ companyName: data.companyName });
+                form.reset({ companyName: data.companyName, companyLogoPath: data.companyLogoPath || "" });
             } catch (error) {
                 toast({
                     variant: "destructive",
@@ -110,7 +112,7 @@ export default function PlatformSettingsPage() {
             </div>
             <Card>
                 <CardHeader>
-                <CardTitle>Company Information</CardTitle>
+                <CardTitle>Company Branding</CardTitle>
                 <CardDescription>This information will appear on certificates and other official documents.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -121,7 +123,7 @@ export default function PlatformSettingsPage() {
                         </div>
                     ) : (
                         <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-w-sm">
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-sm">
                                 <FormField
                                     control={form.control}
                                     name="companyName"
@@ -131,6 +133,22 @@ export default function PlatformSettingsPage() {
                                             <FormControl>
                                                 <Input placeholder="Your Company LLC" {...field} />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="companyLogoPath"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Company Logo Path</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="/images/your-logo.png" {...field} value={field.value ?? ''} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Place your logo in `public/images` and enter the path here.
+                                            </FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}

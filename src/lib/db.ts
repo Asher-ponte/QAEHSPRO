@@ -156,6 +156,7 @@ async function initializeDb() {
 
         // Seed App Settings
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
 
 
         console.log("Database seeded successfully.");
@@ -228,8 +229,9 @@ async function initializeDb() {
             ALTER TABLE certificates ADD COLUMN certificate_number TEXT;
         `).catch(e => console.log("Could not add certificate_number column to certificates, it might exist already:", e.message));
 
-        // Seed default company name if it doesn't exist for existing dbs
+        // Seed default settings if they don't exist for existing dbs
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     }
 
 
