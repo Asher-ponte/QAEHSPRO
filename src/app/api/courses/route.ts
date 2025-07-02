@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
+import { getCurrentUser } from '@/lib/session'
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
@@ -48,7 +49,27 @@ const courseSchema = z.object({
 export async function GET() {
   try {
     const db = await getDb()
-    const courses = await db.all('SELECT * FROM courses')
+    const user = await getCurrentUser();
+
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    let courses;
+    // Admins see all courses in the catalog.
+    // Employees only see courses they have been enrolled in.
+    if (user.role === 'Admin') {
+        courses = await db.all('SELECT * FROM courses ORDER BY title ASC');
+    } else {
+        courses = await db.all(`
+            SELECT c.* 
+            FROM courses c
+            JOIN enrollments e ON c.id = e.course_id
+            WHERE e.user_id = ?
+            ORDER BY c.title ASC
+        `, [user.id]);
+    }
+    
     return NextResponse.json(courses)
   } catch (error) {
     console.error(error)
