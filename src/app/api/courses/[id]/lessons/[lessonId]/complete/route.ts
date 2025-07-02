@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session';
+import { format } from 'date-fns';
 
 
 export async function POST(
@@ -72,9 +73,29 @@ export async function POST(
             );
 
             if (allLessons.length > 0 && completedLessons.count === allLessons.length) {
+                // Generate certificate number
+                const today = new Date();
+                const datePrefix = format(today, 'yyyy-MM-dd');
+                const lastCertForToday = await db.get(
+                    `SELECT certificate_number FROM certificates 
+                    WHERE certificate_number LIKE ? 
+                    ORDER BY certificate_number DESC 
+                    LIMIT 1`,
+                    [`QAEHS-${datePrefix}-%`]
+                );
+                let nextSerial = 1;
+                if (lastCertForToday?.certificate_number) {
+                    const lastSerial = parseInt(lastCertForToday.certificate_number.split('-').pop()!, 10);
+                    if (!isNaN(lastSerial)) {
+                        nextSerial = lastSerial + 1;
+                    }
+                }
+                const serialString = nextSerial.toString().padStart(3, '0');
+                const certificateNumber = `QAEHS-${datePrefix}-${serialString}`;
+                
                 await db.run(
-                    'INSERT OR IGNORE INTO certificates (user_id, course_id, completion_date) VALUES (?, ?, ?)',
-                    [userId, courseId, new Date().toISOString()]
+                    'INSERT OR IGNORE INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)',
+                    [userId, courseId, new Date().toISOString(), certificateNumber]
                 );
                 const newCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
                 certificateId = newCertificate?.id ?? null;

@@ -35,6 +35,12 @@ const adminActions = [
     icon: <Ribbon className="h-8 w-8 text-primary" />,
     href: "/admin/certificates",
   },
+  {
+    title: "Platform Settings",
+    description: "Configure global platform settings like company name.",
+    icon: <Settings className="h-8 w-8 text-primary" />,
+    href: "/admin/settings",
+  },
 ]
 
 export default function AdminPage() {

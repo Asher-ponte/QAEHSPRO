@@ -99,6 +99,7 @@ async function initializeDb() {
             user_id INTEGER NOT NULL,
             course_id INTEGER NOT NULL,
             completion_date TEXT NOT NULL,
+            certificate_number TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
             UNIQUE(user_id, course_id)
@@ -124,6 +125,13 @@ async function initializeDb() {
             );
         `);
 
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        `);
+
 
         // Seed Users
         await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Demo User', 'Administration', 'System Administrator', 'Admin']);
@@ -146,6 +154,10 @@ async function initializeDb() {
         // Seed initial enrollment for the admin user
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
 
+        // Seed App Settings
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
+
+
         console.log("Database seeded successfully.");
     } else {
         // Run migrations for existing databases
@@ -155,6 +167,7 @@ async function initializeDb() {
                 user_id INTEGER NOT NULL,
                 course_id INTEGER NOT NULL,
                 completion_date TEXT NOT NULL,
+                certificate_number TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
                 UNIQUE(user_id, course_id)
@@ -179,6 +192,13 @@ async function initializeDb() {
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
             );
         `).catch(e => console.log("Could not create enrollments table, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        `).catch(e => console.log("Could not create app_settings table, it might exist already:", e.message));
 
         await dbInstance.exec(`
             ALTER TABLE signatories ADD COLUMN position TEXT;
@@ -203,6 +223,13 @@ async function initializeDb() {
         await dbInstance.exec(`
             ALTER TABLE courses ADD COLUMN endDate TEXT;
         `).catch(e => console.log("Could not add endDate column to courses, it might exist already:", e.message));
+        
+        await dbInstance.exec(`
+            ALTER TABLE certificates ADD COLUMN certificate_number TEXT;
+        `).catch(e => console.log("Could not add certificate_number column to certificates, it might exist already:", e.message));
+
+        // Seed default company name if it doesn't exist for existing dbs
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO']);
     }
 
 

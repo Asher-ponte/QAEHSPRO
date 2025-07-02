@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 interface CertificateData {
   id: number;
   completion_date: string;
+  certificateNumber: string | null;
+  companyName: string;
   user: { username: string };
   course: { title: string };
   signatories: { name: string; signatureImagePath: string }[];

@@ -17,7 +17,7 @@ export async function GET(
         const certificateId = params.id;
 
         const certificate = await db.get(
-            `SELECT * FROM certificates WHERE id = ? AND user_id = ?`,
+            `SELECT *, certificate_number FROM certificates WHERE id = ? AND user_id = ?`,
             [certificateId, user.id]
         );
 
@@ -27,10 +27,13 @@ export async function GET(
         
         const course = await db.get('SELECT title FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all('SELECT name, position, signatureImagePath FROM signatories');
+        const companyNameResult = await db.get("SELECT value FROM app_settings WHERE key = 'company_name'");
 
         const responseData = {
             id: certificate.id,
             completion_date: certificate.completion_date,
+            certificateNumber: certificate.certificate_number,
+            companyName: companyNameResult?.value || 'Your Company Name',
             user: {
                 username: user.username,
             },
