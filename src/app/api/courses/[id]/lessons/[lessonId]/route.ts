@@ -17,14 +17,8 @@ export async function GET(
     }
     const userId = user.id;
 
-    // Admins are automatically enrolled to view content.
-    // Employees must be enrolled beforehand.
-    if (user.role === 'Admin') {
-        await db.run(
-            `INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)`,
-            [userId, courseId]
-        );
-    } else {
+    // Admins can view any content. Employees must be enrolled.
+    if (user.role !== 'Admin') {
         const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
         if (!enrollment) {
             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
@@ -69,3 +63,4 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch lesson' }, { status: 500 })
   }
 }
+
