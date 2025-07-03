@@ -174,23 +174,27 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={enrollmentChartConfig} className="min-h-[200px] w-full">
-                                <BarChart accessibilityLayer data={data.courseEnrollmentData} layout="vertical" margin={{ left: 20 }}>
-                                    <XAxis type="number" hide />
-                                    <YAxis 
+                            <ChartContainer config={enrollmentChartConfig} className="min-h-[250px] w-full">
+                                <BarChart accessibilityLayer data={data.courseEnrollmentData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
+                                    <XAxis 
                                         dataKey="name" 
-                                        type="category" 
                                         tickLine={false} 
                                         axisLine={false}
                                         tickMargin={10}
-                                        width={120} 
-                                        className="truncate"
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                        interval={0}
+                                        className="text-xs"
                                     />
+                                    <YAxis />
                                     <ChartTooltip
                                         cursor={false}
                                         content={<ChartTooltipContent indicator="dot" />}
                                     />
-                                    <Bar dataKey="Enrollments" fill="var(--color-Enrollments)" radius={4} />
+                                    <Bar dataKey="Enrollments" fill="var(--color-Enrollments)" radius={4}>
+                                      <LabelList position="top" offset={4} className="fill-foreground" fontSize={12} />
+                                    </Bar>
                                 </BarChart>
                             </ChartContainer>
                         </CardContent>
@@ -204,26 +208,28 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={completionRateChartConfig} className="min-h-[200px] w-full">
-                                <BarChart accessibilityLayer data={data.courseCompletionRateData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                    <XAxis type="number" dataKey="Completion Rate" hide domain={[0, 100]} />
-                                    <YAxis 
+                           <ChartContainer config={completionRateChartConfig} className="min-h-[250px] w-full">
+                                <BarChart accessibilityLayer data={data.courseCompletionRateData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
+                                    <XAxis 
                                         dataKey="name" 
-                                        type="category" 
                                         tickLine={false} 
                                         axisLine={false}
                                         tickMargin={10}
-                                        width={120} 
-                                        className="truncate"
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                        interval={0}
+                                        className="text-xs"
                                     />
+                                    <YAxis domain={[0, 100]} unit="%" />
                                     <ChartTooltip
                                         cursor={false}
-                                        content={<ChartTooltipContent indicator="dot" />}
+                                        content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />}
                                     />
                                     <Bar dataKey="Completion Rate" fill="var(--color-Completion-Rate)" radius={4}>
                                        <LabelList
-                                        position="right"
-                                        offset={8}
+                                        position="top"
+                                        offset={4}
                                         className="fill-foreground"
                                         fontSize={12}
                                         formatter={(value: number) => `${value}%`}
@@ -242,7 +248,7 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={completionChartConfig} className="min-h-[200px] w-full">
+                            <ChartContainer config={completionChartConfig} className="min-h-[250px] w-full">
                                 <LineChart
                                     accessibilityLayer
                                     data={data.completionOverTimeData}
@@ -277,26 +283,28 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={quizPerformanceChartConfig} className="min-h-[200px] w-full">
-                                <BarChart accessibilityLayer data={data.quizPerformanceData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                    <XAxis type="number" dataKey="Average Score" hide domain={[0, 100]} />
-                                    <YAxis 
+                            <ChartContainer config={quizPerformanceChartConfig} className="min-h-[250px] w-full">
+                                <BarChart accessibilityLayer data={data.quizPerformanceData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
+                                    <XAxis 
                                         dataKey="name" 
-                                        type="category" 
                                         tickLine={false} 
                                         axisLine={false}
                                         tickMargin={10}
-                                        width={120} 
-                                        className="truncate"
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                        interval={0}
+                                        className="text-xs"
                                     />
+                                    <YAxis domain={[0, 100]} unit="%" />
                                     <ChartTooltip
                                         cursor={false}
-                                        content={<ChartTooltipContent indicator="dot" />}
+                                        content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />}
                                     />
                                     <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
                                        <LabelList
-                                        position="right"
-                                        offset={8}
+                                        position="top"
+                                        offset={4}
                                         className="fill-foreground"
                                         fontSize={12}
                                         formatter={(value: number) => `${value}%`}
@@ -314,26 +322,28 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={userPerformanceChartConfig} className="min-h-[200px] w-full">
-                                <BarChart accessibilityLayer data={data.userPerformanceData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                    <XAxis type="number" dataKey="Average Score" hide domain={[0, 100]} />
-                                    <YAxis 
+                            <ChartContainer config={userPerformanceChartConfig} className="min-h-[250px] w-full">
+                                <BarChart accessibilityLayer data={data.userPerformanceData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
+                                    <XAxis 
                                         dataKey="name" 
-                                        type="category" 
                                         tickLine={false} 
                                         axisLine={false}
                                         tickMargin={10}
-                                        width={120} 
-                                        className="truncate"
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                        interval={0}
+                                        className="text-xs"
                                     />
+                                    <YAxis domain={[0, 100]} unit="%" />
                                     <ChartTooltip
                                         cursor={false}
-                                        content={<ChartTooltipContent indicator="dot" />}
+                                        content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />}
                                     />
                                     <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
                                        <LabelList
-                                        position="right"
-                                        offset={8}
+                                        position="top"
+                                        offset={4}
                                         className="fill-foreground"
                                         fontSize={12}
                                         formatter={(value: number) => `${value}%`}
