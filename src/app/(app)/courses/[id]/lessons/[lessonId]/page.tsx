@@ -45,6 +45,13 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     const router = useRouter();
     const { toast } = useToast();
 
+    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
+        setAnswers(prev => ({
+            ...prev,
+            [questionIndex]: optionIndex,
+        }));
+    };
+
     useEffect(() => {
         if (lesson.content) {
             try {
@@ -167,7 +174,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
                             <p>{qIndex + 1}. {q.text}</p>
                         </div>
                         <RadioGroup 
-                            onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value))}
+                            onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value, 10))}
                             value={answers[qIndex]?.toString()}
                             disabled={isLocked || submitted}
                             className="space-y-2"
