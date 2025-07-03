@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, RefreshCcw, Loader2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -73,8 +73,10 @@ function getCourseStatusInfo(
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
+  const router = useRouter();
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRetaking, setIsRetaking] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -115,6 +117,33 @@ export default function CourseDetailPage() {
     fetchCourse()
   }, [params.id, toast])
 
+  const handleRetakeCourse = async () => {
+    if (!course || isRetaking) return;
+    setIsRetaking(true);
+    try {
+        const res = await fetch(`/api/courses/${course.id}/retake`, {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Failed to retake course.");
+        }
+        toast({
+            title: "Course Reset",
+            description: "Your progress has been reset. You can now start the course again.",
+        });
+        router.refresh(); 
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: error instanceof Error ? error.message : "An unknown error occurred.",
+        });
+    } finally {
+        setIsRetaking(false);
+    }
+  }
+
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -136,12 +165,8 @@ export default function CourseDetailPage() {
   const statusInfo = course ? getCourseStatusInfo(course.startDate, course.endDate) : null;
   const canAccessContent = course?.isCompleted || statusInfo?.status === 'Active';
 
-  if (course && allLessons.length > 0) {
-      if (course.isCompleted) {
-          buttonText = "Review Course";
-          buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
-          buttonDisabled = false;
-      } else if (statusInfo?.status === 'Active') {
+  if (course && allLessons.length > 0 && !course.isCompleted) {
+      if (statusInfo?.status === 'Active') {
           if (firstUncompletedLesson) {
               buttonText = hasStarted ? "Continue Course" : "Start Course";
               buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
@@ -158,7 +183,7 @@ export default function CourseDetailPage() {
           buttonText = "Course Archived";
           buttonDisabled = true;
       }
-  } else if (course) {
+  } else if (course && !course.isCompleted) {
       buttonText = "Content Coming Soon";
       buttonDisabled = true;
   }
@@ -198,6 +223,22 @@ export default function CourseDetailPage() {
     return <div>Course could not be loaded. Please check the console for more details.</div>
   }
 
+  const ActionButton = () => {
+    if (course.isCompleted) {
+        return (
+            <Button onClick={handleRetakeCourse} className="w-full" disabled={isRetaking}>
+                {isRetaking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+                Retake Course
+            </Button>
+        );
+    }
+    return (
+        <Button asChild className="w-full" disabled={buttonDisabled}>
+            <Link href={buttonHref}>{buttonText}</Link>
+        </Button>
+    );
+  };
+
   return (
     <div className="grid md:grid-cols-3 gap-8 pb-24 md:pb-8">
       <div className="md:col-span-2">
@@ -219,9 +260,9 @@ export default function CourseDetailPage() {
       </div>
 
       <div className="space-y-6">
-         <Button asChild className="w-full hidden md:flex" disabled={buttonDisabled}>
-            <Link href={buttonHref}>{buttonText}</Link>
-        </Button>
+         <div className="w-full hidden md:flex">
+            <ActionButton />
+         </div>
         <Card>
           <CardHeader>
             <CardTitle>Course Content</CardTitle>
@@ -269,9 +310,7 @@ export default function CourseDetailPage() {
       
       {/* Floating button for mobile */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t z-10">
-        <Button asChild className="w-full" disabled={buttonDisabled}>
-            <Link href={buttonHref}>{buttonText}</Link>
-        </Button>
+        <ActionButton />
       </div>
     </div>
   )
