@@ -15,15 +15,15 @@ export async function POST(
         }
 
         db = await getDb();
-        const { id: courseId } = params;
+        const courseId = parseInt(params.id, 10);
 
-        if (!courseId) {
-            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        if (isNaN(courseId)) {
+            return NextResponse.json({ error: 'Course ID must be a number.' }, { status: 400 });
         }
 
         await db.run('BEGIN TRANSACTION');
 
-        // 1. Get all lesson IDs for the course
+        // 1. Get all lesson IDs and total lesson count for the course
         const lessons = await db.all(`
             SELECT l.id FROM lessons l
             JOIN modules m ON l.module_id = m.id
@@ -31,27 +31,41 @@ export async function POST(
         `, courseId);
         
         const lessonIds = lessons.map(l => l.id);
+        const totalLessons = lessonIds.length;
 
-        if (lessonIds.length === 0) {
-            // No lessons, nothing to reset
+        if (totalLessons === 0) {
             await db.run('COMMIT');
-            return NextResponse.json({ success: true, message: 'Course has no lessons to reset progress for.' });
+            return NextResponse.json({ success: true, message: 'Course has no lessons, so no progress to reset.' });
         }
+        
+        // 2. Get all users enrolled in the course
+        const enrolledUsers = await db.all(`SELECT user_id FROM enrollments WHERE course_id = ?`, courseId);
+        if (enrolledUsers.length === 0) {
+            await db.run('COMMIT');
+            return NextResponse.json({ success: true, message: 'No users are enrolled in this course.' });
+        }
+        const enrolledUserIds = enrolledUsers.map(u => u.user_id);
 
-        // 2. Get all users who have completed the course (have a certificate)
-        const completedUsers = await db.all(`
-            SELECT DISTINCT user_id FROM certificates WHERE course_id = ?
-        `, courseId);
+        // 3. Find which of the enrolled users have 100% progress
+        const userProgressCounts = await db.all(`
+            SELECT user_id, COUNT(lesson_id) as completed_count
+            FROM user_progress
+            WHERE user_id IN (${enrolledUserIds.map(() => '?').join(',')})
+              AND lesson_id IN (${lessonIds.map(() => '?').join(',')})
+              AND completed = 1
+            GROUP BY user_id
+        `, [...enrolledUserIds, ...lessonIds]);
 
-        const userIdsToReset = completedUsers.map(u => u.user_id);
+        const userIdsToReset = userProgressCounts
+            .filter(p => p.completed_count === totalLessons)
+            .map(p => p.user_id);
         
         if (userIdsToReset.length === 0) {
-            // No users have completed the course yet
             await db.run('COMMIT');
-            return NextResponse.json({ success: true, message: 'No completed users to reset for re-training.' });
+            return NextResponse.json({ success: true, message: 'No users have 100% completion to reset for re-training.' });
         }
         
-        // 3. Delete progress for these users and lessons
+        // 4. Delete progress for these completed users for this course's lessons
         const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
         const userIdsPlaceholder = userIdsToReset.map(() => '?').join(',');
 
@@ -72,6 +86,7 @@ export async function POST(
             await db.run('ROLLBACK').catch(console.error);
         }
         console.error("Failed to initiate re-training:", error);
-        return NextResponse.json({ error: 'Failed to initiate re-training due to a server error' }, { status: 500 });
+        const details = error instanceof Error ? error.message : "An unknown error occurred.";
+        return NextResponse.json({ error: 'Failed to initiate re-training due to a server error', details }, { status: 500 });
     }
 }
