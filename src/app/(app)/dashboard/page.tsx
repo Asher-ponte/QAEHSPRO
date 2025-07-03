@@ -69,13 +69,6 @@ async function getDashboardData() {
     `, [userId, ...courseIds]);
     const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
 
-    // Get current certificates to determine if a course is 100% complete (for progress bar).
-    const currentCertificates = await db.all(
-        `SELECT course_id FROM certificates WHERE user_id = ? AND course_id IN (${courseIdsPlaceholder})`,
-        [userId, ...courseIds]
-    );
-    const completedCourseIds = new Set(currentCertificates.map(c => c.course_id));
-
     // 5. Process the data in memory for course list.
     const lessonsByCourse = allLessons.reduce((acc, l) => {
         if (!acc[l.course_id]) acc[l.course_id] = [];
@@ -90,11 +83,7 @@ async function getDashboardData() {
 
         let progress = 0;
         if (totalLessons > 0) {
-            if(completedCourseIds.has(course.id)) {
-                progress = 100;
-            } else {
-                progress = Math.floor((completedCount / totalLessons) * 100);
-            }
+            progress = Math.floor((completedCount / totalLessons) * 100);
         }
         
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));

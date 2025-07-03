@@ -38,11 +38,8 @@ export async function POST(
             );
         }
 
-        // Delete any certificates for this user and course
-        await db.run(
-            'DELETE FROM certificates WHERE user_id = ? AND course_id = ?',
-            [userId, courseId]
-        );
+        // We no longer delete the certificate. It remains as a historical record.
+        // The user can now start the course again from 0% progress.
         
         await db.run('COMMIT');
 
