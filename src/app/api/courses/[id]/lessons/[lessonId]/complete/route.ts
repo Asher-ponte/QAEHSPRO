@@ -35,23 +35,17 @@ export async function POST(
         // Use a transaction to ensure atomicity
         await db.run('BEGIN TRANSACTION');
 
-        // Mark current lesson as complete
-        const existingProgress = await db.get(
-            'SELECT id FROM user_progress WHERE user_id = ? AND lesson_id = ?',
+        // This is a more robust way to handle progress updates.
+        // It ensures a progress record exists, and then sets it to complete.
+        await db.run(
+            'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 0) ON CONFLICT(user_id, lesson_id) DO NOTHING',
+            [userId, lessonId]
+        );
+        await db.run(
+            'UPDATE user_progress SET completed = 1 WHERE user_id = ? AND lesson_id = ?',
             [userId, lessonId]
         );
 
-        if (!existingProgress) {
-             await db.run(
-                'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1)',
-                [userId, lessonId]
-            );
-        } else {
-             await db.run(
-                'UPDATE user_progress SET completed = 1 WHERE id = ?',
-                [existingProgress.id]
-            );
-        }
 
         // Find the next lesson in the course
         const allLessons = await db.all(
@@ -66,10 +60,11 @@ export async function POST(
 
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
+
         if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
             nextLessonId = allLessons[currentIndex + 1].id;
         } else {
-            // Course is complete, create certificate if all lessons are done
+            // This is the last lesson, or the only lesson. Check if the whole course is now complete.
             const completedLessons = await db.get(
                 `SELECT COUNT(*) as count FROM user_progress up
                  JOIN lessons l ON up.lesson_id = l.id
