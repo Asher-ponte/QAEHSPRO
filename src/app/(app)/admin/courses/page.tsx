@@ -105,6 +105,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
     const [enrolledUserIds, setEnrolledUserIds] = useState<Set<number>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<number | null>(null);
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -186,17 +187,81 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
             setIsUpdating(null);
         }
     };
+    
+    const handleBulkEnrollment = async (enrollAll: boolean) => {
+        if (!course || isBulkUpdating || allUsers.length === 0) return;
+        setIsBulkUpdating(true);
+
+        const allUserIds = allUsers.map(u => u.id);
+
+        try {
+            const response = await fetch('/api/admin/enrollments/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    courseId: course.id,
+                    userIds: allUserIds,
+                    action: enrollAll ? 'enroll' : 'unenroll'
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Failed to ${enrollAll ? 'enroll' : 'un-enroll'} all users.`);
+            }
+
+            if (enrollAll) {
+                setEnrolledUserIds(new Set(allUserIds));
+            } else {
+                setEnrolledUserIds(new Set());
+            }
+
+            toast({
+                title: 'Success',
+                description: `All users have been ${enrollAll ? 'enrolled in' : 'un-enrolled from'} the course.`
+            });
+
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'An unknown error occurred.'
+            });
+        } finally {
+            setIsBulkUpdating(false);
+        }
+    };
 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Manage Course Enrollments</DialogTitle>
                     <DialogDescription>
                         Enroll or un-enroll users from "{course?.title}". Changes are saved automatically.
                     </DialogDescription>
                 </DialogHeader>
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleBulkEnrollment(true)}
+                        disabled={isBulkUpdating || isLoading || allUsers.length === 0}
+                    >
+                        {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Enroll All
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="w-full"
+                        onClick={() => handleBulkEnrollment(false)}
+                        disabled={isBulkUpdating || isLoading || allUsers.length === 0}
+                    >
+                        {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Un-enroll All
+                    </Button>
+                </div>
                 <div className="py-4">
                     {isLoading ? (
                         <div className="space-y-4">
@@ -723,5 +788,7 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
+
+    
 
     
