@@ -1,6 +1,4 @@
 
-"use server"
-
 import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
