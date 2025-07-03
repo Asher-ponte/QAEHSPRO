@@ -7,8 +7,8 @@ export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const user = await getCurrentUser();
-    if (!user) {
+    const sessionUser = await getCurrentUser();
+    if (!sessionUser) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -18,12 +18,15 @@ export async function GET(
 
         const certificate = await db.get(
             `SELECT *, certificate_number FROM certificates WHERE id = ? AND user_id = ?`,
-            [certificateId, user.id]
+            [certificateId, sessionUser.id]
         );
 
         if (!certificate) {
             return NextResponse.json({ error: 'Certificate not found or you do not have permission to view it.' }, { status: 404 });
         }
+        
+        // Explicitly fetch the user data associated with the certificate to ensure the name is always current
+        const certificateHolder = await db.get('SELECT username FROM users WHERE id = ?', certificate.user_id);
         
         const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all(`
@@ -49,7 +52,7 @@ export async function GET(
             companyLogoPath: companyLogoPath,
             companyLogo2Path: companyLogo2Path,
             user: {
-                username: user.username,
+                username: certificateHolder?.username || 'Unknown User',
             },
             course: {
                 title: course?.title || 'Unknown Course',
