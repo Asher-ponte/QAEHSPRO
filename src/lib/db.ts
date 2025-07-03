@@ -160,8 +160,8 @@ async function initializeDb() {
 
 
         // Seed Users
-        await dbInstance.run("INSERT INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
-        await dbInstance.run("INSERT INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
+        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
@@ -176,10 +176,39 @@ async function initializeDb() {
         // Seed Lessons for Module 1
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the capital of France?\",\"options\":[{\"text\":\"Berlin\",\"isCorrect\":false},{\"text\":\"Paris\",\"isCorrect\":true}]}]', 1)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (3, 2, 'Quiz on Leadership', 'quiz', '[{\"text\":\"What is the primary role of a leader?\",\"options\":[{\"text\":\"To manage tasks\",\"isCorrect\":false},{\"text\":\"To inspire and guide\",\"isCorrect\":true},{\"text\":\"To enforce rules\",\"isCorrect\":false}]}]', 1)");
         
-        // Seed initial enrollment for the admin user
+        // Seed another quiz in the 'Advanced React' course
+        await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (3, 2, 'React Quizzes', 1)");
+        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (4, 3, 'React Hooks Quiz', 'quiz', '[{\"text\":\"What hook is used for side effects?\",\"options\":[{\"text\":\"useState\",\"isCorrect\":false},{\"text\":\"useEffect\",\"isCorrect\":true},{\"text\":\"useContext\",\"isCorrect\":false}]}]', 1)");
+        
+        // Seed Enrollments
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
+        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (2, 1)");
+        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 2)");
+        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (2, 2)");
+
+
+        // Seed Quiz Attempts to demonstrate analytics
+        // User 1 (Demo User) performs poorly on the Leadership quiz
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 3, 1, 0, 1, '2023-10-01T10:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 3, 1, 0, 1, '2023-10-02T10:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 3, 1, 1, 1, '2023-10-03T10:00:00Z')");
+
+        // User 2 (Jonathan) also takes the Leadership quiz and does well
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 3, 1, 1, 1, '2023-10-05T11:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 3, 1, 1, 1, '2023-10-06T11:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 3, 1, 1, 1, '2023-10-07T11:00:00Z')");
+
+        // User 1 (Demo User) does well on the React quiz
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 4, 2, 1, 1, '2023-11-01T10:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 4, 2, 1, 1, '2023-11-02T10:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (1, 4, 2, 1, 1, '2023-11-03T10:00:00Z')");
+        // User 2 (Jonathan) does well on the React quiz
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 4, 2, 1, 1, '2023-11-05T11:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 4, 2, 1, 1, '2023-11-06T11:00:00Z')");
+        await dbInstance.run("INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (2, 4, 2, 1, 1, '2023-11-07T11:00:00Z')");
+
 
         // Seed App Settings
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
