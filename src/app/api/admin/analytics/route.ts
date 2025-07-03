@@ -40,24 +40,62 @@ export async function GET() {
             completions: count,
         }));
 
-        // Course Completion Rate Data (Top 5)
-        const courseCompletionRateDataRaw = await db.all(`
-            SELECT
-                c.title,
-                CAST(COUNT(DISTINCT cert.user_id) AS REAL) as completedCount,
-                CAST(COUNT(DISTINCT e.user_id) AS REAL) as enrolledCount
-            FROM courses c
-            LEFT JOIN enrollments e ON c.id = e.course_id
-            LEFT JOIN certificates cert ON c.id = cert.course_id
-            GROUP BY c.id
-            HAVING enrolledCount > 0
+        // Course Completion Rate Data (Top 5) - Based on live progress
+        const allCoursesForRate = await db.all('SELECT id, title FROM courses');
+        const lessonsPerCourseResult = await db.all(`
+            SELECT m.course_id, COUNT(l.id) as totalLessons
+            FROM lessons l
+            JOIN modules m ON l.module_id = m.id
+            GROUP BY m.course_id
         `);
+        const lessonsPerCourse = new Map(lessonsPerCourseResult.map(i => [i.course_id, i.totalLessons]));
 
-        const courseCompletionRateData = courseCompletionRateDataRaw
-            .map(c => ({
-                name: c.title,
-                "Completion Rate": c.enrolledCount > 0 ? Math.round((c.completedCount / c.enrolledCount) * 100) : 0,
-            }))
+        const enrollmentsResult = await db.all(`SELECT user_id, course_id FROM enrollments`);
+        const enrollmentsByCourse: Record<number, number[]> = {};
+        for (const e of enrollmentsResult) {
+            if (!enrollmentsByCourse[e.course_id]) {
+                enrollmentsByCourse[e.course_id] = [];
+            }
+            enrollmentsByCourse[e.course_id].push(e.user_id);
+        }
+    
+        const completedLessonsResult = await db.all(`
+            SELECT m.course_id, up.user_id, COUNT(up.lesson_id) as completedLessons
+            FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
+            JOIN modules m ON l.module_id = m.id
+            WHERE up.completed = 1
+            GROUP BY m.course_id, up.user_id
+        `);
+        const completedLessonsMap = new Map<string, number>(); // key: 'courseId-userId'
+        completedLessonsResult.forEach(r => {
+            completedLessonsMap.set(`${r.course_id}-${r.user_id}`, r.completedLessons);
+        });
+
+        const courseCompletionRateData = allCoursesForRate
+            .map(course => {
+                const totalLessons = lessonsPerCourse.get(course.id) || 0;
+                const enrolledUsers = enrollmentsByCourse[course.id] || [];
+                const enrolledCount = enrolledUsers.length;
+
+                if (enrolledCount === 0 || totalLessons === 0) {
+                    return { name: course.title, "Completion Rate": 0 };
+                }
+                
+                let completedUserCount = 0;
+                for (const userId of enrolledUsers) {
+                    const completedCount = completedLessonsMap.get(`${course.id}-${userId}`) || 0;
+                    if (completedCount === totalLessons) {
+                        completedUserCount++;
+                    }
+                }
+                
+                const completionRate = Math.round((completedUserCount / enrolledCount) * 100);
+                return {
+                    name: course.title,
+                    "Completion Rate": completionRate
+                };
+            })
             .sort((a, b) => b["Completion Rate"] - a["Completion Rate"])
             .slice(0, 5);
 
