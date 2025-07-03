@@ -26,30 +26,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
         }
     }
-    
-    // Check for refresher status by comparing the latest certificate date with the course end date.
-    const latestCertificate = await db.get(
-        'SELECT completion_date FROM certificates WHERE user_id = ? AND course_id = ? ORDER BY completion_date DESC LIMIT 1',
-        [userId, courseId]
-    );
-
-    const isRefresher = latestCertificate && course.endDate && new Date(course.endDate) > new Date(latestCertificate.completion_date);
-
-    // If it's a refresher course, wipe the user's progress for this course to restart it.
-    if (isRefresher) {
-        const modulesForCourse = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
-        const moduleIds = modulesForCourse.map(m => m.id);
-
-        if (moduleIds.length > 0) {
-            const lessonsForModules = await db.all(`SELECT id FROM lessons WHERE module_id IN (${moduleIds.map(() => '?').join(',')})`, moduleIds);
-            const lessonIds = lessonsForModules.map(l => l.id);
-
-            if (lessonIds.length > 0) {
-                await db.run(`DELETE FROM user_progress WHERE user_id = ? AND lesson_id IN (${lessonIds.map(() => '?').join(',')})`, [userId, ...lessonIds]);
-            }
-        }
-    }
-
 
     // Fetch all modules and lessons in one go, including modules without lessons
     const modulesAndLessons = await db.all(
@@ -70,7 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         [userId, courseId]
     );
 
-    // Determine course completion status *after* potential progress reset
+    // Determine course completion status
     const allLessonsInCourse = modulesAndLessons.filter(ml => ml.lesson_id);
     const completedLessons = allLessonsInCourse.filter(l => l.completed);
     const isCourseCompleted = allLessonsInCourse.length > 0 && allLessonsInCourse.length === completedLessons.length;
@@ -118,4 +94,3 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Failed to fetch course', details: errorMessage }, { status: 500 })
   }
 }
-

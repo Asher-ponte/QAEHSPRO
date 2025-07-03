@@ -13,11 +13,10 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // 1. Get all courses the user is enrolled in, joining with the latest certificate.
+    // 1. Get all courses the user is enrolled in.
     const enrolledCourses = await db.all(`
         SELECT 
-            c.*,
-            (SELECT MAX(cert.completion_date) FROM certificates cert WHERE cert.user_id = e.user_id AND cert.course_id = e.course_id) as lastCompletionDate
+            c.*
         FROM enrollments e
         JOIN courses c ON e.course_id = c.id
         WHERE e.user_id = ?
@@ -53,7 +52,14 @@ export async function GET() {
     `, [userId, ...courseIds]);
     const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
 
-    // 4. Process the data in memory.
+    // 4. Get all completed certificates to count completed courses accurately
+    const completedCertificates = await db.all(
+        `SELECT course_id FROM certificates WHERE user_id = ? AND course_id IN (${courseIdsPlaceholder})`,
+        [userId, ...courseIds]
+    );
+    const completedCourseIds = new Set(completedCertificates.map(c => c.course_id));
+
+    // 5. Process the data in memory.
     const lessonsByCourse = allLessons.reduce((acc, l) => {
         if (!acc[l.course_id]) acc[l.course_id] = [];
         acc[l.course_id].push(l);
@@ -61,24 +67,23 @@ export async function GET() {
     }, {} as Record<number, typeof allLessons>);
 
     const skillsAcquired = new Set<string>();
-    let coursesCompletedCount = 0;
-
+    
     const myCourses = enrolledCourses.map(course => {
         const courseLessons = lessonsByCourse[course.id] || [];
         const totalLessons = courseLessons.length;
         const completedCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
 
-        let progress = totalLessons > 0 ? Math.floor((completedCount / totalLessons) * 100) : 0;
-        
-        // Refresher logic
-        if (progress === 100 && course.endDate && course.lastCompletionDate) {
-            if (new Date(course.endDate) > new Date(course.lastCompletionDate)) {
-                progress = 0; // It's a refresher, so reset progress for the dashboard view
+        let progress = 0;
+        if (totalLessons > 0) {
+             // If a certificate exists, the course is 100% complete, otherwise calculate progress.
+            if(completedCourseIds.has(course.id)) {
+                progress = 100;
+            } else {
+                progress = Math.floor((completedCount / totalLessons) * 100);
             }
         }
         
         if (progress === 100) {
-            coursesCompletedCount++;
             skillsAcquired.add(course.category);
         }
 
@@ -97,7 +102,7 @@ export async function GET() {
     
     const dashboardData = {
       stats: {
-        coursesCompleted: coursesCompletedCount,
+        coursesCompleted: completedCourseIds.size,
         skillsAcquired: skillsAcquired.size,
       },
       myCourses: myCourses,
