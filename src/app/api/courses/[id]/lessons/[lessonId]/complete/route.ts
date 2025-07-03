@@ -17,15 +17,15 @@ export async function POST(
         const lessonId = parseInt(params.lessonId, 10);
         const courseId = parseInt(params.id, 10);
 
+        if (isNaN(lessonId) || isNaN(courseId)) {
+             return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
+        }
+
         const user = await getCurrentUser();
         if (!user) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
         const userId = user.id;
-
-        if (isNaN(lessonId) || isNaN(courseId)) {
-             return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
-        }
 
         if (user.role !== 'Admin') {
             const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
@@ -34,17 +34,13 @@ export async function POST(
             }
         }
 
-        // Use a transaction to ensure atomicity
         await db.run('BEGIN TRANSACTION');
 
-        // This is a more robust way to handle progress updates.
         await db.run(
             'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
             [userId, lessonId]
         );
 
-
-        // Find the next lesson in the course
         const allLessons = await db.all(
             `SELECT l.id FROM lessons l
              JOIN modules m ON l.module_id = m.id
@@ -53,50 +49,49 @@ export async function POST(
             [courseId]
         );
 
-        const currentIndex = allLessons.findIndex(l => l.id === lessonId);
+        const completedLessonsResult = await db.get(
+            `SELECT COUNT(*) as count FROM user_progress up
+             JOIN lessons l ON up.lesson_id = l.id
+             JOIN modules m ON l.module_id = m.id
+             WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
+             [userId, courseId]
+        );
+        const completedLessonsCount = completedLessonsResult?.count ?? 0;
+
+        const courseIsNowComplete = allLessons.length > 0 && completedLessonsCount === allLessons.length;
 
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
 
-        if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
-            nextLessonId = allLessons[currentIndex + 1].id;
-        } else {
-            // This is the last lesson, or the only lesson. Check if the whole course is now complete.
-            const completedLessons = await db.get(
-                `SELECT COUNT(*) as count FROM user_progress up
-                 JOIN lessons l ON up.lesson_id = l.id
-                 JOIN modules m ON l.module_id = m.id
-                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
-                 [userId, courseId]
+        if (courseIsNowComplete) {
+            const today = new Date();
+            const datePrefix = format(today, 'yyyy-MM-dd');
+            const lastCertForToday = await db.get(
+                `SELECT certificate_number FROM certificates WHERE certificate_number LIKE ? ORDER BY certificate_number DESC LIMIT 1`,
+                [`QAEHS-${datePrefix}-%`]
             );
-
-            if (allLessons.length > 0 && completedLessons && completedLessons.count === allLessons.length) {
-                // Generate certificate number
-                const today = new Date();
-                const datePrefix = format(today, 'yyyy-MM-dd');
-                const lastCertForToday = await db.get(
-                    `SELECT certificate_number FROM certificates 
-                    WHERE certificate_number LIKE ? 
-                    ORDER BY certificate_number DESC 
-                    LIMIT 1`,
-                    [`QAEHS-${datePrefix}-%`]
-                );
-                let nextSerial = 1;
-                if (lastCertForToday?.certificate_number) {
-                    const lastSerial = parseInt(lastCertForToday.certificate_number.split('-').pop()!, 10);
+            
+            let nextSerial = 1;
+            if (lastCertForToday?.certificate_number) {
+                const lastSerialStr = lastCertForToday.certificate_number.split('-').pop();
+                if (lastSerialStr) {
+                    const lastSerial = parseInt(lastSerialStr, 10);
                     if (!isNaN(lastSerial)) {
                         nextSerial = lastSerial + 1;
                     }
                 }
-                const serialString = nextSerial.toString().padStart(3, '0');
-                const certificateNumber = `QAEHS-${datePrefix}-${serialString}`;
-                
-                const result = await db.run(
-                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
-                    [userId, courseId, new Date().toISOString(), certificateNumber]
-                );
-                
-                certificateId = result.lastID ?? null;
+            }
+            const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(3, '0')}`;
+            
+            const certResult = await db.run(
+                `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
+                [userId, courseId, new Date().toISOString(), certificateNumber]
+            );
+            certificateId = certResult.lastID ?? null;
+        } else {
+            const currentIndex = allLessons.findIndex(l => l.id === lessonId);
+            if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
+                nextLessonId = allLessons[currentIndex + 1].id;
             }
         }
         
@@ -106,7 +101,8 @@ export async function POST(
 
     } catch (error) {
         if (db) await db.run('ROLLBACK').catch(console.error);
-        console.error("Failed to mark lesson as complete:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error("Failed to mark lesson as complete. Error: ", errorMessage, error);
         return NextResponse.json({ error: 'Failed to update progress' }, { status: 500 });
     }
 }
