@@ -1,13 +1,12 @@
 
-"use client"
+"use server"
 
-import { useEffect, useState, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
+import { getDb } from '@/lib/db';
 
 interface CertificateData {
   id: number;
@@ -22,86 +21,88 @@ interface CertificateData {
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
-function CertificateValidator() {
-  const searchParams = useSearchParams()
-  const certificateNumber = searchParams.get('number')
-  
-  const [data, setData] = useState<CertificateData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+async function fetchCertificateData(number: string): Promise<{ data: CertificateData | null; error: string | null }> {
+    try {
+        const db = await getDb();
+        
+        const certificate = await db.get(
+            `SELECT * FROM certificates WHERE certificate_number = ?`,
+            [number]
+        );
 
-  useEffect(() => {
-    if (!certificateNumber) {
-        setError("No certificate number provided.");
-        setIsLoading(false);
-        return;
-    }
-
-    const fetchCertificate = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            // Using an absolute URL to avoid proxy issues in some environments.
-            const validationApiUrl = `${window.location.origin}/api/certificate/validate?number=${certificateNumber}`;
-            const res = await fetch(validationApiUrl);
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Failed to validate certificate.");
-            }
-            const certData = await res.json();
-            setData(certData);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "An unknown error occurred.");
-        } finally {
-            setIsLoading(false);
+        if (!certificate) {
+            return { data: null, error: 'Certificate not found.' };
         }
-    };
-    fetchCertificate();
-  }, [certificateNumber]);
+        
+        const user = await db.get('SELECT username FROM users WHERE id = ?', certificate.user_id);
+        const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+        const signatories = await db.all(`
+            SELECT s.name, s.position, s.signatureImagePath
+            FROM signatories s
+            JOIN course_signatories cs ON s.id = cs.signatory_id
+            WHERE cs.course_id = ?
+        `, certificate.course_id);
+        
+        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
+        
+        const companyName = settings.find(s => s.key === 'company_name')?.value || 'Your Company Name';
+        const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || null;
+        const companyLogo2Path = settings.find(s => s.key === 'company_logo_2_path')?.value || null;
+        const companyAddress = settings.find(s => s.key === 'company_address')?.value || null;
 
-  return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-6">
-        <div className="flex justify-center mb-4">
-            <Logo />
-        </div>
-        
-        {isLoading && (
-             <Card>
+        const responseData = {
+            id: certificate.id,
+            completion_date: certificate.completion_date,
+            certificateNumber: certificate.certificate_number,
+            companyName: companyName,
+            companyAddress: companyAddress,
+            companyLogoPath: companyLogoPath,
+            companyLogo2Path: companyLogo2Path,
+            user: {
+                username: user?.username || 'Unknown User',
+            },
+            course: {
+                title: course?.title || 'Unknown Course',
+                venue: course?.venue || null,
+            },
+            signatories: signatories,
+        };
+
+        return { data: responseData, error: null };
+
+    } catch (error) {
+        console.error("Failed to validate certificate:", error);
+        return { data: null, error: 'Failed to retrieve certificate data due to a server error.' };
+    }
+}
+
+
+async function CertificateValidator({ certificateNumber }: { certificateNumber?: string | string[] }) {
+    if (!certificateNumber || typeof certificateNumber !== 'string') {
+        return (
+            <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
                 <CardHeader>
-                    <Skeleton className="h-7 w-64" />
-                    <Skeleton className="h-5 w-48" />
-                </CardHeader>
-                <CardContent>
-                     <Skeleton className="w-full aspect-[297/210]" />
-                </CardContent>
-            </Card>
-        )}
-        
-        {!isLoading && data && (
-            <>
-            <Card className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
-                <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <CheckCircle className="h-8 w-8 text-green-600" />
+                        <div className="flex items-center gap-4">
+                        <AlertTriangle className="h-8 w-8 text-red-600" />
                         <div>
-                            <CardTitle className="text-green-800 dark:text-green-300">Certificate Valid</CardTitle>
-                            <CardDescription className="text-green-700 dark:text-green-400">
-                                This certificate has been successfully verified.
+                            <CardTitle className="text-red-800 dark:text-red-300">Validation Error</CardTitle>
+                            <CardDescription className="text-red-700 dark:text-red-400">
+                                No certificate number was provided in the URL.
                             </CardDescription>
                         </div>
                     </div>
                 </CardHeader>
             </Card>
-            <div className="w-full overflow-x-auto">
-                <Certificate data={data} />
-            </div>
-            </>
-        )}
-        
-        {!isLoading && error && (
+        )
+    }
+
+    const { data, error } = await fetchCertificateData(certificateNumber);
+
+    if (error) {
+         return (
             <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
                 <CardHeader>
-                     <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
                         <AlertTriangle className="h-8 w-8 text-red-600" />
                         <div>
                             <CardTitle className="text-red-800 dark:text-red-300">Certificate Invalid</CardTitle>
@@ -112,16 +113,44 @@ function CertificateValidator() {
                     </div>
                 </CardHeader>
             </Card>
-        )}
-    </div>
-  )
+        )
+    }
+    
+    if (data) {
+        return (
+            <>
+                <Card className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                    <CardHeader>
+                        <div className="flex items-center gap-4">
+                            <CheckCircle className="h-8 w-8 text-green-600" />
+                            <div>
+                                <CardTitle className="text-green-800 dark:text-green-300">Certificate Valid</CardTitle>
+                                <CardDescription className="text-green-700 dark:text-green-400">
+                                    This certificate has been successfully verified.
+                                </CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                </Card>
+                <div className="w-full overflow-x-auto">
+                    <Certificate data={data} />
+                </div>
+            </>
+        )
+    }
+
+    return null;
 }
 
-
-export default function ValidateCertificatePage() {
+export default function ValidateCertificatePage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <CertificateValidator />
-        </Suspense>
+        <div className="max-w-7xl mx-auto flex flex-col gap-6">
+            <div className="flex justify-center mb-4">
+                <Logo />
+            </div>
+            <Suspense fallback={<div className="text-center p-8">Validating certificate...</div>}>
+                <CertificateValidator certificateNumber={searchParams.number} />
+            </Suspense>
+        </div>
     )
 }
