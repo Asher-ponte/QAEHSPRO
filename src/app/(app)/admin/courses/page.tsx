@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw } from "lucide-react"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -355,8 +355,8 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
 
     const filteredAndSortedData = useMemo(() => {
         const sortedData = [...progressData].sort((a, b) => {
-            if (a.progress < b.progress) return -1;
-            if (a.progress > b.progress) return 1;
+            if (a.progress < b.progress) return 1;
+            if (a.progress > b.progress) return -1;
             return (a.fullName || a.username).localeCompare(b.fullName || b.username);
         });
 
@@ -488,7 +488,9 @@ export default function ManageCoursesPage() {
   const [courseToDelete, setCourseToDelete] = useState<CourseAdminView | null>(null)
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
+  const [courseForRetraining, setCourseForRetraining] = useState<CourseAdminView | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
+  const [isDialogRetraining, setIsDialogRetraining] = useState(false);
   const { toast } = useToast()
   
   const [filters, setFilters] = useState({ title: '', category: 'all' });
@@ -565,6 +567,34 @@ export default function ManageCoursesPage() {
       setIsDialogDeleting(false);
     }
   };
+
+  const handleRetraining = async () => {
+    if (!courseForRetraining) return;
+    setIsDialogRetraining(true);
+    try {
+        const res = await fetch(`/api/admin/courses/${courseForRetraining.id}/retraining`, {
+            method: 'POST',
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Failed to start re-training.");
+        }
+        toast({
+            title: "Re-Training Initiated",
+            description: `Progress for all completed users of "${courseForRetraining.title}" has been reset.`,
+        });
+        await fetchCourses();
+        setCourseForRetraining(null);
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: error instanceof Error ? error.message : "An unknown error occurred.",
+        });
+    } finally {
+        setIsDialogRetraining(false);
+    }
+};
   
   const handleFilterChange = (key: 'title' | 'category', value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -593,6 +623,10 @@ export default function ManageCoursesPage() {
 
   const openProgressDialog = (course: CourseAdminView) => {
     setCourseForProgress(course);
+  };
+  
+  const openRetrainingDialog = (course: CourseAdminView) => {
+    setCourseForRetraining(course);
   };
 
   const filtersAreActive = filters.title !== '' || filters.category !== 'all';
@@ -725,6 +759,10 @@ export default function ManageCoursesPage() {
                                     <BarChart className="mr-2 h-4 w-4" />
                                     <span>View Progress</span>
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => openRetrainingDialog(course)}>
+                                    <RefreshCcw className="mr-2 h-4 w-4" />
+                                    <span>Initiate Re-Training</span>
+                                </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 <span>Delete</span>
@@ -765,6 +803,24 @@ export default function ManageCoursesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+       <AlertDialog open={!!courseForRetraining} onOpenChange={(open) => !open && setCourseForRetraining(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Initiate Re-Training?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reset the progress for all users who have completed the course "{courseForRetraining?.title}". Their existing certificates will be kept, but they will be required to complete the course again. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRetraining} disabled={isDialogRetraining}>
+                {isDialogRetraining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Initiate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ManageEnrollmentsDialog 
         course={courseToEnroll}
         open={!!courseToEnroll}
@@ -788,7 +844,3 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
-
-    
-
-    
