@@ -184,6 +184,7 @@ export default function ManageCertificatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const fetchSignatories = async () => {
@@ -211,6 +212,7 @@ export default function ManageCertificatesPage() {
   const handleDelete = async () => {
     if (!signatoryToDelete) return;
 
+    setIsDeleting(true);
     try {
       const res = await fetch(`/api/admin/signatories/${signatoryToDelete.id}`, {
         method: "DELETE",
@@ -224,6 +226,8 @@ export default function ManageCertificatesPage() {
         description: `Signatory "${signatoryToDelete.name}" deleted successfully.`,
       });
       await fetchSignatories(); // Refresh the list
+      setShowDeleteDialog(false);
+      setSignatoryToDelete(null);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -231,8 +235,7 @@ export default function ManageCertificatesPage() {
         description: error instanceof Error ? error.message : "Could not delete signatory.",
       });
     } finally {
-      setShowDeleteDialog(false);
-      setSignatoryToDelete(null);
+      setIsDeleting(false);
     }
   };
 
@@ -327,7 +330,10 @@ export default function ManageCertificatesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

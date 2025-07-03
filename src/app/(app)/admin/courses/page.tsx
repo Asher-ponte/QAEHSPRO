@@ -342,6 +342,7 @@ export default function ManageCoursesPage() {
   const [courseToDelete, setCourseToDelete] = useState<CourseAdminView | null>(null)
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
+  const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast()
   
   const [filters, setFilters] = useState({ title: '', category: 'all' });
@@ -387,6 +388,7 @@ export default function ManageCoursesPage() {
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
 
+    setIsDialogDeleting(true);
     setIsDeleting(courseToDelete.id);
     try {
       const res = await fetch(`/api/admin/courses/${courseToDelete.id}`, {
@@ -404,6 +406,8 @@ export default function ManageCoursesPage() {
         description: `Course "${courseToDelete.title}" deleted successfully.`,
       });
       await fetchCourses();
+      setShowDeleteDialog(false);
+      setCourseToDelete(null);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -412,8 +416,7 @@ export default function ManageCoursesPage() {
       });
     } finally {
       setIsDeleting(null);
-      setShowDeleteDialog(false);
-      setCourseToDelete(null);
+      setIsDialogDeleting(false);
     }
   };
   
@@ -605,7 +608,10 @@ export default function ManageCoursesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCourse} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteCourse} disabled={isDialogDeleting} className="bg-destructive hover:bg-destructive/90">
+                {isDialogDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

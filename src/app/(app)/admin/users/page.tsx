@@ -384,6 +384,7 @@ export default function ManageUsersPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -411,6 +412,7 @@ export default function ManageUsersPage() {
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
 
+    setIsDialogDeleting(true);
     setIsDeleting(userToDelete.id);
     try {
       const res = await fetch(`/api/admin/users/${userToDelete.id}`, {
@@ -425,6 +427,8 @@ export default function ManageUsersPage() {
         description: `User "${userToDelete.username}" deleted successfully.`,
       });
       await fetchUsers(); // Refresh the list
+      setShowDeleteDialog(false);
+      setUserToDelete(null);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -433,8 +437,7 @@ export default function ManageUsersPage() {
       });
     } finally {
       setIsDeleting(null);
-      setShowDeleteDialog(false);
-      setUserToDelete(null);
+      setIsDialogDeleting(false);
     }
   };
 
@@ -563,7 +566,10 @@ export default function ManageUsersPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">Delete User</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteUser} disabled={isDialogDeleting} className="bg-destructive hover:bg-destructive/90">
+                {isDialogDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete User
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
