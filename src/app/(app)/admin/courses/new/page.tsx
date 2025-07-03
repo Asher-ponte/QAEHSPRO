@@ -4,7 +4,7 @@
 import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2, List } from "lucide-react"
+import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2, List, Bold, Italic, Heading1, Heading2, Quote } from "lucide-react"
 import Link from "next/link"
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -355,36 +355,68 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                         render={({ field }) => {
                                             const textareaRef = useRef<HTMLTextAreaElement | null>(null);
                                             const { setValue } = useFormContext();
-                                            const [cursor, setCursor] = useState<number | null>(null);
 
-                                            useEffect(() => {
-                                                const ta = textareaRef.current;
-                                                if (ta && cursor !== null) {
-                                                    ta.focus();
-                                                    ta.setSelectionRange(cursor, cursor);
-                                                    setCursor(null);
-                                                }
-                                            }, [cursor, field.value]);
-
-                                            const handleInsertBullet = () => {
+                                            const handleInsertMarkdown = (prefix: string, suffix: string, placeholder: string) => {
                                                 const ta = textareaRef.current;
                                                 if (!ta) return;
                                                 const start = ta.selectionStart;
                                                 const end = ta.selectionEnd;
                                                 const value = field.value || '';
-                                                const textToInsert = (value ? '\n' : '') + '- ';
-                                                const newValue = value.substring(0, start) + textToInsert + value.substring(end);
-                                                setValue(field.name, newValue, { shouldDirty: true, shouldTouch: true });
-                                                setCursor(start + textToInsert.length);
+
+                                                const selectedText = value.substring(start, end);
+                                                let textToInsert: string;
+                                                
+                                                if (selectedText) {
+                                                    textToInsert = `${prefix}${selectedText}${suffix}`;
+                                                } else {
+                                                    textToInsert = `${prefix}${placeholder}${suffix}`;
+                                                }
+                                                
+                                                const isBlockElement = prefix.startsWith('#') || prefix.startsWith('>') || prefix.startsWith('-');
+                                                const needsNewLine = isBlockElement && start > 0 && value[start - 1] !== '\n';
+                                                
+                                                const finalInsertion = needsNewLine ? `\n${textToInsert}` : textToInsert;
+                                                const finalNewValue = value.substring(0, start) + finalInsertion + value.substring(end);
+                                                
+                                                setValue(field.name, finalNewValue, { shouldDirty: true, shouldTouch: true });
+
+                                                setTimeout(() => {
+                                                    ta.focus();
+                                                    if (selectedText) {
+                                                        const newCursorPos = start + finalInsertion.length;
+                                                        ta.setSelectionRange(newCursorPos, newCursorPos);
+                                                    } else {
+                                                        const newCursorStart = start + (needsNewLine ? 1 : 0) + prefix.length;
+                                                        const newCursorEnd = newCursorStart + placeholder.length;
+                                                        ta.setSelectionRange(newCursorStart, newCursorEnd);
+                                                    }
+                                                }, 0);
                                             };
 
                                             return (
                                                 <FormItem>
                                                     <FormLabel>Lesson Content</FormLabel>
                                                     <div className="space-y-1">
-                                                        <div className="flex items-center gap-1 rounded-md border bg-transparent p-1">
-                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={handleInsertBullet} title="Add bullet point">
+                                                        <div className="flex flex-wrap items-center gap-1 rounded-md border bg-transparent p-1">
+                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('**', '**', 'bold text')} title="Bold">
+                                                                <Bold className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('*', '*', 'italic text')} title="Italic">
+                                                                <Italic className="h-4 w-4" />
+                                                            </Button>
+                                                            <Separator orientation="vertical" className="h-6" />
+                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('# ', '', 'Heading 1')} title="Heading 1">
+                                                                <Heading1 className="h-4 w-4" />
+                                                            </Button>
+                                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('## ', '', 'Heading 2')} title="Heading 2">
+                                                                <Heading2 className="h-4 w-4" />
+                                                            </Button>
+                                                            <Separator orientation="vertical" className="h-6" />
+                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('- ', '', 'List item')} title="Bullet list">
                                                                 <List className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleInsertMarkdown('> ', '', 'Quote')} title="Blockquote">
+                                                                <Quote className="h-4 w-4" />
                                                             </Button>
                                                         </div>
                                                         <FormControl>
@@ -841,3 +873,5 @@ export default function CreateCoursePage() {
     </div>
   )
 }
+
+    
