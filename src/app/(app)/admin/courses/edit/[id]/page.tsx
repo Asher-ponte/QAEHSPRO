@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ImageUpload } from "@/components/image-upload"
 
 interface SignatoryOption {
     id: number;
@@ -376,12 +377,16 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                             name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Image Path</FormLabel>
+                                                    <FormLabel>Lesson Image</FormLabel>
                                                     <FormControl>
-                                                    <Input placeholder="/images/lesson-image.png" {...field} value={field.value ?? ''} />
+                                                        <ImageUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
                                                     </FormControl>
                                                     <FormDescription>
-                                                        Place image in `public/images` and enter path here.
+                                                        Optional image to display with the lesson content.
                                                     </FormDescription>
                                                     <FormMessage />
                                                 </FormItem>
@@ -671,12 +676,16 @@ export default function EditCoursePage() {
                                 name="imagePath"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Image Path</FormLabel>
+                                    <FormLabel>Course Image</FormLabel>
                                     <FormControl>
-                                    <Input placeholder="/images/course-cover.png" {...field} value={field.value ?? ''} />
+                                        <ImageUpload 
+                                            onUploadComplete={(path) => field.onChange(path)} 
+                                            initialPath={field.value}
+                                            onRemove={() => field.onChange('')}
+                                        />
                                     </FormControl>
                                     <FormDescription>
-                                    Place image in `public/images` folder. Ex: /images/cover.png
+                                       Upload a cover image for your course. Recommended size: 600x400px.
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>
@@ -867,3 +876,5 @@ export default function EditCoursePage() {
     </div>
   )
 }
+
+    
