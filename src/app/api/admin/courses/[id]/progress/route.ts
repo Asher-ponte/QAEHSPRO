@@ -21,7 +21,7 @@ export async function GET(
             JOIN modules m ON l.module_id = m.id
             WHERE m.course_id = ?
         `, [courseId]);
-        const totalLessons = totalLessonsResult.count;
+        const totalLessons = totalLessonsResult?.count ?? 0;
 
         // Get all enrolled users for the course
         const enrolledUsers = await db.all(`
@@ -30,6 +30,10 @@ export async function GET(
             JOIN enrollments e ON u.id = e.user_id
             WHERE e.course_id = ?
         `, [courseId]);
+
+        if (enrolledUsers.length === 0) {
+            return NextResponse.json([]);
+        }
 
         if (totalLessons === 0) {
             return NextResponse.json(enrolledUsers.map(u => ({
@@ -52,8 +56,8 @@ export async function GET(
                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
             `, [user.id, courseId]);
 
-            const completedLessons = completedLessonsResult.count;
-            const progress = Math.round((completedLessons / totalLessons) * 100);
+            const completedLessons = completedLessonsResult?.count ?? 0;
+            const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
             progressData.push({
                 id: user.id,
