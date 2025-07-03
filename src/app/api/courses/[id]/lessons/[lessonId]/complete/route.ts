@@ -1,4 +1,6 @@
 
+'use server'
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session';
@@ -36,13 +38,8 @@ export async function POST(
         await db.run('BEGIN TRANSACTION');
 
         // This is a more robust way to handle progress updates.
-        // It ensures a progress record exists, and then sets it to complete.
         await db.run(
-            'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 0) ON CONFLICT(user_id, lesson_id) DO NOTHING',
-            [userId, lessonId]
-        );
-        await db.run(
-            'UPDATE user_progress SET completed = 1 WHERE user_id = ? AND lesson_id = ?',
+            'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
             [userId, lessonId]
         );
 

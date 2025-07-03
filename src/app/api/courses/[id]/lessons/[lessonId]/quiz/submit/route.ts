@@ -34,6 +34,13 @@ export async function POST(
     if (isNaN(lessonId) || isNaN(courseId)) {
         return NextResponse.json({ error: 'Invalid course or lesson ID.' }, { status: 400 });
     }
+
+    if (user.role !== 'Admin') {
+        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        if (!enrollment) {
+            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+    }
     
     try {
         const body = await request.json();
@@ -117,7 +124,10 @@ export async function POST(
                     );
                     let nextSerial = 1;
                     if (lastCertForToday?.certificate_number) {
-                        nextSerial = parseInt(lastCertForToday.certificate_number.split('-').pop()!, 10) + 1;
+                        const lastSerial = parseInt(lastCertForToday.certificate_number.split('-').pop()!, 10);
+                        if (!isNaN(lastSerial)) {
+                           nextSerial = lastSerial + 1;
+                        }
                     }
                     const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(3, '0')}`;
                     
