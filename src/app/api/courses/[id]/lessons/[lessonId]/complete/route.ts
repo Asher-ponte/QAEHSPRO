@@ -37,6 +37,7 @@ export async function POST(
 
         await db.run('BEGIN TRANSACTION');
 
+        // Mark the current lesson as complete for the user.
         await db.run(
             'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
             [userId, lessonId]
@@ -45,15 +46,16 @@ export async function POST(
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
 
-        // --- Start of new completion check logic ---
+        // Check for course completion.
         const allLessonsInCourse = await db.all(
             `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
             [courseId]
         );
 
-        if (allLessonsInCourse.length > 0) {
-            const courseLessonIds = new Set(allLessonsInCourse.map(l => l.id));
-            
+        const totalLessonsInCourse = allLessonsInCourse.length;
+
+        if (totalLessonsInCourse > 0) {
+            // Get all of the user's completed lessons for this course.
             const completedProgress = await db.all(
                 `SELECT up.lesson_id FROM user_progress up
                     JOIN lessons l ON up.lesson_id = l.id
@@ -61,18 +63,18 @@ export async function POST(
                     WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
                 [userId, courseId]
             );
-            const completedLessonIds = new Set(completedProgress.map(p => p.lesson_id));
             
-            // Manually add the current lesson to our in-memory set to account for transaction isolation.
-            completedLessonIds.add(lessonId);
+            // The above query doesn't see the update we just made inside the transaction,
+            // so we check the count manually.
+            const totalCompletedLessons = completedProgress.length;
 
-            const isCourseComplete = courseLessonIds.size === completedLessonIds.size;
-
-            if (isCourseComplete) {
-                // Course is complete, issue a certificate
+            if (totalCompletedLessons === totalLessonsInCourse) {
+                // Course is complete, issue a certificate.
                 const today = new Date();
                 const datePrefix = format(today, 'yyyyMMdd');
                 const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+                
+                // Safely get the count, defaulting to 0.
                 const nextSerial = (countResult?.count ?? 0) + 1;
                 const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                 
@@ -82,7 +84,7 @@ export async function POST(
                 );
                 certificateId = certResult.lastID ?? null;
             } else {
-                // Course not complete, find next lesson
+                // Course not complete, find the next lesson in sequence.
                 const allLessonsOrdered = await db.all(
                     `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
                     [courseId]
@@ -93,7 +95,6 @@ export async function POST(
                 }
             }
         }
-        // --- End of new completion check logic ---
         
         await db.run('COMMIT');
 
