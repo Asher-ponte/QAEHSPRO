@@ -1,312 +1,123 @@
 
-"use client"
+import { redirect } from 'next/navigation';
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target, Award, BookOpen } from "lucide-react"
-import Link from 'next/link'
-import Image from "next/image"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useUser } from "@/hooks/use-user"
-import { useToast } from "@/hooks/use-toast"
-import { Separator } from "@/components/ui/separator"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { getCurrentUser } from '@/lib/session';
+import { getDb } from '@/lib/db';
+import { DashboardClient } from '@/components/dashboard-client';
 
-interface Course {
-  id: string;
-  title: string;
-  progress: number;
-  category: string;
-  imagePath: string;
-  continueLessonId: number | null;
-}
-
-interface Stats {
-    coursesCompleted: number;
-    skillsAcquired: number;
-}
-
-
-function CourseListSkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-5 w-40" />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {Array.from({ length: 2 }).map((_, i) => (
-          <Card key={i}>
-            <div className="flex items-center gap-4 p-4">
-              <Skeleton className="h-20 w-28 rounded-md flex-shrink-0" />
-              <div className="flex-grow space-y-3">
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-2 w-full" />
-                  <Skeleton className="h-5 w-1/2" />
-              </div>
-              <Skeleton className="h-20 w-px mx-4" />
-              <div className="w-48">
-                <Skeleton className="h-10 w-full" />
-              </div>
-            </div>
-          </Card>
-        ))}
-      </CardContent>
-    </Card>
-  )
-}
-
-export default function DashboardPage() {
-  const { user, isLoading: isUserLoading } = useUser()
-  const { toast } = useToast()
-  const [courses, setCourses] = useState<Course[]>([])
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    if (isUserLoading) {
-        return;
-    }
-    if (!user) {
-        setIsLoading(false);
-        return;
-    }
-
-    async function fetchDashboardData() {
-      try {
-        const res = await fetch("/api/dashboard")
-        const data = await res.json()
-        if (!res.ok) {
-          throw new Error(data.error || "Failed to fetch dashboard data")
-        }
-        setStats(data.stats)
-        setCourses(data.myCourses)
-      } catch (error) {
-        console.error(error)
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
-        toast({
-          variant: "destructive",
-          title: "Dashboard Error",
-          description: errorMessage,
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchDashboardData()
-  }, [user, isUserLoading, toast])
-
-  const statCards = [
-    {
-      title: "Courses Completed",
-      value: stats?.coursesCompleted,
-      icon: <Target className="h-6 w-6 text-muted-foreground" />,
-    },
-    {
-      title: "Skills Acquired",
-      value: stats?.skillsAcquired,
-      icon: <Lightbulb className="h-6 w-6 text-muted-foreground" />,
-    },
-  ]
-
-  const inProgressCourses = courses.filter(course => course.progress < 100);
-  const completedCourses = courses.filter(course => course.progress === 100);
-
-  if (isUserLoading || isLoading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold font-headline">
-            <Skeleton className="h-8 w-64" />
-          </h1>
-          <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {statCards.map(stat => (
-              <Card key={stat.title}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                      {stat.icon}
-                  </CardHeader>
-                  <CardContent>
-                      <Skeleton className="h-8 w-1/4" />
-                  </CardContent>
-              </Card>
-          ))}
-        </div>
-        <Card>
-            <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 w-full">
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <div className="space-y-2 flex-grow">
-                            <Skeleton className="h-5 w-1/2" />
-                            <Skeleton className="h-4 w-3/4" />
-                        </div>
-                    </div>
-                    <Skeleton className="h-10 w-full sm:w-48" />
-                </div>
-            </CardContent>
-        </Card>
-        <CourseListSkeleton />
-      </div>
-    )
+async function getDashboardData() {
+  const user = await getCurrentUser();
+  if (!user) {
+    // This will be caught by the UserProvider, but as a safeguard:
+    redirect('/login');
   }
+  const userId = user.id;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold font-headline">
-            {`Welcome back, ${user?.username || 'User'}!`}
-        </h1>
-        <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {statCards.map(stat => (
-            <Card key={stat.title}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                    {stat.icon}
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{stat.value ?? 0}</div>
-                </CardContent>
-            </Card>
-        ))}
-      </div>
+  try {
+    const db = await getDb();
 
-      <Card>
-        <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-                <Award className="h-10 w-10 text-primary flex-shrink-0" />
-                <div>
-                    <h3 className="font-semibold text-lg">View Your Achievements</h3>
-                    <p className="text-muted-foreground text-sm">Access all of your earned course certificates.</p>
-                </div>
-            </div>
-            <Button asChild className="w-full sm:w-auto flex-shrink-0">
-                <Link href="/profile/certificates">View My Certificates</Link>
-            </Button>
-        </CardContent>
-      </Card>
+    // 1. Get all courses the user is enrolled in.
+    const enrolledCourses = await db.all(`
+        SELECT 
+            c.*
+        FROM enrollments e
+        JOIN courses c ON e.course_id = c.id
+        WHERE e.user_id = ?
+    `, [userId]);
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start sm:flex-nowrap sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>My Courses</CardTitle>
-              <CardDescription>All courses you are currently enrolled in.</CardDescription>
-            </div>
-            <Button asChild variant="outline" size="sm" className="w-full sm:w-auto flex-shrink-0">
-                <Link href="/courses">
-                  <BookOpen />
-                  Browse All Courses
-                </Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="in-progress" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="in-progress">In Progress ({inProgressCourses.length})</TabsTrigger>
-              <TabsTrigger value="completed">Completed ({completedCourses.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="in-progress" className="mt-4 space-y-4">
-              {inProgressCourses.length > 0 ? (
-                inProgressCourses.map((course) => (
-                  <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
-                        <div className="flex flex-grow items-center gap-4">
-                            <div className="relative h-20 w-28 flex-shrink-0">
-                                <Image
-                                    src={course.imagePath || 'https://placehold.co/200x150'}
-                                    alt={course.title}
-                                    fill
-                                    className="rounded-md object-cover"
-                                    data-ai-hint="course thumbnail"
-                                />
-                            </div>
-                            <div className="flex-grow space-y-2">
-                                <h3 className="font-semibold leading-tight">{course.title}</h3>
-                                <div className="flex items-center gap-2">
-                                    <Progress value={course.progress} className="h-2 bg-primary/20" />
-                                    <span className="text-sm text-green-600 dark:text-green-500 font-semibold whitespace-nowrap">{course.progress}%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
-                        <div className="flex-shrink-0 w-full md:w-48">
-                            <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                                <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
-                            </Button>
-                        </div>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                    <p>You have no courses in progress.</p>
-                    <p className="text-sm">Explore the course catalog to get started!</p>
-                    <Button asChild variant="link" className="mt-2">
-                        <Link href="/courses">Browse Courses</Link>
-                    </Button>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="completed" className="mt-4 space-y-4">
-              {completedCourses.length > 0 ? (
-                completedCourses.map((course) => (
-                  <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                     <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
-                        <div className="flex flex-grow items-center gap-4">
-                            <div className="relative h-20 w-28 flex-shrink-0">
-                                <Image
-                                    src={course.imagePath || 'https://placehold.co/200x150'}
-                                    alt={course.title}
-                                    fill
-                                    className="rounded-md object-cover"
-                                    data-ai-hint="course thumbnail"
-                                />
-                            </div>
-                            <div className="flex-grow">
-                                <h3 className="font-semibold leading-tight">{course.title}</h3>
-                                <p className="text-sm text-muted-foreground mt-1">Completed</p>
-                            </div>
-                        </div>
-                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
-                        <div className="flex-shrink-0 w-full md:w-48">
-                            <Button asChild variant="outline" className="w-full">
-                                <Link href={`/courses/${course.id}`}>Review Course</Link>
-                            </Button>
-                        </div>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                    <p>You haven't completed any courses yet.</p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
-  )
+
+    if (enrolledCourses.length === 0) {
+      return {
+        stats: { coursesCompleted: 0, skillsAcquired: 0 },
+        courses: [],
+      };
+    }
+
+    const courseIds = enrolledCourses.map(c => c.id);
+    const courseIdsPlaceholder = courseIds.map(() => '?').join(',');
+
+    // 2. Get all lessons for these courses, ordered correctly.
+    const allLessons = await db.all(`
+        SELECT l.id, m.course_id, m."order" as module_order, l."order" as lesson_order
+        FROM lessons l
+        JOIN modules m ON l.module_id = m.id
+        WHERE m.course_id IN (${courseIdsPlaceholder})
+        ORDER BY m.course_id, m."order", l."order"
+    `, courseIds);
+
+    // 3. Get all of the user's completed lessons for these courses.
+    const completedLessonIdsResult = await db.all(`
+        SELECT up.lesson_id
+        FROM user_progress up
+        JOIN lessons l ON up.lesson_id = l.id
+        JOIN modules m ON l.module_id = m.id
+        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${courseIdsPlaceholder})
+    `, [userId, ...courseIds]);
+    const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
+
+    // 4. Get all completed certificates to count completed courses accurately
+    const completedCertificates = await db.all(
+        `SELECT course_id FROM certificates WHERE user_id = ? AND course_id IN (${courseIdsPlaceholder})`,
+        [userId, ...courseIds]
+    );
+    const completedCourseIds = new Set(completedCertificates.map(c => c.course_id));
+
+    // 5. Process the data in memory.
+    const lessonsByCourse = allLessons.reduce((acc, l) => {
+        if (!acc[l.course_id]) acc[l.course_id] = [];
+        acc[l.course_id].push(l);
+        return acc;
+    }, {} as Record<number, typeof allLessons>);
+
+    const skillsAcquired = new Set<string>();
+    
+    const myCourses = enrolledCourses.map(course => {
+        const courseLessons = lessonsByCourse[course.id] || [];
+        const totalLessons = courseLessons.length;
+        const completedCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+
+        let progress = 0;
+        if (totalLessons > 0) {
+            if(completedCourseIds.has(course.id)) {
+                progress = 100;
+            } else {
+                progress = Math.floor((completedCount / totalLessons) * 100);
+            }
+        }
+        
+        if (progress === 100) {
+            skillsAcquired.add(course.category);
+        }
+
+        const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
+        const continueLessonId = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+
+        return {
+            id: course.id,
+            title: course.title,
+            category: course.category,
+            imagePath: course.imagePath,
+            progress: progress,
+            continueLessonId: continueLessonId,
+        };
+    });
+    
+    return {
+      stats: {
+        coursesCompleted: completedCourseIds.size,
+        skillsAcquired: skillsAcquired.size,
+      },
+      courses: myCourses,
+    };
+
+  } catch (error) {
+    console.error('Error fetching dashboard data on server:', error);
+    // Return empty state on error to avoid crashing the page.
+    return { stats: { coursesCompleted: 0, skillsAcquired: 0 }, courses: [] };
+  }
+}
+
+export default async function DashboardPage() {
+    const { stats, courses } = await getDashboardData();
+    return <DashboardClient stats={stats} courses={courses} />;
 }
