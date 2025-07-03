@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock, RefreshCcw, Loader2 } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -73,10 +73,8 @@ function getCourseStatusInfo(
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter();
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isRetaking, setIsRetaking] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -116,34 +114,6 @@ export default function CourseDetailPage() {
     }
     fetchCourse()
   }, [params.id, toast])
-
-  const handleRetakeCourse = async () => {
-    if (!course || isRetaking) return;
-    setIsRetaking(true);
-    try {
-        const res = await fetch(`/api/courses/${course.id}/retake`, {
-            method: 'POST'
-        });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Failed to retake course.");
-        }
-        toast({
-            title: "Course Reset",
-            description: "Your progress has been reset. You can now start the course again.",
-        });
-        router.refresh(); 
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: error instanceof Error ? error.message : "An unknown error occurred.",
-        });
-    } finally {
-        setIsRetaking(false);
-    }
-  }
-
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -226,9 +196,9 @@ export default function CourseDetailPage() {
   const ActionButton = () => {
     if (course.isCompleted) {
         return (
-            <Button onClick={handleRetakeCourse} className="w-full" disabled={isRetaking}>
-                {isRetaking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
-                Retake Course
+            <Button className="w-full" disabled>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Course Completed
             </Button>
         );
     }
