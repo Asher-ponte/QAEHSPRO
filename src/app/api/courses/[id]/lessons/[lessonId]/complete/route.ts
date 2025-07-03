@@ -1,4 +1,5 @@
 
+
 'use server'
 
 import { NextResponse, type NextRequest } from 'next/server'
@@ -49,49 +50,51 @@ export async function POST(
             [courseId]
         );
 
-        const completedLessonsResult = await db.get(
-            `SELECT COUNT(*) as count FROM user_progress up
-             JOIN lessons l ON up.lesson_id = l.id
-             JOIN modules m ON l.module_id = m.id
-             WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
-             [userId, courseId]
-        );
-        const completedLessonsCount = completedLessonsResult?.count ?? 0;
-
-        const courseIsNowComplete = allLessons.length > 0 && completedLessonsCount === allLessons.length;
-
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
 
-        if (courseIsNowComplete) {
-            const today = new Date();
-            const datePrefix = format(today, 'yyyy-MM-dd');
-            const lastCertForToday = await db.get(
-                `SELECT certificate_number FROM certificates WHERE certificate_number LIKE ? ORDER BY certificate_number DESC LIMIT 1`,
-                [`QAEHS-${datePrefix}-%`]
+        if (allLessons.length > 0) {
+            const completedLessonsResult = await db.get(
+                `SELECT COUNT(*) as count FROM user_progress up
+                 JOIN lessons l ON up.lesson_id = l.id
+                 JOIN modules m ON l.module_id = m.id
+                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
+                 [userId, courseId]
             );
-            
-            let nextSerial = 1;
-            if (lastCertForToday?.certificate_number) {
-                const lastSerialStr = lastCertForToday.certificate_number.split('-').pop();
-                if (lastSerialStr) {
-                    const lastSerial = parseInt(lastSerialStr, 10);
-                    if (!isNaN(lastSerial)) {
-                        nextSerial = lastSerial + 1;
+            const completedLessonsCount = completedLessonsResult?.count ?? 0;
+    
+            const courseIsNowComplete = completedLessonsCount === allLessons.length;
+
+            if (courseIsNowComplete) {
+                const today = new Date();
+                const datePrefix = format(today, 'yyyy-MM-dd');
+                const lastCertForToday = await db.get(
+                    `SELECT certificate_number FROM certificates WHERE certificate_number LIKE ? ORDER BY certificate_number DESC LIMIT 1`,
+                    [`QAEHS-${datePrefix}-%`]
+                );
+                
+                let nextSerial = 1;
+                if (lastCertForToday && lastCertForToday.certificate_number) {
+                    const lastSerialStr = lastCertForToday.certificate_number.split('-').pop();
+                    if (lastSerialStr) {
+                        const lastSerial = parseInt(lastSerialStr, 10);
+                        if (!isNaN(lastSerial)) {
+                            nextSerial = lastSerial + 1;
+                        }
                     }
                 }
-            }
-            const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(3, '0')}`;
-            
-            const certResult = await db.run(
-                `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
-                [userId, courseId, new Date().toISOString(), certificateNumber]
-            );
-            certificateId = certResult.lastID ?? null;
-        } else {
-            const currentIndex = allLessons.findIndex(l => l.id === lessonId);
-            if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
-                nextLessonId = allLessons[currentIndex + 1].id;
+                const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(3, '0')}`;
+                
+                const certResult = await db.run(
+                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
+                    [userId, courseId, new Date().toISOString(), certificateNumber]
+                );
+                certificateId = certResult.lastID ?? null;
+            } else {
+                const currentIndex = allLessons.findIndex(l => l.id === lessonId);
+                if (currentIndex !== -1 && currentIndex < allLessons.length - 1) {
+                    nextLessonId = allLessons[currentIndex + 1].id;
+                }
             }
         }
         
