@@ -9,8 +9,6 @@ import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle } from
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
@@ -201,11 +199,10 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
                             />
                         </div>
                     )}
-                    <article className="prose dark:prose-invert max-w-none">
-                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {lesson.content || "No content available."}
-                        </ReactMarkdown>
-                    </article>
+                    <article
+                        className="prose dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
+                    />
                 </div>
             );
         case 'quiz':
