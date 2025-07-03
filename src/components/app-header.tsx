@@ -4,7 +4,7 @@
 import Link from "next/link"
 import React from "react"
 import { usePathname } from "next/navigation"
-import { BookOpen, Home, Menu, Shield } from "lucide-react"
+import { BookOpen, Home, Menu, Shield, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
@@ -21,6 +21,7 @@ import { useUser } from "@/hooks/use-user"
 const navDefinition = [
   { href: "/dashboard", label: "Dashboard", icon: Home, adminOnly: false },
   { href: "/courses", label: "Courses", icon: BookOpen, adminOnly: false },
+  { href: "/recommendations", label: "Recommendations", icon: Sparkles, adminOnly: false },
   { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ]
 
