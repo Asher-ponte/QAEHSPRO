@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle } from "lucide-react"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -61,6 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
 interface CourseAdminView {
@@ -247,6 +248,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState('');
+    const [showNotCompleted, setShowNotCompleted] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -274,22 +276,43 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         } else {
             setFilter('');
             setProgressData([]);
+            setShowNotCompleted(false);
+            setIsLoading(true);
         }
     }, [open, course, toast]);
 
-    const filteredData = useMemo(() => {
-        if (!filter) return progressData;
+    const { completedCount, notCompletedCount } = useMemo(() => {
+        if (!progressData.length) return { completedCount: 0, notCompletedCount: 0 };
+        const completed = progressData.filter(p => p.progress === 100).length;
+        const notCompleted = progressData.length - completed;
+        return { completedCount: completed, notCompletedCount: notCompleted };
+    }, [progressData]);
+
+    const filteredAndSortedData = useMemo(() => {
+        const sortedData = [...progressData].sort((a, b) => {
+            if (a.progress < b.progress) return -1;
+            if (a.progress > b.progress) return 1;
+            return (a.fullName || a.username).localeCompare(b.fullName || b.username);
+        });
+
+        let data = sortedData;
+        if (showNotCompleted) {
+            data = data.filter(user => user.progress < 100);
+        }
+        
+        if (!filter) return data;
+
         const lowercasedFilter = filter.toLowerCase();
-        return progressData.filter(user =>
+        return data.filter(user =>
             (user.fullName?.toLowerCase() || '').includes(lowercasedFilter) ||
             user.username.toLowerCase().includes(lowercasedFilter) ||
             (user.department?.toLowerCase() || '').includes(lowercasedFilter)
         );
-    }, [progressData, filter]);
+    }, [progressData, filter, showNotCompleted]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>User Progress for "{course?.title}"</DialogTitle>
                     <DialogDescription>
@@ -297,14 +320,48 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
-                     <Input
-                        placeholder="Filter by name, username, or department..."
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                        className="w-full"
-                    />
+                     <div className="grid grid-cols-2 gap-4">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+                                <CardTitle className="text-sm font-medium">Completed</CardTitle>
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0">
+                                <div className="text-2xl font-bold">{completedCount}</div>
+                                <p className="text-xs text-muted-foreground">
+                                    {progressData.length > 0 ? `${Math.round((completedCount / progressData.length) * 100)}% of enrolled` : '0 enrolled'}
+                                </p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+                                <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+                                <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0">
+                                <div className="text-2xl font-bold">{notCompletedCount}</div>
+                                 <p className="text-xs text-muted-foreground">
+                                    {progressData.length > 0 ? `${Math.round((notCompletedCount / progressData.length) * 100)}% of enrolled` : ''}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                     <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <Input
+                            placeholder="Filter by name, username, or department..."
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                            className="w-full"
+                        />
+                        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end flex-shrink-0">
+                            <Switch id="show-not-completed" checked={showNotCompleted} onCheckedChange={setShowNotCompleted} />
+                            <Label htmlFor="show-not-completed" className="whitespace-nowrap">In-Progress Only</Label>
+                        </div>
+                     </div>
+                     
                     {isLoading ? (
-                        <div className="space-y-4">
+                        <div className="space-y-4 pt-4">
                             {Array.from({ length: 3 }).map((_, i) => (
                                 <div key={i} className="flex items-center gap-4 p-2">
                                     <Skeleton className="h-5 w-1/3" />
@@ -324,7 +381,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredData.length > 0 ? filteredData.map(user => (
+                                    {filteredAndSortedData.length > 0 ? filteredAndSortedData.map(user => (
                                         <TableRow key={user.id}>
                                             <TableCell>
                                                 <div className="font-medium">{user.fullName}</div>
@@ -666,3 +723,5 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
+
+    
