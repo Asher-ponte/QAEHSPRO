@@ -35,6 +35,8 @@ interface AnalyticsData {
     courseEnrollmentData: { name: string; "Enrollments": number }[];
     completionOverTimeData: { date: string; completions: number }[];
     courseCompletionRateData: { name: string; "Completion Rate": number }[];
+    quizPerformanceData: { name: string; "Average Score": number }[];
+    userPerformanceData: { name: string; "Average Score": number }[];
 }
 
 const enrollmentChartConfig = {
@@ -58,6 +60,21 @@ const completionRateChartConfig = {
   },
 } satisfies ChartConfig
 
+const quizPerformanceChartConfig = {
+  "Average Score": {
+    label: "Avg. Score (%)",
+    color: "hsl(var(--chart-4))",
+  },
+} satisfies ChartConfig
+
+const userPerformanceChartConfig = {
+  "Average Score": {
+    label: "Avg. Score (%)",
+    color: "hsl(var(--chart-5))",
+  },
+} satisfies ChartConfig
+
+
 function AnalyticsSkeleton() {
     return (
         <div className="space-y-6">
@@ -71,6 +88,10 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             </div>
         </div>
     )
@@ -242,6 +263,83 @@ export default function ViewAnalyticsPage() {
                                         dot={true}
                                     />
                                 </LineChart>
+                            </ChartContainer>
+                        </CardContent>
+                    </Card>
+                </div>
+                
+                 <div className="grid gap-4 md:grid-cols-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Lowest Performing Courses</CardTitle>
+                            <CardDescription>
+                                Courses with the lowest average quiz scores. This could indicate difficult content.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ChartContainer config={quizPerformanceChartConfig} className="min-h-[200px] w-full">
+                                <BarChart accessibilityLayer data={data.quizPerformanceData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                                    <XAxis type="number" dataKey="Average Score" hide domain={[0, 100]} />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        tickLine={false} 
+                                        axisLine={false}
+                                        tickMargin={10}
+                                        width={120} 
+                                        className="truncate"
+                                    />
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={<ChartTooltipContent indicator="dot" />}
+                                    />
+                                    <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
+                                       <LabelList
+                                        position="right"
+                                        offset={8}
+                                        className="fill-foreground"
+                                        fontSize={12}
+                                        formatter={(value: number) => `${value}%`}
+                                      />
+                                    </Bar>
+                                </BarChart>
+                            </ChartContainer>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Users Needing Improvement</CardTitle>
+                            <CardDescription>
+                                Users with the lowest average quiz scores across all courses.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ChartContainer config={userPerformanceChartConfig} className="min-h-[200px] w-full">
+                                <BarChart accessibilityLayer data={data.userPerformanceData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                                    <XAxis type="number" dataKey="Average Score" hide domain={[0, 100]} />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        tickLine={false} 
+                                        axisLine={false}
+                                        tickMargin={10}
+                                        width={120} 
+                                        className="truncate"
+                                    />
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={<ChartTooltipContent indicator="dot" />}
+                                    />
+                                    <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
+                                       <LabelList
+                                        position="right"
+                                        offset={8}
+                                        className="fill-foreground"
+                                        fontSize={12}
+                                        formatter={(value: number) => `${value}%`}
+                                      />
+                                    </Bar>
+                                </BarChart>
                             </ChartContainer>
                         </CardContent>
                     </Card>

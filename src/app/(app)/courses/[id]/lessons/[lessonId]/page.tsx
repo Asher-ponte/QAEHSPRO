@@ -32,28 +32,31 @@ interface Lesson {
 
 interface QuizQuestion {
     text: string;
-    options: { text: string; isCorrect: boolean }[];
+    options: { text: string }[]; // isCorrect is now handled server-side
 }
 
-const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () => Promise<void> }) => {
+const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data: any) => void }) => {
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<number, number>>({});
     const [submitted, setSubmitted] = useState(false);
     const [correctlyAnswered, setCorrectlyAnswered] = useState<Set<number>>(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [lastScore, setLastScore] = useState<{ correct: number, total: number } | null>(null);
+    const router = useRouter();
     const { toast } = useToast();
 
     useEffect(() => {
         if (lesson.content) {
             try {
+                // The server-sent content for quizzes now only has text for options.
                 const parsedQuestions: QuizQuestion[] = JSON.parse(lesson.content);
                 setQuestions(parsedQuestions);
 
                 if (lesson.completed) {
-                    // If already complete, lock all questions
                     const allQuestionIndices = new Set(Array.from({length: parsedQuestions.length}, (_, i) => i));
                     setCorrectlyAnswered(allQuestionIndices);
                     setSubmitted(true);
+                    setLastScore({ correct: parsedQuestions.length, total: parsedQuestions.length });
                 }
             } catch (error) {
                 console.error("Failed to parse quiz content:", error);
@@ -63,60 +66,68 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
         }
     }, [lesson.content, lesson.completed, toast]);
 
-    const score = useMemo(() => {
-        return { correct: correctlyAnswered.size, total: questions.length };
-    }, [correctlyAnswered.size, questions.length]);
+    const canSubmit = useMemo(() => {
+        if (!questions.length) return false;
+        // Check if all non-locked questions have an answer
+        for (let i = 0; i < questions.length; i++) {
+            if (!correctlyAnswered.has(i) && answers[i] === undefined) {
+                return false;
+            }
+        }
+        return true;
+    }, [questions, answers, correctlyAnswered]);
 
     const allCorrect = useMemo(() => {
         if (!questions.length) return false;
-        return score.correct === score.total;
-    }, [score, questions.length]);
-
-    const canSubmit = useMemo(() => {
-        if (!questions.length) return false;
-        for (let i = 0; i < questions.length; i++) {
-            if (!correctlyAnswered.has(i) && answers[i] === undefined) {
-                return false; // Found an unanswered, unlocked question
-            }
-        }
-        return true; // All answerable questions have been answered
-    }, [questions, answers, correctlyAnswered]);
-
-    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
-        if (submitted) return; // Don't allow changes while results are shown, before hitting "retry"
-        setAnswers(prev => ({...prev, [questionIndex]: optionIndex}));
-    };
+        return correctlyAnswered.size === questions.length;
+    }, [correctlyAnswered, questions.length]);
 
     const handleSubmit = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
         setSubmitted(true);
 
-        const newCorrectlyAnswered = new Set(correctlyAnswered);
-        questions.forEach((q, qIndex) => {
-            if (correctlyAnswered.has(qIndex)) return; // Skip already correct questions
-
-            const correctOptionIndex = q.options.findIndex(opt => opt.isCorrect);
-            if (answers[qIndex] === correctOptionIndex) {
-                newCorrectlyAnswered.add(qIndex);
-            }
-        });
-        
-        setCorrectlyAnswered(newCorrectlyAnswered);
-
-        if (newCorrectlyAnswered.size === questions.length) {
-            await onComplete();
-        } else {
-             toast({
-                title: "Some answers are incorrect",
-                description: "Review your answers and try again.",
+        try {
+            const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/quiz/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answers })
             });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to submit quiz.");
+            }
+
+            setLastScore({ correct: data.score, total: data.total });
+            setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
+
+            if (data.passed) {
+                 toast({
+                    title: "Quiz Passed!",
+                    description: "You answered all questions correctly.",
+                });
+                onQuizPass(data); // This will trigger re-fetch or redirect
+            } else {
+                toast({
+                    title: "Some answers are incorrect",
+                    description: `You got ${data.score} out of ${data.total}. The correct answers have been locked. Please try again.`,
+                });
+            }
+
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : "An unknown error occurred.";
+            toast({ variant: "destructive", title: "Error", description: msg });
+            setSubmitted(false); // Allow retry on error
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     };
     
     const handleRetry = () => {
         setSubmitted(false);
+        setLastScore(null);
+        // Do not reset answers, so user can see their previous attempt
     };
 
     if (!questions.length) {
@@ -125,11 +136,11 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
     
     return (
         <div className="space-y-8">
-            {submitted && !lesson.completed && (
+            {submitted && lastScore && !lesson.completed && (
                 <Card className={`p-4 ${allCorrect ? 'bg-green-100 dark:bg-green-900/30 border-green-500' : 'bg-orange-100 dark:bg-orange-900/30 border-orange-500'}`}>
                     <CardHeader className="p-0">
                         <CardTitle className="text-xl">
-                            {allCorrect ? "Quiz Passed!" : `You have ${score.correct} of ${score.total} correct`}
+                            {allCorrect ? "Quiz Passed!" : `You have ${lastScore.correct} of ${lastScore.total} correct`}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0 pt-2">
@@ -143,16 +154,15 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
 
             {questions.map((q, qIndex) => {
                 const isLocked = lesson.completed || correctlyAnswered.has(qIndex);
-                const isIncorrectAfterSubmit = submitted && !isLocked;
-                const correctOptionIndex = q.options.findIndex(opt => opt.isCorrect);
+                const isIncorrectAfterSubmit = submitted && answers[qIndex] !== undefined && !isLocked;
 
                 return (
                     <div key={qIndex} className={cn("p-4 border rounded-lg bg-background/50 transition-colors",
-                      isLocked && submitted && "border-green-500 bg-green-500/10",
+                      isLocked && "border-green-500 bg-green-500/10",
                       isIncorrectAfterSubmit && "border-red-500 bg-red-500/10",
                     )}>
                         <div className="flex items-center font-semibold mb-4">
-                            {isLocked && submitted && <CheckCircle className="h-5 w-5 mr-2 text-green-500 flex-shrink-0" />}
+                            {isLocked && <CheckCircle className="h-5 w-5 mr-2 text-green-500 flex-shrink-0" />}
                             {isIncorrectAfterSubmit && <XCircle className="h-5 w-5 mr-2 text-red-500 flex-shrink-0" />}
                             <p>{qIndex + 1}. {q.text}</p>
                         </div>
@@ -162,26 +172,17 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
                             disabled={isLocked || submitted}
                             className="space-y-2"
                         >
-                            {q.options.map((opt, oIndex) => {
-                                const isCorrectOption = correctOptionIndex === oIndex;
-                                const isSelectedOption = answers[qIndex] === oIndex;
-                                return (
-                                    <div key={oIndex} className="flex items-center space-x-3">
-                                        <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
-                                        <Label 
-                                          htmlFor={`q${qIndex}o${oIndex}`} 
-                                          className={cn(
-                                            "flex-grow cursor-pointer", 
-                                            (isLocked || submitted) && "cursor-default",
-                                            submitted && isSelectedOption && !isCorrectOption && "text-red-600 dark:text-red-400"
-                                            )}
-                                        >
-                                            {opt.text}
-                                        </Label>
-                                         {submitted && isSelectedOption && !isCorrectOption && <XCircle className="h-5 w-5 text-red-500" />}
-                                    </div>
-                                );
-                            })}
+                            {q.options.map((opt, oIndex) => (
+                                <div key={oIndex} className="flex items-center space-x-3">
+                                    <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
+                                    <Label 
+                                      htmlFor={`q${qIndex}o${oIndex}`} 
+                                      className={cn("flex-grow cursor-pointer", isLocked || submitted ? "cursor-default" : "")}
+                                    >
+                                        {opt.text}
+                                    </Label>
+                                </div>
+                            ))}
                         </RadioGroup>
                     </div>
                 )
@@ -189,15 +190,14 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
 
             {!lesson.completed && (
                 <div className="flex justify-center gap-4 mt-6">
-                    {submitted ? (
-                         !allCorrect && (
-                            <Button onClick={handleRetry}>
-                                Try Again
-                            </Button>
-                         )
+                    {submitted && !allCorrect ? (
+                         <Button onClick={handleRetry}>
+                            Try Again
+                         </Button>
                     ) : (
-                        <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
-                           {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Submit Quiz
+                        <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting || allCorrect}>
+                           {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                           {allCorrect ? 'Quiz Passed' : 'Submit Quiz'}
                         </Button>
                     )}
                 </div>
@@ -206,7 +206,7 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
     );
 };
 
-const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () => Promise<void> }) => {
+const LessonContent = ({ lesson, onComplete, onQuizPass }: { lesson: Lesson; onComplete: () => Promise<void>; onQuizPass: (data: any) => void; }) => {
     switch (lesson.type) {
         case 'video':
             return (
@@ -236,7 +236,7 @@ const LessonContent = ({ lesson, onComplete }: { lesson: Lesson; onComplete: () 
                 </div>
             );
         case 'quiz':
-            return <QuizContent lesson={lesson} onComplete={onComplete} />;
+            return <QuizContent lesson={lesson} onQuizPass={onQuizPass} />;
         default:
             return <p>Unsupported lesson type.</p>;
     }
@@ -261,6 +261,22 @@ export default function LessonPage() {
                 throw new Error(errorData?.error || 'Failed to fetch lesson');
             }
             const data = await res.json();
+
+            // For quizzes, remove the isCorrect flag from the content before setting state
+            if (data.type === 'quiz' && data.content) {
+                try {
+                    const parsedContent = JSON.parse(data.content);
+                    const questionsForStudent = parsedContent.map((q: any) => ({
+                        text: q.text,
+                        options: q.options.map((opt: any) => ({ text: opt.text }))
+                    }));
+                    data.content = JSON.stringify(questionsForStudent);
+                } catch (e) {
+                    console.error("Failed to parse and sanitize quiz content", e);
+                    data.content = '[]';
+                }
+            }
+
             setLesson(data);
         } catch (error) {
             console.error(error);
@@ -279,7 +295,7 @@ export default function LessonPage() {
     }, [fetchLesson]);
 
     const handleCompleteLesson = async () => {
-        if (!lesson || isCompleting) return;
+        if (!lesson || isCompleting || lesson.type === 'quiz') return;
         setIsCompleting(true);
         try {
             const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/complete`, {
@@ -290,27 +306,8 @@ export default function LessonPage() {
                 throw new Error(data.error || 'Failed to update progress');
             }
             
-            if (data.nextLessonId) {
-                 toast({
-                    title: "Lesson Completed!",
-                    description: "Moving to the next lesson.",
-                });
-                router.push(`/courses/${lesson.course_id}/lessons/${data.nextLessonId}`);
-            } else if (data.certificateId) {
-                 toast({
-                    title: "Congratulations!",
-                    description: "You've completed the course. Redirecting to your certificate...",
-                });
-                setTimeout(() => {
-                    router.push(`/profile/certificates/${data.certificateId}`);
-                }, 2000);
-            } else {
-                 toast({
-                    title: "Course Completed!",
-                    description: "Congratulations! You've finished the course.",
-                });
-                router.push(`/courses/${lesson.course_id}`);
-            }
+            handlePostCompletion(data);
+
         } catch (error) {
              toast({
                 variant: "destructive",
@@ -321,6 +318,32 @@ export default function LessonPage() {
             setIsCompleting(false);
         }
     }
+    
+    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
+        if (data.nextLessonId) {
+             toast({
+                title: "Lesson Completed!",
+                description: "Moving to the next lesson.",
+            });
+            router.push(`/courses/${lesson!.course_id}/lessons/${data.nextLessonId}`);
+        } else if (data.certificateId) {
+             toast({
+                title: "Congratulations!",
+                description: "You've completed the course. Redirecting to your certificate...",
+            });
+            setTimeout(() => {
+                router.push(`/profile/certificates/${data.certificateId}`);
+            }, 2000);
+        } else {
+            // This case handles the last lesson of a course where a certificate is not issued for some reason
+            // or if the quiz was passed but it wasn't the last lesson. We just refetch.
+            toast({
+                title: "Progress Saved!",
+                description: lesson?.type === 'quiz' ? "You've passed the quiz." : "You've completed the lesson.",
+            });
+            fetchLesson();
+        }
+    };
     
     const handleNextClick = () => {
         if (!lesson) return;
@@ -419,7 +442,7 @@ export default function LessonPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                   <LessonContent lesson={lesson} onComplete={handleCompleteLesson} />
+                   <LessonContent lesson={lesson} onComplete={handleCompleteLesson} onQuizPass={handlePostCompletion} />
                 </CardContent>
             </Card>
 

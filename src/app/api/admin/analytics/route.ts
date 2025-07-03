@@ -99,6 +99,40 @@ export async function GET() {
             .sort((a, b) => b["Completion Rate"] - a["Completion Rate"])
             .slice(0, 5);
 
+        // Quiz Performance Data (Bottom 5 Courses)
+        const quizPerformanceResult = await db.all(`
+            SELECT
+                c.title as name,
+                AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
+            FROM quiz_attempts qa
+            JOIN courses c ON qa.course_id = c.id
+            GROUP BY qa.course_id
+            HAVING COUNT(qa.id) > 2 -- Only include courses with a few attempts
+            ORDER BY "Average Score" ASC
+            LIMIT 5
+        `);
+        const quizPerformanceData = quizPerformanceResult.map(item => ({
+            ...item,
+            "Average Score": Math.round(item["Average Score"])
+        }));
+        
+        // User Performance Data (Bottom 5 Users)
+        const userPerformanceResult = await db.all(`
+            SELECT
+                u.fullName as name,
+                AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
+            FROM quiz_attempts qa
+            JOIN users u ON qa.user_id = u.id
+            GROUP BY qa.user_id
+            HAVING COUNT(qa.id) > 2 -- Only include users with a few attempts
+            ORDER BY "Average Score" ASC
+            LIMIT 5
+        `);
+        const userPerformanceData = userPerformanceResult.map(item => ({
+            ...item,
+            "Average Score": Math.round(item["Average Score"])
+        }));
+
 
         const analyticsData = {
             stats: {
@@ -110,6 +144,8 @@ export async function GET() {
             courseEnrollmentData: courseEnrollmentData.map(c => ({ name: c.title, "Enrollments": c.enrollmentCount })),
             completionOverTimeData,
             courseCompletionRateData,
+            quizPerformanceData,
+            userPerformanceData
         };
 
         return NextResponse.json(analyticsData);

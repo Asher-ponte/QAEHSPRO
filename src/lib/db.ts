@@ -142,6 +142,21 @@ async function initializeDb() {
                 FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
             );
         `);
+        
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS quiz_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                lesson_id INTEGER NOT NULL,
+                course_id INTEGER NOT NULL,
+                score INTEGER NOT NULL,
+                total INTEGER NOT NULL,
+                attempt_date TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            );
+        `);
 
 
         // Seed Users
@@ -223,6 +238,21 @@ async function initializeDb() {
                 FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
             );
         `).catch(e => console.log("Could not create course_signatories table, it might exist already:", e.message));
+
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS quiz_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                lesson_id INTEGER NOT NULL,
+                course_id INTEGER NOT NULL,
+                score INTEGER NOT NULL,
+                total INTEGER NOT NULL,
+                attempt_date TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            );
+        `).catch(e => console.log("Could not create quiz_attempts table, it might exist already:", e.message));
 
         await dbInstance.exec(`
             ALTER TABLE signatories ADD COLUMN position TEXT;
