@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 
 interface Course {
   id: string;
@@ -95,44 +97,57 @@ export default function CoursesPage() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
+            <Card key={i} className="flex flex-col">
               <Skeleton className="w-full rounded-t-lg aspect-video" />
-              <CardContent className="p-4 space-y-2">
+              <CardContent className="flex-grow p-4 space-y-2">
                  <Skeleton className="h-4 w-1/4" />
                  <Skeleton className="h-6 w-3/4" />
                  <Skeleton className="h-4 w-full" />
                  <Skeleton className="h-4 w-2/3" />
               </CardContent>
+              <CardFooter className="p-4 pt-0 flex gap-2">
+                <Skeleton className="h-10 flex-1" />
+                <Skeleton className="h-10 flex-1" />
+              </CardFooter>
             </Card>
           ))
         ) : (
           filteredCourses.map((course) => {
               const status = getCourseStatus(course.startDate, course.endDate);
+              const isActionable = !status || status.text === 'Active';
               return (
-                <Link href={`/courses/${course.id}`} key={course.id}>
-                <Card className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300">
+                <Card key={course.id} className="h-full flex flex-col">
                     <CardHeader className="p-0 relative">
-                    <Image
-                        src={course.imagePath || 'https://placehold.co/600x400'}
-                        alt={course.title}
-                        width={600}
-                        height={400}
-                        className="rounded-t-lg object-cover aspect-video"
-                        data-ai-hint="course cover"
-                    />
+                    <Link href={`/courses/${course.id}`}>
+                      <Image
+                          src={course.imagePath || 'https://placehold.co/600x400'}
+                          alt={course.title}
+                          width={600}
+                          height={400}
+                          className="rounded-t-lg object-cover aspect-video"
+                          data-ai-hint="course cover"
+                      />
+                    </Link>
                      {status && status.text !== 'Active' && (
                         <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
                     )}
                     </CardHeader>
                     <CardContent className="flex-grow p-4">
-                    <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
-                    <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
-                    <CardDescription className="mt-2 text-sm break-words">
-                        {course.description}
-                    </CardDescription>
+                      <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
+                      <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
+                      <CardDescription className="mt-2 text-sm break-words">
+                          {course.description}
+                      </CardDescription>
                     </CardContent>
+                    <CardFooter className="p-4 pt-0 flex gap-2">
+                        <Button asChild variant="outline" className="flex-1">
+                            <Link href={`/courses/${course.id}`}>More Info</Link>
+                        </Button>
+                        <Button asChild className="flex-1" disabled={!isActionable}>
+                            <Link href={`/courses/${course.id}`}>Start Learning</Link>
+                        </Button>
+                    </CardFooter>
                 </Card>
-                </Link>
             )
           })
         )}
