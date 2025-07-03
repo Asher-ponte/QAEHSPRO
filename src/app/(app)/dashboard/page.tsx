@@ -11,7 +11,7 @@ import {
   CardDescription,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target, ExternalLink, Award } from "lucide-react"
+import { Lightbulb, Target, Award, BookOpen } from "lucide-react"
 import Link from 'next/link'
 import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -208,15 +208,17 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap items-start sm:flex-nowrap sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Required Training Course</CardTitle>
+              <CardTitle>My Courses</CardTitle>
               <CardDescription>All courses you are currently enrolled in.</CardDescription>
             </div>
-            <Link href="/courses" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
-              Browse All Courses
-              <ExternalLink className="h-4 w-4" />
-            </Link>
+            <Button asChild variant="outline" size="sm" className="w-full sm:w-auto flex-shrink-0">
+                <Link href="/courses">
+                  <BookOpen />
+                  Browse All Courses
+                </Link>
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
