@@ -25,7 +25,7 @@ export async function GET(
 
         // Get all enrolled users for the course
         const enrolledUsers = await db.all(`
-            SELECT u.id, u.username, u.department
+            SELECT u.id, u.username, u.fullName, u.department
             FROM users u
             JOIN enrollments e ON u.id = e.user_id
             WHERE e.course_id = ?
@@ -35,6 +35,7 @@ export async function GET(
             return NextResponse.json(enrolledUsers.map(u => ({
                 id: u.id,
                 username: u.username,
+                fullName: u.fullName || u.username,
                 department: u.department || 'N/A',
                 progress: 0
             })));
@@ -57,6 +58,7 @@ export async function GET(
             progressData.push({
                 id: user.id,
                 username: user.username,
+                fullName: user.fullName || user.username,
                 department: user.department || 'N/A',
                 progress: progress,
             });

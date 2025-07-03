@@ -238,6 +238,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
 interface UserProgress {
     id: number;
     username: string;
+    fullName: string;
     department: string;
     progress: number;
 }
@@ -245,6 +246,7 @@ interface UserProgress {
 function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [filter, setFilter] = useState('');
     const { toast } = useToast();
 
     useEffect(() => {
@@ -269,8 +271,21 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                 }
             };
             fetchProgress();
+        } else {
+            setFilter('');
+            setProgressData([]);
         }
     }, [open, course, toast]);
+
+    const filteredData = useMemo(() => {
+        if (!filter) return progressData;
+        const lowercasedFilter = filter.toLowerCase();
+        return progressData.filter(user =>
+            (user.fullName?.toLowerCase() || '').includes(lowercasedFilter) ||
+            user.username.toLowerCase().includes(lowercasedFilter) ||
+            (user.department?.toLowerCase() || '').includes(lowercasedFilter)
+        );
+    }, [progressData, filter]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -281,7 +296,13 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         Track the completion progress of all enrolled users for this course.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-4 space-y-4">
+                     <Input
+                        placeholder="Filter by name, username, or department..."
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        className="w-full"
+                    />
                     {isLoading ? (
                         <div className="space-y-4">
                             {Array.from({ length: 3 }).map((_, i) => (
@@ -297,15 +318,18 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>User</TableHead>
+                                        <TableHead>Full Name</TableHead>
                                         <TableHead>Department</TableHead>
                                         <TableHead className="w-[180px]">Progress</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {progressData.length > 0 ? progressData.map(user => (
+                                    {filteredData.length > 0 ? filteredData.map(user => (
                                         <TableRow key={user.id}>
-                                            <TableCell className="font-medium">{user.username}</TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{user.fullName}</div>
+                                                <div className="text-xs text-muted-foreground">{user.username}</div>
+                                            </TableCell>
                                             <TableCell>{user.department}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
@@ -317,7 +341,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                                     )) : (
                                        <TableRow>
                                            <TableCell colSpan={3} className="h-24 text-center">
-                                                No users are enrolled in this course yet.
+                                                {progressData.length === 0 ? 'No users are enrolled in this course yet.' : 'No users match the current filter.'}
                                            </TableCell>
                                        </TableRow>
                                     )}
