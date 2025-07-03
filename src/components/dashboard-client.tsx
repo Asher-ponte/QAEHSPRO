@@ -33,7 +33,7 @@ interface Course {
 }
 
 interface Stats {
-    coursesCompleted: number;
+    totalTrainingsAttended: number;
     skillsAcquired: number;
 }
 
@@ -48,8 +48,8 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
 
   const statCards = [
     {
-      title: "Courses Completed",
-      value: stats?.coursesCompleted,
+      title: "Total Trainings Attended",
+      value: stats?.totalTrainingsAttended,
       icon: <Target className="h-6 w-6 text-muted-foreground" />,
     },
     {

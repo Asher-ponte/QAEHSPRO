@@ -25,18 +25,33 @@ async function getDashboardData() {
         WHERE e.user_id = ?
     `, [userId]);
 
+    // 2. Get stats: Total Trainings Attended & Skills Acquired
+    const totalTrainingsResult = await db.get(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ?',
+      [userId]
+    );
+    const totalTrainingsAttended = totalTrainingsResult.count;
 
+    const acquiredSkillsResult = await db.all(
+        `SELECT DISTINCT c.category FROM certificates cert
+         JOIN courses c ON cert.course_id = c.id
+         WHERE cert.user_id = ?`,
+        [userId]
+    );
+    const skillsAcquiredCount = acquiredSkillsResult.length;
+
+    // 3. If no courses, return early.
     if (enrolledCourses.length === 0) {
       return {
-        stats: { coursesCompleted: 0, skillsAcquired: 0 },
+        stats: { totalTrainingsAttended: totalTrainingsAttended, skillsAcquired: skillsAcquiredCount },
         courses: [],
       };
     }
-
+    
+    // 4. Get data for progress calculation of currently enrolled courses
     const courseIds = enrolledCourses.map(c => c.id);
     const courseIdsPlaceholder = courseIds.map(() => '?').join(',');
 
-    // 2. Get all lessons for these courses, ordered correctly.
     const allLessons = await db.all(`
         SELECT l.id, m.course_id, m."order" as module_order, l."order" as lesson_order
         FROM lessons l
@@ -45,7 +60,6 @@ async function getDashboardData() {
         ORDER BY m.course_id, m."order", l."order"
     `, courseIds);
 
-    // 3. Get all of the user's completed lessons for these courses.
     const completedLessonIdsResult = await db.all(`
         SELECT up.lesson_id
         FROM user_progress up
@@ -55,21 +69,19 @@ async function getDashboardData() {
     `, [userId, ...courseIds]);
     const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
 
-    // 4. Get all completed certificates to count completed courses accurately
-    const completedCertificates = await db.all(
+    // Get current certificates to determine if a course is 100% complete (for progress bar).
+    const currentCertificates = await db.all(
         `SELECT course_id FROM certificates WHERE user_id = ? AND course_id IN (${courseIdsPlaceholder})`,
         [userId, ...courseIds]
     );
-    const completedCourseIds = new Set(completedCertificates.map(c => c.course_id));
+    const completedCourseIds = new Set(currentCertificates.map(c => c.course_id));
 
-    // 5. Process the data in memory.
+    // 5. Process the data in memory for course list.
     const lessonsByCourse = allLessons.reduce((acc, l) => {
         if (!acc[l.course_id]) acc[l.course_id] = [];
         acc[l.course_id].push(l);
         return acc;
     }, {} as Record<number, typeof allLessons>);
-
-    const skillsAcquired = new Set<string>();
     
     const myCourses = enrolledCourses.map(course => {
         const courseLessons = lessonsByCourse[course.id] || [];
@@ -85,10 +97,6 @@ async function getDashboardData() {
             }
         }
         
-        if (progress === 100) {
-            skillsAcquired.add(course.category);
-        }
-
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
         const continueLessonId = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
 
@@ -104,8 +112,8 @@ async function getDashboardData() {
     
     return {
       stats: {
-        coursesCompleted: completedCourseIds.size,
-        skillsAcquired: skillsAcquired.size,
+        totalTrainingsAttended: totalTrainingsAttended,
+        skillsAcquired: skillsAcquiredCount,
       },
       courses: myCourses,
     };
@@ -113,7 +121,7 @@ async function getDashboardData() {
   } catch (error) {
     console.error('Error fetching dashboard data on server:', error);
     // Return empty state on error to avoid crashing the page.
-    return { stats: { coursesCompleted: 0, skillsAcquired: 0 }, courses: [] };
+    return { stats: { totalTrainingsAttended: 0, skillsAcquired: 0 }, courses: [] };
   }
 }
 
