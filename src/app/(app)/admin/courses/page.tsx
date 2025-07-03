@@ -68,8 +68,6 @@ interface CourseAdminView {
   id: number;
   title: string;
   category: string;
-  moduleCount: number;
-  lessonCount: number;
   enrolledCount: number;
   completionRate: number;
   startDate: string | null;
