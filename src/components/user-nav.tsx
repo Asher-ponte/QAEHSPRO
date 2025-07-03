@@ -46,6 +46,8 @@ export function UserNav() {
     return <Skeleton className="h-10 w-10 rounded-full" />
   }
 
+  const userInitial = user?.fullName?.charAt(0).toUpperCase() || user?.username.charAt(0).toUpperCase() || 'U';
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -53,7 +55,7 @@ export function UserNav() {
           <Avatar className="h-10 w-10 border">
             <AvatarImage src="https://placehold.co/40x40" alt="User avatar" data-ai-hint="user avatar" />
             <AvatarFallback>
-              {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
+              {userInitial}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -61,14 +63,16 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user?.username || 'User'}</p>
+            <p className="text-sm font-medium leading-none">{user?.fullName || user?.username || 'User'}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
+          <DropdownMenuItem asChild>
+            <Link href="/profile">
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/profile/certificates">

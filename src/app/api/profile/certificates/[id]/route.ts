@@ -26,7 +26,7 @@ export async function GET(
         }
         
         // Explicitly fetch the user data associated with the certificate to ensure the name is always current
-        const certificateHolder = await db.get('SELECT username FROM users WHERE id = ?', certificate.user_id);
+        const certificateHolder = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         
         const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all(`
@@ -53,6 +53,7 @@ export async function GET(
             companyLogo2Path: companyLogo2Path,
             user: {
                 username: certificateHolder?.username || 'Unknown User',
+                fullName: certificateHolder?.fullName || null
             },
             course: {
                 title: course?.title || 'Unknown Course',

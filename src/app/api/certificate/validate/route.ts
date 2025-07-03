@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Certificate not found.' }, { status: 404 });
         }
         
-        const user = await db.get('SELECT username FROM users WHERE id = ?', certificate.user_id);
+        const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all(`
             SELECT s.name, s.position, s.signatureImagePath
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
             companyLogo2Path: companyLogo2Path,
             user: {
                 username: user?.username || 'Unknown User',
+                fullName: user?.fullName || null
             },
             course: {
                 title: course?.title || 'Unknown Course',

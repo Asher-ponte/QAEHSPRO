@@ -14,7 +14,7 @@ interface CertificateData {
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
-  user: { username: string };
+  user: { username: string; fullName: string | null };
   course: { title: string; venue: string | null };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
@@ -81,7 +81,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                         <p className="text-xl">This certificate is proudly presented to</p>
                         <div className="my-4">
                            <h1 className="text-7xl font-bold text-black dark:text-white">
-                                {data.user.username}
+                                {data.user.fullName || data.user.username}
                             </h1>
                         </div>
                         <p className="text-xl">

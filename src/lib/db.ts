@@ -40,6 +40,7 @@ async function initializeDb() {
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
+                fullName TEXT,
                 department TEXT,
                 position TEXT,
                 role TEXT NOT NULL DEFAULT 'Employee' CHECK(role IN ('Employee', 'Admin'))
@@ -144,8 +145,8 @@ async function initializeDb() {
 
 
         // Seed Users
-        await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Demo User', 'Administration', 'System Administrator', 'Admin']);
-        await dbInstance.run("INSERT INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+        await dbInstance.run("INSERT INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
+        await dbInstance.run("INSERT INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
@@ -255,6 +256,14 @@ async function initializeDb() {
             ALTER TABLE courses ADD COLUMN venue TEXT;
         `).catch(e => console.log("Could not add venue column to courses, it might exist already:", e.message));
 
+        await dbInstance.exec(`
+            ALTER TABLE users ADD COLUMN fullName TEXT;
+        `).catch(e => console.log("Could not add fullName column to users, it might exist already:", e.message));
+
+        // Backfill fullName for existing users
+        await dbInstance.run("UPDATE users SET fullName = username WHERE fullName IS NULL OR fullName = ''").catch(e => console.log("Failed to backfill fullName:", e.message));
+
+
         // Seed default settings if they don't exist for existing dbs
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_address', '']);
@@ -271,14 +280,14 @@ export async function getDb() {
         db = await initializeDb();
     }
     // Every time, ensure the admin user exists and has the correct role. This is self-healing.
-    await db.run("INSERT OR IGNORE INTO users (id, username) VALUES (?, ?)", [1, 'Demo User']);
+    await db.run("INSERT OR IGNORE INTO users (id, username, fullName) VALUES (?, ?, ?)", [1, 'Demo User', 'Demo User']);
     await db.run(
-        "UPDATE users SET username = ?, department = ?, position = ?, role = ? WHERE id = ?",
-        ['Demo User', 'Administration', 'System Administrator', 'Admin', 1]
+        "UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ? WHERE id = ?",
+        ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin', 1]
     );
 
     // Ensure Jonathan Dumalaos exists and is an admin
-    await db.run("INSERT OR IGNORE INTO users (username, department, position, role) VALUES (?, ?, ?, ?)", ['Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+    await db.run("INSERT OR IGNORE INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
     await db.run("UPDATE users SET role = ? WHERE username = ?", ['Admin', 'Jonathan Dumalaos']);
     
     return db;

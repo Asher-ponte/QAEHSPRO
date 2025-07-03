@@ -73,12 +73,14 @@ import { Badge } from "@/components/ui/badge"
 interface User {
   id: number;
   username: string;
+  fullName: string | null;
   department: string | null;
   position: string | null;
   role: 'Employee' | 'Admin';
 }
 
 const userFormSchema = z.object({
+  fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
   username: z.string().min(3, { message: "Username must be at least 3 characters." }),
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
@@ -94,7 +96,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userFormSchema),
-        defaultValues: { username: "", department: "", position: "", role: "Employee" },
+        defaultValues: { username: "", fullName: "", department: "", position: "", role: "Employee" },
     });
 
     async function onSubmit(values: UserFormValues) {
@@ -141,10 +143,23 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <FormField
                             control={form.control}
+                            name="fullName"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Full Name (for certificates)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Jane Smith" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
                             name="username"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Username</FormLabel>
+                                    <FormLabel>Username (for login)</FormLabel>
                                     <FormControl>
                                         <Input placeholder="e.g., janesmith" {...field} />
                                     </FormControl>
@@ -225,7 +240,10 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
 
     useEffect(() => {
         if (user) {
-            form.reset(user);
+            form.reset({
+                ...user,
+                fullName: user.fullName || user.username
+            });
         }
     }, [user, open, form]);
 
@@ -272,10 +290,23 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <FormField
                             control={form.control}
+                            name="fullName"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Full Name (for certificates)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Jane Smith" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
                             name="username"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Username</FormLabel>
+                                    <FormLabel>Username (for login)</FormLabel>
                                     <FormControl>
                                         <Input placeholder="e.g., janesmith" {...field} />
                                     </FormControl>
@@ -446,6 +477,7 @@ export default function ManageUsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Full Name</TableHead>
                 <TableHead>Username</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Position</TableHead>
@@ -461,13 +493,15 @@ export default function ManageUsersPage() {
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : users.length > 0 ? (
                 users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.username}</TableCell>
+                    <TableCell className="font-medium">{user.fullName || user.username}</TableCell>
+                    <TableCell className="text-muted-foreground">{user.username}</TableCell>
                     <TableCell>{user.department}</TableCell>
                     <TableCell>{user.position}</TableCell>
                     <TableCell>
@@ -509,7 +543,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No users found.
                   </TableCell>
                 </TableRow>

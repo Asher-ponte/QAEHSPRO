@@ -7,6 +7,7 @@ import { cookies } from 'next/headers';
 interface User {
   id: number;
   username: string;
+  fullName: string | null;
   department: string | null;
   position: string | null;
   role: 'Employee' | 'Admin';

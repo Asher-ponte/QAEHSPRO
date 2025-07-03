@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 interface User {
   id: number;
   username: string;
+  fullName: string | null;
   department: string | null;
   position: string | null;
   role: 'Employee' | 'Admin';
@@ -16,6 +17,7 @@ interface User {
 interface UserContextType {
   user: User | null;
   isLoading: boolean;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -50,7 +52,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <UserContext.Provider value={{ user, isLoading }}>
+    <UserContext.Provider value={{ user, isLoading, setUser }}>
       {/* Show a loading state or nothing while checking auth */}
       {isLoading ? (
         <div className="flex h-screen w-full items-center justify-center">
