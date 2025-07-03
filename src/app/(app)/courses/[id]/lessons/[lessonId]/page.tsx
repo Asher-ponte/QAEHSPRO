@@ -173,13 +173,11 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
                                           className={cn(
                                             "flex-grow cursor-pointer", 
                                             (isLocked || submitted) && "cursor-default",
-                                            submitted && isCorrectOption && "text-green-600 dark:text-green-400 font-bold",
                                             submitted && isSelectedOption && !isCorrectOption && "text-red-600 dark:text-red-400"
                                             )}
                                         >
                                             {opt.text}
                                         </Label>
-                                         {submitted && isCorrectOption && <CheckCircle className="h-5 w-5 text-green-500" />}
                                          {submitted && isSelectedOption && !isCorrectOption && <XCircle className="h-5 w-5 text-red-500" />}
                                     </div>
                                 );
