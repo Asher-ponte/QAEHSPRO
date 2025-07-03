@@ -70,7 +70,7 @@ export async function POST(
                  [userId, courseId]
             );
 
-            if (allLessons.length > 0 && completedLessons.count === allLessons.length) {
+            if (allLessons.length > 0 && completedLessons && completedLessons.count === allLessons.length) {
                 // Generate certificate number
                 const today = new Date();
                 const datePrefix = format(today, 'yyyy-MM-dd');
