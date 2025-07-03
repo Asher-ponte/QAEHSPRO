@@ -14,7 +14,7 @@ interface CertificateData {
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
-  user: { username: string };
+  user: { username: string; fullName: string | null };
   course: { title: string; venue: string | null };
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
@@ -32,7 +32,7 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
             return { data: null, error: 'Certificate not found.' };
         }
         
-        const user = await db.get('SELECT username FROM users WHERE id = ?', certificate.user_id);
+        const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         const signatories = await db.all(`
             SELECT s.name, s.position, s.signatureImagePath
@@ -58,6 +58,7 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
             companyLogo2Path: companyLogo2Path,
             user: {
                 username: user?.username || 'Unknown User',
+                fullName: user?.fullName || null,
             },
             course: {
                 title: course?.title || 'Unknown Course',
