@@ -41,7 +41,9 @@ function CertificateValidator() {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/certificate/validate?number=${certificateNumber}`);
+            // Using an absolute URL to avoid proxy issues in some environments.
+            const validationApiUrl = `${window.location.origin}/api/certificate/validate?number=${certificateNumber}`;
+            const res = await fetch(validationApiUrl);
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.error || "Failed to validate certificate.");
