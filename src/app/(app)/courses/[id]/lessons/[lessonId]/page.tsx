@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { Progress } from "@/components/ui/progress"
 
 interface Lesson {
   id: number;
@@ -24,6 +25,9 @@ interface Lesson {
   course_id: number;
   course_title: string;
   completed: boolean;
+  courseProgress: number;
+  previousLessonId: number | null;
+  nextLessonId: number | null;
 }
 
 interface QuizQuestion {
@@ -124,33 +128,15 @@ const QuizContent = ({ lesson, onComplete }: { lesson: Lesson, onComplete: () =>
                         className="space-y-2"
                     >
                         {q.options.map((opt, oIndex) => {
-                            const isSelected = answers[qIndex] === oIndex;
-                            const isCorrect = opt.isCorrect;
-                            
-                            let indicator = null;
-                            if (showResults || lesson.completed) {
-                                if (isCorrect) {
-                                    indicator = <CheckCircle className="h-5 w-5 text-green-500" />;
-                                } else if (isSelected && !isCorrect) {
-                                    indicator = <XCircle className="h-5 w-5 text-red-500" />;
-                                }
-                            }
-
                             return (
                                 <div key={oIndex} className="flex items-center space-x-3">
                                     <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
                                     <Label 
                                       htmlFor={`q${qIndex}o${oIndex}`} 
-                                      className={cn(
-                                        "flex-grow cursor-pointer",
-                                        (lesson.completed || showResults) && "cursor-default",
-                                        (lesson.completed || showResults) && isCorrect && "text-green-700 dark:text-green-400 font-semibold",
-                                        showResults && isSelected && !isCorrect && "text-red-700 dark:text-red-400"
-                                      )}
+                                      className={cn("flex-grow cursor-pointer", (lesson.completed || showResults) && "cursor-default")}
                                     >
                                         {opt.text}
                                     </Label>
-                                    {indicator}
                                 </div>
                             );
                         })}
@@ -291,11 +277,21 @@ export default function LessonPage() {
             setIsCompleting(false);
         }
     }
+    
+    const handleNextClick = () => {
+        if (!lesson) return;
+        if (lesson.completed && lesson.nextLessonId) {
+            router.push(`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`);
+        } else if (!lesson.completed) {
+            handleCompleteLesson();
+        }
+    };
 
     if (isLoading) {
         return (
              <div className="space-y-6">
                 <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-20 w-full" />
                 <Card>
                     <CardHeader>
                         <Skeleton className="h-8 w-3/4" />
@@ -337,6 +333,13 @@ export default function LessonPage() {
         }
     }
 
+    const NextButtonContent = () => {
+        if (lesson.completed) {
+            return <>Next Lesson <ArrowRight className="ml-2 h-4 w-4" /></>;
+        }
+        return <> {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />} Complete & Continue </>;
+    };
+
     return (
         <div className="space-y-6 pb-24 md:pb-6">
             <Button asChild variant="outline">
@@ -345,6 +348,16 @@ export default function LessonPage() {
                     <span className="truncate">Back to "{lesson.course_title}"</span>
                 </Link>
             </Button>
+            
+            <Card>
+                <CardHeader className="p-3">
+                    <div className="flex justify-between items-center mb-1">
+                        <CardTitle className="text-sm font-medium">Course Progress</CardTitle>
+                        <span className="text-sm font-semibold">{lesson.courseProgress}%</span>
+                    </div>
+                    <Progress value={lesson.courseProgress} className="h-2" />
+                </CardHeader>
+            </Card>
 
             <Card>
                 <CardHeader>
@@ -366,32 +379,29 @@ export default function LessonPage() {
                 </CardContent>
             </Card>
 
-            {lesson.type !== 'quiz' && (
-                <>
-                    {/* Floating button for mobile */}
-                    <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t z-10">
-                        <Button 
-                            onClick={handleCompleteLesson} 
-                            disabled={isCompleting || lesson.completed}
-                            className="w-full"
-                        >
-                            {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                            {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
-                        </Button>
-                    </div>
+            
+            <div className="flex justify-between items-center mt-4">
+                <Button asChild variant="outline" disabled={!lesson.previousLessonId}>
+                    <Link href={lesson.previousLessonId ? `/courses/${lesson.course_id}/lessons/${lesson.previousLessonId}` : '#'}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Previous
+                    </Link>
+                </Button>
+                
+                {lesson.type !== 'quiz' && (
+                    <Button onClick={handleNextClick} disabled={isCompleting || (lesson.completed && !lesson.nextLessonId)}>
+                        <NextButtonContent />
+                    </Button>
+                )}
 
-                    {/* Standard button for desktop */}
-                    <div className="hidden md:flex justify-end">
-                        <Button 
-                            onClick={handleCompleteLesson} 
-                            disabled={isCompleting || lesson.completed}
-                        >
-                            {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                            {lesson.completed ? 'Lesson Complete' : 'Complete and Continue'}
-                        </Button>
-                    </div>
-                </>
-            )}
+                 {lesson.type === 'quiz' && lesson.nextLessonId && (
+                     <Button asChild disabled={!lesson.completed}>
+                        <Link href={`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`}>
+                            Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                     </Button>
+                 )}
+            </div>
         </div>
     )
 }
