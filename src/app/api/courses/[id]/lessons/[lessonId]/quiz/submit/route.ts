@@ -52,11 +52,8 @@ export async function POST(
         }
         const { answers } = parsedBody.data;
 
-        await db.run('BEGIN TRANSACTION');
-
         const lesson = await db.get('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', lessonId);
         if (!lesson || !lesson.content) {
-            await db.run('ROLLBACK');
             return NextResponse.json({ error: 'Quiz not found or has no content.' }, { status: 404 });
         }
         
@@ -64,13 +61,11 @@ export async function POST(
         try {
             dbQuestions = JSON.parse(lesson.content);
         } catch (e) {
-            await db.run('ROLLBACK');
             return NextResponse.json({ error: 'Failed to parse quiz content.' }, { status: 500 });
         }
         
         let score = 0;
         const correctlyAnsweredIndices: number[] = [];
-
         dbQuestions.forEach((question, index) => {
             const correctOptionIndex = question.options.findIndex(opt => opt.isCorrect);
             if (answers[index] === correctOptionIndex) {
@@ -78,6 +73,8 @@ export async function POST(
                 correctlyAnsweredIndices.push(index);
             }
         });
+
+        await db.run('BEGIN TRANSACTION');
         
         // Log the quiz attempt for analytics.
         await db.run(
@@ -90,38 +87,57 @@ export async function POST(
         let certificateId: number | null = null;
         
         if (passed) {
-            // Mark the quiz lesson as complete.
+            // Get completed lessons for this course BEFORE this update
+            const completedLessonsBeforeUpdate = await db.all(`
+                SELECT up.lesson_id FROM user_progress up
+                JOIN lessons l ON up.lesson_id = l.id
+                JOIN modules m ON l.module_id = m.id
+                WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
+            `, [userId, courseId]);
+            const completedLessonIds = new Set(completedLessonsBeforeUpdate.map(p => p.lesson_id));
+
+            // Mark quiz lesson as complete.
             await db.run(
                 'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
                 [userId, lessonId]
             );
+            
+            // Add current lesson to our in-memory set for the completion check
+            completedLessonIds.add(lessonId);
 
-            // Check if this completes the entire course.
-            const allCourseLessons = await db.all(`SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`, [courseId]);
-            const totalLessonsInCourse = allCourseLessons.length;
+            // Get total lessons for the course
+            const allLessonsInCourseResult = await db.all(
+                `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
+                [courseId]
+            );
+            const totalLessonsInCourse = allLessonsInCourseResult.length;
 
-            if (totalLessonsInCourse > 0) {
-                const completedProgress = await db.all(`SELECT up.lesson_id FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`, [userId, courseId]);
-                const totalCompletedLessons = completedProgress.length;
+            if (totalLessonsInCourse > 0 && completedLessonIds.size === totalLessonsInCourse) {
+                 // Course is complete, issue a certificate if one doesn't already exist
+                const existingCertificate = await db.get(
+                    'SELECT id FROM certificates WHERE user_id = ? AND course_id = ?',
+                    [userId, courseId]
+                );
 
-                if (totalCompletedLessons === totalLessonsInCourse) {
-                    // Course is complete, issue a certificate.
+                if (!existingCertificate) {
                     const today = new Date();
                     const datePrefix = format(today, 'yyyyMMdd');
                     const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                    
                     const nextSerial = (countResult?.count ?? 0) + 1;
                     const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                     
                     const certResult = await db.run(`INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`, [userId, courseId, today.toISOString(), certificateNumber]);
                     certificateId = certResult.lastID ?? null;
                 } else {
-                    // Course not complete, find the next lesson in sequence.
-                    const allLessonsOrdered = await db.all(`SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`, [courseId]);
-                    const currentIndex = allLessonsOrdered.findIndex(l => l.id === lessonId);
-                    if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
-                        nextLessonId = allLessonsOrdered[currentIndex + 1].id;
-                    }
+                    certificateId = existingCertificate.id;
+                }
+
+            } else {
+                // Course not complete, find the next lesson in sequence.
+                const allLessonsOrdered = allLessonsInCourseResult.map(l => l.id);
+                const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === lessonId);
+                if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
+                    nextLessonId = allLessonsOrdered[currentIndex + 1];
                 }
             }
         }

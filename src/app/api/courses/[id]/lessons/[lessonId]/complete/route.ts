@@ -37,62 +37,63 @@ export async function POST(
 
         await db.run('BEGIN TRANSACTION');
 
-        // Mark the current lesson as complete for the user.
+        // Get completed lessons for this course BEFORE this update
+        const completedLessonsBeforeUpdate = await db.all(`
+            SELECT up.lesson_id FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
+            JOIN modules m ON l.module_id = m.id
+            WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
+        `, [userId, courseId]);
+        const completedLessonIds = new Set(completedLessonsBeforeUpdate.map(p => p.lesson_id));
+
+        // Mark current lesson as complete
         await db.run(
             'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
             [userId, lessonId]
         );
 
+        // Add current lesson to our in-memory set for the completion check
+        completedLessonIds.add(lessonId);
+
+        // Get total lessons for the course
+        const allLessonsInCourseResult = await db.all(
+            `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
+            [courseId]
+        );
+        const totalLessonsInCourse = allLessonsInCourseResult.length;
+
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
 
-        // Check for course completion.
-        const allLessonsInCourse = await db.all(
-            `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
-            [courseId]
-        );
-
-        const totalLessonsInCourse = allLessonsInCourse.length;
-
-        if (totalLessonsInCourse > 0) {
-            // Get all of the user's completed lessons for this course.
-            const completedProgress = await db.all(
-                `SELECT up.lesson_id FROM user_progress up
-                    JOIN lessons l ON up.lesson_id = l.id
-                    JOIN modules m ON l.module_id = m.id
-                    WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`,
+        if (totalLessonsInCourse > 0 && completedLessonIds.size === totalLessonsInCourse) {
+            // Course is complete, issue a certificate if one doesn't already exist
+            const existingCertificate = await db.get(
+                'SELECT id FROM certificates WHERE user_id = ? AND course_id = ?',
                 [userId, courseId]
             );
-            
-            // The above query doesn't see the update we just made inside the transaction,
-            // so we check the count manually.
-            const totalCompletedLessons = completedProgress.length;
 
-            if (totalCompletedLessons === totalLessonsInCourse) {
-                // Course is complete, issue a certificate.
+            if (!existingCertificate) {
                 const today = new Date();
                 const datePrefix = format(today, 'yyyyMMdd');
                 const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                
-                // Safely get the count, defaulting to 0.
                 const nextSerial = (countResult?.count ?? 0) + 1;
                 const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                 
                 const certResult = await db.run(
                     `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
-                    [userId, courseId, new Date().toISOString(), certificateNumber]
+                    [userId, courseId, today.toISOString(), certificateNumber]
                 );
                 certificateId = certResult.lastID ?? null;
             } else {
-                // Course not complete, find the next lesson in sequence.
-                const allLessonsOrdered = await db.all(
-                    `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
-                    [courseId]
-                );
-                const currentIndex = allLessonsOrdered.findIndex(l => l.id === lessonId);
-                if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
-                    nextLessonId = allLessonsOrdered[currentIndex + 1].id;
-                }
+                certificateId = existingCertificate.id;
+            }
+
+        } else {
+            // Course not complete, find the next lesson in sequence.
+            const allLessonsOrdered = allLessonsInCourseResult.map(l => l.id);
+            const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === lessonId);
+            if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
+                nextLessonId = allLessonsOrdered[currentIndex + 1];
             }
         }
         
