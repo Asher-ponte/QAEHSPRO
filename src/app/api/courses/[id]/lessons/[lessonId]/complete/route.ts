@@ -9,23 +9,29 @@ export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
-    const db = await getDb()
-    const { lessonId, id: courseId } = params;
-
-    const user = await getCurrentUser();
-    if (!user) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const userId = user.id;
-
-    if (user.role !== 'Admin') {
-        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-        if (!enrollment) {
-            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
-        }
-    }
-
+    let db;
     try {
+        db = await getDb();
+        const lessonId = parseInt(params.lessonId, 10);
+        const courseId = parseInt(params.id, 10);
+
+        const user = await getCurrentUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        }
+        const userId = user.id;
+
+        if (isNaN(lessonId) || isNaN(courseId)) {
+             return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
+        }
+
+        if (user.role !== 'Admin') {
+            const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+            if (!enrollment) {
+                return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+            }
+        }
+
         // Use a transaction to ensure atomicity
         await db.run('BEGIN TRANSACTION');
 
@@ -56,7 +62,7 @@ export async function POST(
             [courseId]
         );
 
-        const currentIndex = allLessons.findIndex(l => l.id === parseInt(lessonId, 10));
+        const currentIndex = allLessons.findIndex(l => l.id === lessonId);
 
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
@@ -107,7 +113,7 @@ export async function POST(
         return NextResponse.json({ success: true, nextLessonId, certificateId });
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (db) await db.run('ROLLBACK').catch(console.error);
         console.error("Failed to mark lesson as complete:", error);
         return NextResponse.json({ error: 'Failed to update progress' }, { status: 500 });
     }
