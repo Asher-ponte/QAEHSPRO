@@ -33,6 +33,9 @@ async function initializeDb() {
         driver: sqlite3Driver.Database,
     });
 
+    // Enable WAL mode for better concurrency and set a busy timeout.
+    await dbInstance.exec('PRAGMA journal_mode = WAL;');
+    await dbInstance.exec('PRAGMA busy_timeout = 5000;');
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
     if (!dbExists) {
