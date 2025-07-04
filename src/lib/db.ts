@@ -4,15 +4,7 @@
 import { open, type Database } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import path from 'path';
-import fs from 'fs';
-
-// Ensure directories exist once when the module is first loaded. This is safer for concurrency.
-const dbDir = path.dirname(path.join(process.cwd(), 'db.sqlite'));
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-const imagesDir = path.join(process.cwd(), 'public', 'images');
-if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
-
+import fs from 'fs/promises';
 
 // This is the singleton promise that will be reused across requests.
 let dbPromise: Promise<Database> | null = null;
@@ -22,10 +14,15 @@ let dbPromise: Promise<Database> | null = null;
 const setupDatabase = async (): Promise<Database> => {
     console.log("Setting up new database connection...");
     
-    const DB_FILE = path.join(process.cwd(), 'db.sqlite');
+    const dbPath = path.join(process.cwd(), 'db.sqlite');
+    const imagesDir = path.join(process.cwd(), 'public', 'images');
+
+    // Ensure directories exist. Since this function is called only once, this is safe.
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.mkdir(imagesDir, { recursive: true });
     
     const db = await open({
-        filename: DB_FILE,
+        filename: dbPath,
         driver: sqlite3.Database,
     });
 
