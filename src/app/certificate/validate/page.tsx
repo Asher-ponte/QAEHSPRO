@@ -1,4 +1,5 @@
 
+
 import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -10,12 +11,14 @@ interface CertificateData {
   id: number;
   completion_date: string;
   certificateNumber: string | null;
+  type: 'completion' | 'recognition';
+  reason: string | null;
   companyName: string;
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
   user: { username: string; fullName: string | null };
-  course: { title: string; venue: string | null };
+  course: { title: string; venue: string | null } | null;
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
@@ -33,13 +36,18 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
         }
         
         const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
-        const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+        
+        let course = null;
+        if (certificate.course_id) {
+            course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+        }
+
         const signatories = await db.all(`
             SELECT s.name, s.position, s.signatureImagePath
             FROM signatories s
-            JOIN course_signatories cs ON s.id = cs.signatory_id
-            WHERE cs.course_id = ?
-        `, certificate.course_id);
+            JOIN certificate_signatories cs ON s.id = cs.signatory_id
+            WHERE cs.certificate_id = ?
+        `, certificate.id);
         
         const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
         
@@ -52,6 +60,8 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
             id: certificate.id,
             completion_date: certificate.completion_date,
             certificateNumber: certificate.certificate_number,
+            type: certificate.type,
+            reason: certificate.reason,
             companyName: companyName,
             companyAddress: companyAddress,
             companyLogoPath: companyLogoPath,
@@ -60,10 +70,7 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null,
             },
-            course: {
-                title: course?.title || 'Unknown Course',
-                venue: course?.venue || null,
-            },
+            course: course,
             signatories: signatories,
         };
 

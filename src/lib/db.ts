@@ -234,46 +234,16 @@ async function initializeDb() {
     } else {
         // Run migrations for existing databases
         console.log("Running migrations for existing database...");
-        try {
-            // Recreate certificates table with new schema
-            await dbInstance.exec('ALTER TABLE certificates RENAME TO certificates_old;');
-            await dbInstance.exec(`
-                CREATE TABLE certificates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    course_id INTEGER,
-                    completion_date TEXT NOT NULL,
-                    certificate_number TEXT,
-                    type TEXT NOT NULL DEFAULT 'completion' CHECK(type IN ('completion', 'recognition')),
-                    reason TEXT,
-                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                    FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
-                );
-            `);
-            await dbInstance.exec(`
-                INSERT INTO certificates (id, user_id, course_id, completion_date, certificate_number)
-                SELECT id, user_id, course_id, completion_date, certificate_number FROM certificates_old;
-            `);
-            await dbInstance.exec('DROP TABLE certificates_old;');
-            console.log("Certificates table migrated successfully.");
-        } catch (e) {
-            console.log("Could not migrate certificates table, it might already be up to date:", (e as Error).message);
-            await dbInstance.exec('DROP TABLE IF EXISTS certificates_old;').catch(() => {});
-             await dbInstance.exec('DROP TABLE IF EXISTS certificates;').catch(() => {});
-             await dbInstance.exec(`
-                CREATE TABLE IF NOT EXISTS certificates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    course_id INTEGER,
-                    completion_date TEXT NOT NULL,
-                    certificate_number TEXT,
-                    type TEXT NOT NULL DEFAULT 'completion' CHECK(type IN ('completion', 'recognition')),
-                    reason TEXT,
-                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                    FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
-                );
-            `).catch(e => console.log("Could not create certificates table, it might exist already:", (e as Error).message));
-        }
+        
+        await dbInstance.exec(`
+            ALTER TABLE certificates ADD COLUMN type TEXT;
+        `).catch(e => console.log("Could not add type column to certificates, it might exist already:", (e as Error).message));
+        
+        await dbInstance.exec(`
+            ALTER TABLE certificates ADD COLUMN reason TEXT;
+        `).catch(e => console.log("Could not add reason column to certificates, it might exist already:", (e as Error).message));
+        
+        await dbInstance.run("UPDATE certificates SET type = 'completion' WHERE type IS NULL").catch(e => console.log("Could not backfill certificate type:", (e as Error).message));
 
 
         await dbInstance.exec(`
@@ -346,8 +316,7 @@ async function initializeDb() {
     }
 
     // This self-healing logic runs once on application startup.
-    // It ensures that the core admin users exist and have the correct roles.
-    await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName) VALUES (?, ?, ?)", [1, 'Demo User', 'Demo User']);
+    await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
     await dbInstance.run(
         "UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ? WHERE id = ?",
         ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin', 1]
