@@ -16,6 +16,8 @@ export async function POST(
         db = await getDb();
         const lessonId = parseInt(params.lessonId, 10);
         const courseId = parseInt(params.id, 10);
+        
+        const today = new Date(); // Use a single timestamp
 
         if (isNaN(lessonId) || isNaN(courseId)) {
              return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
@@ -26,6 +28,16 @@ export async function POST(
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
         const userId = user.id;
+        
+        // Check lesson type to prevent completing quizzes via this endpoint.
+        const lesson = await db.get('SELECT type FROM lessons WHERE id = ?', lessonId);
+        if (!lesson) {
+            return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
+        }
+        if (lesson.type === 'quiz') {
+            return NextResponse.json({ error: 'This endpoint cannot be used to complete quizzes.' }, { status: 400 });
+        }
+
 
         if (user.role !== 'Admin') {
             const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
@@ -75,7 +87,6 @@ export async function POST(
                 // Prevent duplicate certificate creation
                 const existingCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
                 if (!existingCertificate) {
-                    const today = new Date();
                     const datePrefix = format(today, 'yyyyMMdd');
                     const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
                     const nextSerial = (countResult?.count ?? 0) + 1;
