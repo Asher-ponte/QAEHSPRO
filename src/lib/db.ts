@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { open, type Database } from 'sqlite';
@@ -172,8 +173,8 @@ async function initializeDb() {
 
 
         // Seed Users
-        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
-        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
+        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
         
         // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
