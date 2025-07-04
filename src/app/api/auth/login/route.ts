@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const { username } = parsedData.data;
 
     const db = await getDb();
-    const user = await db.get('SELECT * FROM users WHERE username = ?', username);
+    const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid username.' }, { status: 401 });

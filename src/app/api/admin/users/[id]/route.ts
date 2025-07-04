@@ -60,7 +60,7 @@ export async function PUT(
 
         const { username, fullName, department, position, role } = parsedData.data;
         
-        const existingUser = await db.get('SELECT id FROM users WHERE username = ? AND id != ?', [username, userId]);
+        const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?', [username, userId]);
         if (existingUser) {
             return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
         }

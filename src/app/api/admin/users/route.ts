@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
     const { username, fullName, department, position, role } = parsedData.data;
 
-    // Check for existing username
-    const existingUser = await db.get('SELECT id FROM users WHERE username = ?', username);
+    // Check for existing username (case-insensitive)
+    const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', username);
     if (existingUser) {
         return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
