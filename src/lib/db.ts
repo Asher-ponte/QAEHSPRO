@@ -113,27 +113,33 @@ async function setupSchema(dbInstance: Database) {
 }
 
 async function seedData(dbInstance: Database) {
-    const users = await dbInstance.get('SELECT COUNT(*) as count FROM users');
-    if (users && users.count > 0) {
-        return; // Database already has users, so we assume it's seeded.
+    const demoUser = await dbInstance.get('SELECT id FROM users WHERE id = ?', [1]);
+    if (demoUser) {
+        console.log("Demo user already exists, skipping seeding.");
+        return;
     }
 
-    console.log("Database is empty, seeding data...");
+    console.log("Seeding initial database data...");
     
     await dbInstance.exec('BEGIN TRANSACTION');
     try {
-        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
-        await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
-        await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png', 'Online')");
-        await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (1, 1, 'Module 1: Introduction', 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
-        await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png')");
-        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
-        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (2, 1)");
-        await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 2)");
-        await dbInstance.run("INSERT INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
-        await dbInstance.run("INSERT INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
+        await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
+        await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+        
+        await dbInstance.run("INSERT OR IGNORE INTO courses (id, title, description, category, imagePath, venue) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai']);
+        await dbInstance.run("INSERT OR IGNORE INTO courses (id, title, description, category, imagePath, venue) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png', 'Online']);
+        
+        await dbInstance.run("INSERT OR IGNORE INTO modules (id, course_id, title, \"order\") VALUES (?, ?, ?, ?)", [1, 1, 'Module 1: Introduction', 1]);
+        
+        await dbInstance.run("INSERT OR IGNORE INTO lessons (id, module_id, title, type, content, \"order\") VALUES (?, ?, ?, ?, ?, ?)", [1, 1, 'Welcome to the Course', 'video', null, 1]);
+        await dbInstance.run("INSERT OR IGNORE INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (?, ?, ?, ?, ?, ?, ?)", [2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png']);
+        
+        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [1, 1]);
+        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [2, 1]);
+        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [1, 2]);
+        
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
+        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
         
         await dbInstance.exec('COMMIT');
         console.log("Database seeded successfully.");
