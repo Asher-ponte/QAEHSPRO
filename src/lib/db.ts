@@ -345,6 +345,17 @@ async function initializeDb() {
         await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_2_path', '']);
     }
 
+    // This self-healing logic runs once on application startup.
+    // It ensures that the core admin users exist and have the correct roles.
+    await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName) VALUES (?, ?, ?)", [1, 'Demo User', 'Demo User']);
+    await dbInstance.run(
+        "UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ? WHERE id = ?",
+        ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin', 1]
+    );
+
+    // Ensure Jonathan Dumalaos exists and is an admin
+    await dbInstance.run("INSERT OR IGNORE INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
+    await dbInstance.run("UPDATE users SET role = ? WHERE username = ?", ['Admin', 'Jonathan Dumalaos']);
 
     return dbInstance;
 }
@@ -353,16 +364,5 @@ export async function getDb() {
     if (!db) {
         db = await initializeDb();
     }
-    // Every time, ensure the admin user exists and has the correct role. This is self-healing.
-    await db.run("INSERT OR IGNORE INTO users (id, username, fullName) VALUES (?, ?, ?)", [1, 'Demo User', 'Demo User']);
-    await db.run(
-        "UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ? WHERE id = ?",
-        ['Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin', 1]
-    );
-
-    // Ensure Jonathan Dumalaos exists and is an admin
-    await db.run("INSERT OR IGNORE INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)", ['Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
-    await db.run("UPDATE users SET role = ? WHERE username = ?", ['Admin', 'Jonathan Dumalaos']);
-    
     return db;
 }
