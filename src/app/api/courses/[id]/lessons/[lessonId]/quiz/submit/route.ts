@@ -118,13 +118,17 @@ export async function POST(
                     certificateId = certResult.lastID ?? null;
 
                     if (certificateId) {
-                         await db.run(
-                            `INSERT INTO certificate_signatories (certificate_id, signatory_id)
-                            SELECT ?, s.signatory_id
-                            FROM course_signatories s
-                            WHERE s.course_id = ?`,
-                            [certificateId, courseId]
+                         const courseSignatories = await db.all(
+                            'SELECT signatory_id FROM course_signatories WHERE course_id = ?',
+                            courseId
                         );
+                        if (courseSignatories.length > 0) {
+                            const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
+                            for (const sig of courseSignatories) {
+                                await stmt.run(certificateId, sig.signatory_id);
+                            }
+                            await stmt.finalize();
+                        }
                     }
                 } else {
                     certificateId = existingCertificate.id;
