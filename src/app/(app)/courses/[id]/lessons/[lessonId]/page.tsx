@@ -7,7 +7,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
@@ -32,17 +32,16 @@ interface Lesson {
 
 interface QuizQuestion {
     text: string;
-    options: { text: string }[]; // isCorrect is now handled server-side
+    options: { text: string }[];
 }
 
 const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data: any) => void }) => {
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<number, number>>({});
-    const [submitted, setSubmitted] = useState(false);
+    const [showResults, setShowResults] = useState(false);
     const [correctlyAnswered, setCorrectlyAnswered] = useState<Set<number>>(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastScore, setLastScore] = useState<{ correct: number, total: number } | null>(null);
-    const router = useRouter();
     const { toast } = useToast();
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -55,14 +54,13 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     useEffect(() => {
         if (lesson.content) {
             try {
-                // The server-sent content for quizzes now only has text for options.
                 const parsedQuestions: QuizQuestion[] = JSON.parse(lesson.content);
                 setQuestions(parsedQuestions);
 
                 if (lesson.completed) {
                     const allQuestionIndices = new Set(Array.from({length: parsedQuestions.length}, (_, i) => i));
                     setCorrectlyAnswered(allQuestionIndices);
-                    setSubmitted(true);
+                    setShowResults(true);
                     setLastScore({ correct: parsedQuestions.length, total: parsedQuestions.length });
                 }
             } catch (error) {
@@ -92,7 +90,6 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     const handleSubmit = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
-        setSubmitted(true);
 
         try {
             const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/quiz/submit`, {
@@ -105,16 +102,13 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
             if (!res.ok) {
                 throw new Error(data.error || "Failed to submit quiz.");
             }
-
+            
+            setShowResults(true);
             setLastScore({ correct: data.score, total: data.total });
             setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
 
             if (data.passed) {
-                 toast({
-                    title: "Quiz Passed!",
-                    description: "You answered all questions correctly.",
-                });
-                onQuizPass(data); // This will trigger re-fetch or redirect
+                onQuizPass(data);
             } else {
                 toast({
                     title: "Some answers are incorrect",
@@ -125,16 +119,14 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
         } catch (error) {
             const msg = error instanceof Error ? error.message : "An unknown error occurred.";
             toast({ variant: "destructive", title: "Error", description: msg });
-            setSubmitted(false); // Allow retry on error
         } finally {
             setIsSubmitting(false);
         }
     };
     
     const handleRetry = () => {
-        setSubmitted(false);
+        setShowResults(false);
         setLastScore(null);
-        // Do not reset answers, so user can see their previous attempt
     };
 
     if (!questions.length) {
@@ -143,7 +135,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     
     return (
         <div className="space-y-8">
-            {submitted && lastScore && !lesson.completed && (
+            {showResults && lastScore && !lesson.completed && (
                 <Card className={`p-4 ${allCorrect ? 'bg-green-100 dark:bg-green-900/30 border-green-500' : 'bg-orange-100 dark:bg-orange-900/30 border-orange-500'}`}>
                     <CardHeader className="p-0">
                         <CardTitle className="text-xl">
@@ -160,8 +152,8 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
             )}
 
             {questions.map((q, qIndex) => {
-                const isLocked = lesson.completed || correctlyAnswered.has(qIndex);
-                const isIncorrectAfterSubmit = submitted && answers[qIndex] !== undefined && !isLocked;
+                const isLocked = lesson.completed || (showResults && correctlyAnswered.has(qIndex));
+                const isIncorrectAfterSubmit = showResults && answers[qIndex] !== undefined && !isLocked;
 
                 return (
                     <div key={qIndex} className={cn("p-4 border rounded-lg bg-background/50 transition-colors",
@@ -176,7 +168,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
                         <RadioGroup 
                             onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value, 10))}
                             value={answers[qIndex]?.toString()}
-                            disabled={isLocked || submitted}
+                            disabled={isLocked || isSubmitting}
                             className="space-y-2"
                         >
                             {q.options.map((opt, oIndex) => (
@@ -184,7 +176,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
                                     <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
                                     <Label 
                                       htmlFor={`q${qIndex}o${oIndex}`} 
-                                      className={cn("flex-grow cursor-pointer", isLocked || submitted ? "cursor-default" : "")}
+                                      className={cn("flex-grow cursor-pointer", isLocked || isSubmitting ? "cursor-default" : "")}
                                     >
                                         {opt.text}
                                     </Label>
@@ -197,7 +189,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
 
             {!lesson.completed && (
                 <div className="flex justify-center gap-4 mt-6">
-                    {submitted && !allCorrect ? (
+                    {showResults && !allCorrect ? (
                          <Button onClick={handleRetry}>
                             Try Again
                          </Button>
@@ -258,7 +250,7 @@ export default function LessonPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
     
-    const fetchLesson = useMemo(() => async () => {
+    const fetchLesson = useCallback(async () => {
         if (!params.id || !params.lessonId) return;
         setIsLoading(true);
         try {
@@ -269,7 +261,6 @@ export default function LessonPage() {
             }
             const data = await res.json();
 
-            // For quizzes, remove the isCorrect flag from the content before setting state
             if (data.type === 'quiz' && data.content) {
                 try {
                     const parsedContent = JSON.parse(data.content);
@@ -327,28 +318,20 @@ export default function LessonPage() {
     }
     
     const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
-        if (data.nextLessonId) {
-             toast({
-                title: "Lesson Completed!",
-                description: "Moving to the next lesson.",
-            });
-            router.push(`/courses/${lesson!.course_id}/lessons/${data.nextLessonId}`);
-        } else if (data.certificateId) {
+        // This function is called when a lesson is successfully completed.
+        // We always refetch the lesson to update its "completed" status on the UI.
+        fetchLesson();
+
+        if (data.certificateId) {
              toast({
                 title: "Congratulations!",
-                description: "You've completed the course. Redirecting to your certificate...",
+                description: "You've completed the course and earned a certificate!",
             });
-            setTimeout(() => {
-                router.push(`/profile/certificates/${data.certificateId}`);
-            }, 2000);
         } else {
-            // This case handles the last lesson of a course where a certificate is not issued for some reason
-            // or if the quiz was passed but it wasn't the last lesson. We just refetch.
-            toast({
-                title: "Progress Saved!",
-                description: lesson?.type === 'quiz' ? "You've passed the quiz." : "You've completed the lesson.",
+             toast({
+                title: lesson?.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
+                description: "You can now proceed to the next lesson.",
             });
-            fetchLesson();
         }
     };
     
@@ -479,3 +462,5 @@ export default function LessonPage() {
         </div>
     )
 }
+
+    
