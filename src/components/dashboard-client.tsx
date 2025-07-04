@@ -10,7 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target, Award, BookOpen } from "lucide-react"
+import { Lightbulb, Target, Award, BookOpen, Ribbon } from "lucide-react"
 import Link from 'next/link'
 import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -34,6 +34,7 @@ interface Course {
 
 interface Stats {
     totalTrainingsAttended: number;
+    totalRecognitions: number;
     skillsAcquired: number;
 }
 
@@ -51,6 +52,11 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
       title: "Total Trainings Attended",
       value: stats?.totalTrainingsAttended,
       icon: <Target className="h-6 w-6 text-muted-foreground" />,
+    },
+    {
+      title: "Total Recognitions",
+      value: stats?.totalRecognitions,
+      icon: <Ribbon className="h-6 w-6 text-muted-foreground" />,
     },
     {
       title: "Skills Acquired",
@@ -71,7 +77,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
           </h1>
           <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           {statCards.map(stat => (
               <Card key={stat.title}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -110,7 +116,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
         </h1>
         <p className="text-muted-foreground">Here's a snapshot of your learning journey.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         {statCards.map(stat => (
             <Card key={stat.title}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

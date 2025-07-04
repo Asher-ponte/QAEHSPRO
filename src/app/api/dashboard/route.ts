@@ -22,12 +22,18 @@ export async function GET() {
         WHERE e.user_id = ?
     `, [userId]);
 
-    // 2. Get stats: Total Trainings Attended & Skills Acquired
+    // 2. Get stats
     const totalTrainingsResult = await db.get(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ?',
-      [userId]
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'completion']
     );
     const totalTrainingsAttended = totalTrainingsResult.count;
+
+    const totalRecognitionsResult = await db.get(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'recognition']
+    );
+    const totalRecognitions = totalRecognitionsResult.count;
 
     const acquiredSkillsResult = await db.all(
         `SELECT DISTINCT c.category FROM certificates cert
@@ -40,7 +46,7 @@ export async function GET() {
     // 3. If no courses, return early.
     if (enrolledCourses.length === 0) {
       return NextResponse.json({
-        stats: { totalTrainingsAttended: totalTrainingsAttended, skillsAcquired: skillsAcquiredCount },
+        stats: { totalTrainingsAttended, totalRecognitions, skillsAcquired: skillsAcquiredCount },
         courses: [],
       });
     }
@@ -98,7 +104,8 @@ export async function GET() {
     
     const dashboardData = {
       stats: {
-        totalTrainingsAttended: totalTrainingsAttended,
+        totalTrainingsAttended,
+        totalRecognitions,
         skillsAcquired: skillsAcquiredCount,
       },
       courses: myCourses,

@@ -25,12 +25,19 @@ async function getDashboardData() {
         WHERE e.user_id = ?
     `, [userId]);
 
-    // 2. Get stats: Total Trainings Attended & Skills Acquired
+    // 2. Get stats
     const totalTrainingsResult = await db.get(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ?',
-      [userId]
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'completion']
     );
     const totalTrainingsAttended = totalTrainingsResult.count;
+
+    const totalRecognitionsResult = await db.get(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'recognition']
+    );
+    const totalRecognitions = totalRecognitionsResult.count;
+
 
     const acquiredSkillsResult = await db.all(
         `SELECT DISTINCT c.category FROM certificates cert
@@ -43,7 +50,7 @@ async function getDashboardData() {
     // 3. If no courses, return early.
     if (enrolledCourses.length === 0) {
       return {
-        stats: { totalTrainingsAttended: totalTrainingsAttended, skillsAcquired: skillsAcquiredCount },
+        stats: { totalTrainingsAttended, totalRecognitions, skillsAcquired: skillsAcquiredCount },
         courses: [],
       };
     }
@@ -101,7 +108,8 @@ async function getDashboardData() {
     
     return {
       stats: {
-        totalTrainingsAttended: totalTrainingsAttended,
+        totalTrainingsAttended,
+        totalRecognitions,
         skillsAcquired: skillsAcquiredCount,
       },
       courses: myCourses,
@@ -110,7 +118,7 @@ async function getDashboardData() {
   } catch (error) {
     console.error('Error fetching dashboard data on server:', error);
     // Return empty state on error to avoid crashing the page.
-    return { stats: { totalTrainingsAttended: 0, skillsAcquired: 0 }, courses: [] };
+    return { stats: { totalTrainingsAttended: 0, totalRecognitions: 0, skillsAcquired: 0 }, courses: [] };
   }
 }
 
