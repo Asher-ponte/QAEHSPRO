@@ -5,11 +5,10 @@ import { open, type Database } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
 
-// Module-level cache for the database connection.
+// Module-level cache for the database connection and the initialization promise.
 let db: Database | null = null;
+let initializationPromise: Promise<Database> | null = null;
 
-// Function to create and setup the database schema.
-// It's safe to run this multiple times as all statements are "IF NOT EXISTS".
 async function setupSchema(dbInstance: Database) {
     await dbInstance.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -113,49 +112,26 @@ async function setupSchema(dbInstance: Database) {
     `);
 }
 
-// Function to seed the database with initial data.
-// This should only run if the database is empty.
 async function seedData(dbInstance: Database) {
     const users = await dbInstance.get('SELECT COUNT(*) as count FROM users');
     if (users && users.count > 0) {
-        console.log("Database already seeded. Skipping.");
-        // Self-healing for admin user just in case.
-        await dbInstance.run(
-            "INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)",
-            [1, 'Demo User', 'Demo User', 'Admin']
-        );
-        await dbInstance.run(
-            "UPDATE users SET role = 'Admin' WHERE id = 1"
-        );
-        return;
+        return; // Database already has users, so we assume it's seeded.
     }
 
     console.log("Database is empty, seeding data...");
     
-    // Using a transaction for seeding
     await dbInstance.exec('BEGIN TRANSACTION');
     try {
-        // Seed Users
         await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
         await dbInstance.run("INSERT INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
-        
-        // Seed Courses
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai')");
         await dbInstance.run("INSERT INTO courses (id, title, description, category, imagePath, venue) VALUES (2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png', 'Online')");
-        
-        // Seed Modules for Course 1
         await dbInstance.run("INSERT INTO modules (id, course_id, title, \"order\") VALUES (1, 1, 'Module 1: Introduction', 1)");
-        
-        // Seed Lessons for Module 1
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\") VALUES (1, 1, 'Welcome to the Course', 'video', null, 1)");
         await dbInstance.run("INSERT INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png')");
-        
-        // Seed Enrollments
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 1)");
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (2, 1)");
         await dbInstance.run("INSERT INTO enrollments (user_id, course_id) VALUES (1, 2)");
-        
-        // Seed App Settings
         await dbInstance.run("INSERT INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
         await dbInstance.run("INSERT INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
         
@@ -164,35 +140,28 @@ async function seedData(dbInstance: Database) {
     } catch (e) {
         await dbInstance.exec('ROLLBACK');
         console.error("Failed to seed database:", e);
-        throw e; // Rethrow to prevent the app from starting with a broken DB state.
+        throw e;
     }
 }
 
-async function initializeDb() {
-    // Dynamically import sqlite3 to ensure it's loaded in the correct environment.
+async function initializeDb(): Promise<Database> {
     const sqlite3Driver = (await import('sqlite3')).default;
-
     const dbPath = path.join(process.cwd(), 'db.sqlite');
-
-    // Ensure parent directory exists.
     const dbDir = path.dirname(dbPath);
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
-    
-    // Ensure the public/images directory exists.
     const imagesDir = path.join(process.cwd(), 'public', 'images');
     if (!fs.existsSync(imagesDir)) {
         fs.mkdirSync(imagesDir, { recursive: true });
         console.log("Created public/images directory.");
     }
-    
+
     const dbInstance = await open({
         filename: dbPath,
         driver: sqlite3Driver.Database,
     });
 
-    // Enable WAL mode for better concurrency and set a busy timeout.
     await dbInstance.exec('PRAGMA journal_mode = WAL;');
     await dbInstance.exec('PRAGMA busy_timeout = 5000;');
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
@@ -203,12 +172,23 @@ async function initializeDb() {
     return dbInstance;
 }
 
-// `getDb` is the main export. It ensures the DB is initialized only once.
-export async function getDb() {
-    if (!db) {
-        console.log("Database connection not found, initializing...");
-        db = await initializeDb();
-        console.log("Database connection initialized.");
+export async function getDb(): Promise<Database> {
+    if (db) {
+        return db;
     }
-    return db;
+    if (initializationPromise) {
+        return initializationPromise;
+    }
+
+    initializationPromise = initializeDb().then(initializedDb => {
+        console.log("Database connection initialized and cached.");
+        db = initializedDb;
+        return db;
+    }).catch(err => {
+        initializationPromise = null;
+        console.error("DATABASE INITIALIZATION FAILED:", err);
+        throw err;
+    });
+
+    return initializationPromise;
 }
