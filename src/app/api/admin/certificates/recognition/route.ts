@@ -6,10 +6,10 @@ import { getCurrentUser } from '@/lib/session';
 import { format } from 'date-fns';
 
 const recognitionCertificateSchema = z.object({
-  userId: z.coerce.number(),
-  reason: z.string().min(10, "Reason must be at least 10 characters."),
+  userId: z.coerce.number({ invalid_type_error: "Please select a user." }),
+  reason: z.string().min(10, { message: "Reason must be at least 10 characters." }),
   date: z.date(),
-  signatoryIds: z.array(z.number()).min(1, "At least one signatory is required."),
+  signatoryIds: z.array(z.number()).min(1, { message: "At least one signatory is required." }),
 });
 
 export async function POST(request: NextRequest) {
