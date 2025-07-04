@@ -2,15 +2,38 @@
 'use server';
 
 import { open, type Database } from 'sqlite';
+import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-// Module-level cache for the database connection and the initialization promise.
-let db: Database | null = null;
-let initializationPromise: Promise<Database> | null = null;
+let dbPromise: Promise<Database> | null = null;
 
-async function setupSchema(dbInstance: Database) {
-    await dbInstance.exec(`
+const DB_FILE = path.join(process.cwd(), 'db.sqlite');
+
+async function initialize() {
+    console.log("Initializing database connection...");
+    
+    const dbDir = path.dirname(DB_FILE);
+    if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+    }
+    const imagesDir = path.join(process.cwd(), 'public', 'images');
+    if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    const db = await open({
+        filename: DB_FILE,
+        driver: sqlite3.Database,
+    });
+
+    await db.exec('PRAGMA journal_mode = WAL;');
+    await db.exec('PRAGMA synchronous = NORMAL;');
+    await db.exec('PRAGMA busy_timeout = 5000;');
+    await db.exec('PRAGMA foreign_keys = ON;');
+
+    // Schema creation - idempotent and safe
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -110,92 +133,24 @@ async function setupSchema(dbInstance: Database) {
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
     `);
-}
-
-async function seedData(dbInstance: Database) {
-    const userCount = await dbInstance.get('SELECT COUNT(*) as count FROM users');
-    if (userCount && userCount.count > 0) {
-        console.log("Database already has users, skipping seeding.");
-        return;
-    }
-
-    console.log("Seeding initial database data...");
     
-    await dbInstance.exec('BEGIN TRANSACTION');
+    // Seed data - idempotent and safe
     try {
-        await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Administration', 'System Administrator', 'Admin']);
-        await dbInstance.run("INSERT OR IGNORE INTO users (id, username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Jonathan Dumalaos', 'Jonathan Dumalaos', 'Administration', 'Director', 'Admin']);
-        
-        await dbInstance.run("INSERT OR IGNORE INTO courses (id, title, description, category, imagePath, venue) VALUES (?, ?, ?, ?, ?, ?)", [1, 'Leadership Principles', 'Learn the core principles of effective leadership and management.', 'Management', '/images/placeholder.png', 'QAEHS Training Center, Dubai']);
-        await dbInstance.run("INSERT OR IGNORE INTO courses (id, title, description, category, imagePath, venue) VALUES (?, ?, ?, ?, ?, ?)", [2, 'Advanced React', 'Deep dive into React hooks, context, and performance optimization.', 'Technical Skills', '/images/placeholder.png', 'Online']);
-        
-        await dbInstance.run("INSERT OR IGNORE INTO modules (id, course_id, title, \"order\") VALUES (?, ?, ?, ?)", [1, 1, 'Module 1: Introduction', 1]);
-        
-        await dbInstance.run("INSERT OR IGNORE INTO lessons (id, module_id, title, type, content, \"order\") VALUES (?, ?, ?, ?, ?, ?)", [1, 1, 'Welcome to the Course', 'video', null, 1]);
-        await dbInstance.run("INSERT OR IGNORE INTO lessons (id, module_id, title, type, content, \"order\", imagePath) VALUES (?, ?, ?, ?, ?, ?, ?)", [2, 1, 'Core Concepts', 'document', '# Core Leadership Concepts...', 2, '/images/placeholder.png']);
-        
-        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [1, 1]);
-        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [2, 1]);
-        await dbInstance.run("INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)", [1, 2]);
-        
-        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
-        await dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
-        
-        await dbInstance.exec('COMMIT');
-        console.log("Database seeded successfully.");
+        await db.run("INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)", [1, 'admin', 'Admin User', 'Admin']);
+        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
+        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
+
     } catch (e) {
-        await dbInstance.exec('ROLLBACK');
-        console.error("Failed to seed database:", e);
-        throw e;
+        console.error("Failed to seed initial data. This might be okay if data already exists.", e);
     }
-}
-
-async function initializeDb(): Promise<Database> {
-    const sqlite3Driver = (await import('sqlite3')).default;
-    const dbPath = path.join(process.cwd(), 'db.sqlite');
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-    }
-    const imagesDir = path.join(process.cwd(), 'public', 'images');
-    if (!fs.existsSync(imagesDir)) {
-        fs.mkdirSync(imagesDir, { recursive: true });
-        console.log("Created public/images directory.");
-    }
-
-    const dbInstance = await open({
-        filename: dbPath,
-        driver: sqlite3Driver.Database,
-    });
-
-    await dbInstance.exec('PRAGMA journal_mode = WAL;');
-    await dbInstance.exec('PRAGMA synchronous = NORMAL;');
-    await dbInstance.exec('PRAGMA busy_timeout = 5000;');
-    await dbInstance.exec('PRAGMA foreign_keys = ON;');
-
-    await setupSchema(dbInstance);
-    await seedData(dbInstance);
-
-    return dbInstance;
+    
+    console.log("Database connection is ready.");
+    return db;
 }
 
 export async function getDb(): Promise<Database> {
-    if (db) {
-        return db;
+    if (!dbPromise) {
+        dbPromise = initialize();
     }
-    if (initializationPromise) {
-        return initializationPromise;
-    }
-
-    initializationPromise = initializeDb().then(initializedDb => {
-        console.log("Database connection initialized and cached.");
-        db = initializedDb;
-        return db;
-    }).catch(err => {
-        initializationPromise = null;
-        console.error("DATABASE INITIALIZATION FAILED:", err);
-        throw err;
-    });
-
-    return initializationPromise;
+    return dbPromise;
 }
