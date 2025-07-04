@@ -6,32 +6,36 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-// This is the singleton promise that will be reused.
+// Ensure directories exist once when the module is first loaded. This is safer for concurrency.
+const dbDir = path.dirname(path.join(process.cwd(), 'db.sqlite'));
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+const imagesDir = path.join(process.cwd(), 'public', 'images');
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+
+
+// This is the singleton promise that will be reused across requests.
 let dbPromise: Promise<Database> | null = null;
 
 // This function contains the actual database setup logic.
-// It will only be called once per server instance.
+// It will only be called once per server instance thanks to the singleton pattern in getDb().
 const setupDatabase = async (): Promise<Database> => {
     console.log("Setting up new database connection...");
     
     const DB_FILE = path.join(process.cwd(), 'db.sqlite');
-    const dbDir = path.dirname(DB_FILE);
-    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     
-    const imagesDir = path.join(process.cwd(), 'public', 'images');
-    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
-
     const db = await open({
         filename: DB_FILE,
         driver: sqlite3.Database,
     });
 
-    // These settings are critical for stability in a web server environment.
+    // These settings are critical for stability and performance in a web server environment.
     await db.exec('PRAGMA journal_mode = WAL;');
     await db.exec('PRAGMA busy_timeout = 5000;');
     await db.exec('PRAGMA foreign_keys = ON;');
+    await db.exec('PRAGMA synchronous = NORMAL;');
 
-    // Schema creation - idempotent and safe to run on every startup.
+    // Schema creation - using "IF NOT EXISTS" makes it safe to run on every startup.
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,7 +137,7 @@ const setupDatabase = async (): Promise<Database> => {
         );
     `);
     
-    // Seed data - idempotent and safe
+    // Seed data - "INSERT OR IGNORE" is idempotent and safe for concurrent execution.
     await db.run("INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)", [1, 'admin', 'Admin User', 'Admin']);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
@@ -142,8 +146,11 @@ const setupDatabase = async (): Promise<Database> => {
     return db;
 }
 
-// This is the exported function that all application code will use.
-// It ensures that setupDatabase() is only ever called once.
+/**
+ * This is the exported function that all application code will use.
+ * It ensures that setupDatabase() is only ever called once per server instance
+ * by using a singleton promise. This is safe for concurrent requests.
+ */
 export async function getDb(): Promise<Database> {
     if (!dbPromise) {
         dbPromise = setupDatabase();

@@ -52,7 +52,7 @@ export async function POST(
             // 2. Check if the current lesson was already complete BEFORE this transaction
             const progressRecord = await db.get(
                 `SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`,
-                [userId, currentLessonId]
+                [userId, lessonId]
             );
             const wasAlreadyCompleted = progressRecord?.completed === 1;
 
