@@ -135,9 +135,15 @@ const setupDatabase = async (): Promise<Database> => {
         );
     `);
     
-    // Seed data - "INSERT OR IGNORE" is idempotent and safe for concurrent execution.
-    // This will only insert data if the primary key (or unique constraint) does not already exist.
-    await db.run("INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)", [1, 'Demo User', 'Demo User', 'Admin']);
+    // Seed data - "UPSERT" logic ensures the demo user is always correct.
+    await db.run(
+        `INSERT INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           username=excluded.username,
+           fullName=excluded.fullName,
+           role=excluded.role;`,
+        [1, 'Demo User', 'Demo User', 'Admin']
+    );
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
