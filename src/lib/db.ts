@@ -6,33 +6,32 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
+// This is the singleton promise that will be reused.
 let dbPromise: Promise<Database> | null = null;
 
-const DB_FILE = path.join(process.cwd(), 'db.sqlite');
-
-async function initialize() {
-    console.log("Initializing database connection...");
+// This function contains the actual database setup logic.
+// It will only be called once per server instance.
+const setupDatabase = async (): Promise<Database> => {
+    console.log("Setting up new database connection...");
     
+    const DB_FILE = path.join(process.cwd(), 'db.sqlite');
     const dbDir = path.dirname(DB_FILE);
-    if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-    }
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+    
     const imagesDir = path.join(process.cwd(), 'public', 'images');
-    if (!fs.existsSync(imagesDir)) {
-        fs.mkdirSync(imagesDir, { recursive: true });
-    }
+    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
 
     const db = await open({
         filename: DB_FILE,
         driver: sqlite3.Database,
     });
 
+    // These settings are critical for stability in a web server environment.
     await db.exec('PRAGMA journal_mode = WAL;');
-    await db.exec('PRAGMA synchronous = NORMAL;');
     await db.exec('PRAGMA busy_timeout = 5000;');
     await db.exec('PRAGMA foreign_keys = ON;');
 
-    // Schema creation - idempotent and safe
+    // Schema creation - idempotent and safe to run on every startup.
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,22 +134,19 @@ async function initialize() {
     `);
     
     // Seed data - idempotent and safe
-    try {
-        await db.run("INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)", [1, 'admin', 'Admin User', 'Admin']);
-        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
-        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
-
-    } catch (e) {
-        console.error("Failed to seed initial data. This might be okay if data already exists.", e);
-    }
+    await db.run("INSERT OR IGNORE INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)", [1, 'admin', 'Admin User', 'Admin']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
     console.log("Database connection is ready.");
     return db;
 }
 
+// This is the exported function that all application code will use.
+// It ensures that setupDatabase() is only ever called once.
 export async function getDb(): Promise<Database> {
     if (!dbPromise) {
-        dbPromise = initialize();
+        dbPromise = setupDatabase();
     }
     return dbPromise;
 }
