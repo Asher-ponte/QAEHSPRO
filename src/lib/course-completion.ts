@@ -49,7 +49,8 @@ export async function checkAndHandleCourseCompletion(
 
     // 3. Check if the course is complete
     if (completedLessonsCount === totalLessons) {
-        // Course is complete, issue a certificate if one doesn't already exist
+        // Course is complete, check for an existing certificate for this completion cycle.
+        // The existence of progress indicates a new cycle has started. We only check for certs linked to this attempt.
         const existingCertificate = await db.get(
             'SELECT id FROM certificates WHERE user_id = ? AND course_id = ?',
             [userId, courseId]
@@ -58,16 +59,26 @@ export async function checkAndHandleCourseCompletion(
         if (!existingCertificate) {
             const today = new Date();
             const datePrefix = format(today, 'yyyyMMdd');
-            // Ensure the countResult is not null before accessing count
             const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
             const nextSerial = (countResult?.count ?? 0) + 1;
             const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
             
             const certResult = await db.run(
-                `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number) VALUES (?, ?, ?, ?)`,
+                `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
                 [userId, courseId, today.toISOString(), certificateNumber]
             );
             certificateId = certResult.lastID ?? null;
+
+            if (certificateId) {
+                // Copy course signatories to the certificate
+                const courseSignatories = await db.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
+                const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
+                for (const sig of courseSignatories) {
+                    await stmt.run(certificateId, sig.signatory_id);
+                }
+                await stmt.finalize();
+            }
+
         } else {
             certificateId = existingCertificate.id;
         }

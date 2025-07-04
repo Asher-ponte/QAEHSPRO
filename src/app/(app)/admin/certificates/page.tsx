@@ -7,7 +7,8 @@ import Image from "next/image"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { PlusCircle, Trash2, MoreHorizontal, ArrowLeft, Loader2, UserPlus, Ribbon } from "lucide-react"
+import { format } from "date-fns"
+import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Check } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +49,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -56,12 +58,30 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Signatory {
   id: number;
   name: string;
   position: string | null;
   signatureImagePath: string;
+}
+
+interface User {
+  id: number;
+  username: string;
+  fullName: string | null;
 }
 
 const signatoryFormSchema = z.object({
@@ -71,6 +91,16 @@ const signatoryFormSchema = z.object({
 })
 
 type SignatoryFormValues = z.infer<typeof signatoryFormSchema>
+
+const recognitionCertificateFormSchema = z.object({
+    userId: z.coerce.number({ invalid_type_error: "Please select a user." }),
+    reason: z.string().min(10, { message: "Reason must be at least 10 characters." }),
+    date: z.date(),
+    signatoryIds: z.array(z.number()).min(1, { message: "Please select at least one signatory." })
+});
+
+type RecognitionCertificateFormValues = z.infer<typeof recognitionCertificateFormSchema>;
+
 
 function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, children: ReactNode }) {
     const [open, setOpen] = useState(false);
@@ -179,6 +209,302 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
     );
 }
 
+function SignatoriesList({ signatories, isLoading, openDeleteDialog }: { signatories: Signatory[], isLoading: boolean, openDeleteDialog: (s: Signatory) => void }) {
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Certificate Signatories</CardTitle>
+                        <CardDescription>
+                            Manage the global pool of signatories.
+                        </CardDescription>
+                    </div>
+                     <SignatoryForm onFormSubmit={() => {}}>
+                        <Button>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Add Signatory
+                        </Button>
+                    </SignatoryForm>
+                </div>
+            </CardHeader>
+            <CardContent>
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Position</TableHead>
+                    <TableHead>Signature</TableHead>
+                    <TableHead><span className="sr-only">Actions</span></TableHead>
+                </TableRow>
+                </TableHeader>
+                <TableBody>
+                {isLoading ? (
+                    Array.from({ length: 2 }).map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-10 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                    </TableRow>
+                    ))
+                ) : signatories.length > 0 ? (
+                    signatories.map((signatory) => (
+                    <TableRow key={signatory.id}>
+                        <TableCell className="font-medium">{signatory.name}</TableCell>
+                        <TableCell>{signatory.position}</TableCell>
+                        <TableCell>
+                            <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(signatory)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Delete</span>
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))
+                ) : (
+                    <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                        No signatories found. Add one to get started.
+                    </TableCell>
+                    </TableRow>
+                )}
+                </TableBody>
+            </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
+
+function RecognitionCertificateForm() {
+    const [users, setUsers] = useState<User[]>([]);
+    const [signatories, setSignatories] = useState<Signatory[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+
+    const form = useForm<RecognitionCertificateFormValues>({
+        resolver: zodResolver(recognitionCertificateFormSchema),
+        defaultValues: {
+            reason: "",
+            date: new Date(),
+            signatoryIds: []
+        }
+    });
+
+    useEffect(() => {
+        async function fetchData() {
+            setIsLoading(true);
+            try {
+                const [usersRes, signatoriesRes] = await Promise.all([
+                    fetch('/api/admin/users'),
+                    fetch('/api/admin/signatories')
+                ]);
+                if (!usersRes.ok || !signatoriesRes.ok) {
+                    throw new Error("Failed to load required data.");
+                }
+                setUsers(await usersRes.json());
+                setSignatories(await signatoriesRes.json());
+            } catch (error) {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Could not load data for form.",
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchData();
+    }, [toast]);
+
+    async function onSubmit(values: RecognitionCertificateFormValues) {
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('/api/admin/certificates/recognition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to create certificate.");
+            }
+            toast({
+                title: "Certificate Created",
+                description: "The Certificate of Recognition has been issued successfully.",
+            });
+            form.reset({
+                reason: "",
+                date: new Date(),
+                signatoryIds: []
+            });
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+    
+    return (
+         <Card>
+            <CardHeader>
+                <CardTitle>Create Certificate of Recognition</CardTitle>
+                <CardDescription>
+                    Issue a special certificate to a user for achievements outside of standard course completions.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-20 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                ) : (
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                            <FormField
+                                control={form.control}
+                                name="userId"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Recipient</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a user to award" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {users.map(user => (
+                                                    <SelectItem key={user.id} value={user.id.toString()}>
+                                                        {user.fullName || user.username}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                             <FormField
+                                control={form.control}
+                                name="reason"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Reason for Recognition</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="e.g., For outstanding performance and dedication in Q3 2024."
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>This text will be displayed prominently on the certificate.</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            
+                            <FormField
+                                control={form.control}
+                                name="date"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                    <FormLabel>Date of Award</FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <FormControl>
+                                            <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                                "w-full max-w-sm justify-start text-left font-normal",
+                                                !field.value && "text-muted-foreground"
+                                            )}
+                                            >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={field.value}
+                                            onSelect={field.onChange}
+                                            initialFocus
+                                        />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            
+                            <FormField
+                                control={form.control}
+                                name="signatoryIds"
+                                render={() => (
+                                <FormItem>
+                                    <div className="mb-4">
+                                        <FormLabel className="text-base">Signatories</FormLabel>
+                                        <FormDescription>Select who will sign this certificate.</FormDescription>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {signatories.map((signatory) => (
+                                            <FormField
+                                                key={signatory.id}
+                                                control={form.control}
+                                                name="signatoryIds"
+                                                render={({ field }) => {
+                                                    return (
+                                                        <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                            <FormControl>
+                                                                <Checkbox
+                                                                    checked={field.value?.includes(signatory.id)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        return checked
+                                                                            ? field.onChange([...field.value, signatory.id])
+                                                                            : field.onChange(field.value?.filter((value) => value !== signatory.id));
+                                                                    }}
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">
+                                                                {signatory.name}
+                                                                {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                                            </FormLabel>
+                                                        </FormItem>
+                                                    );
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                <Award className="mr-2 h-4 w-4" />
+                                Issue Certificate
+                            </Button>
+                        </form>
+                    </Form>
+                )}
+            </CardContent>
+         </Card>
+    );
+}
+
 export default function ManageCertificatesPage() {
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -254,71 +580,24 @@ export default function ManageCertificatesPage() {
             <div>
                 <h1 className="text-3xl font-bold font-headline">Manage Certificates</h1>
                 <p className="text-muted-foreground">
-                    Add or remove signatories for course certificates.
+                    Manage signatories and issue special recognition certificates.
                 </p>
             </div>
         </div>
-        <SignatoryForm onFormSubmit={fetchSignatories}>
-            <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Signatory
-            </Button>
-        </SignatoryForm>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Certificate Signatories</CardTitle>
-          <CardDescription>
-            Manage the global pool of signatories. You can assign specific signatories to each course on the course creation or edit page.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead>Signature</TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 2 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-10 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : signatories.length > 0 ? (
-                signatories.map((signatory) => (
-                  <TableRow key={signatory.id}>
-                    <TableCell className="font-medium">{signatory.name}</TableCell>
-                    <TableCell>{signatory.position}</TableCell>
-                    <TableCell>
-                        <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(signatory)}>
-                         <Trash2 className="h-4 w-4 text-destructive" />
-                         <span className="sr-only">Delete</span>
-                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No signatories found. Add one to get started.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      
+      <Tabs defaultValue="signatories" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="signatories">Signatories</TabsTrigger>
+            <TabsTrigger value="recognition">Certificate of Recognition</TabsTrigger>
+        </TabsList>
+        <TabsContent value="signatories" className="mt-4">
+            <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} />
+        </TabsContent>
+        <TabsContent value="recognition" className="mt-4">
+             <RecognitionCertificateForm />
+        </TabsContent>
+      </Tabs>
       
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

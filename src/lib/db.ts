@@ -99,11 +99,13 @@ async function initializeDb() {
         CREATE TABLE IF NOT EXISTS certificates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            course_id INTEGER NOT NULL,
+            course_id INTEGER,
             completion_date TEXT NOT NULL,
             certificate_number TEXT,
+            type TEXT NOT NULL DEFAULT 'completion' CHECK(type IN ('completion', 'recognition')),
+            reason TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
         );
         `);
 
@@ -139,6 +141,16 @@ async function initializeDb() {
                 signatory_id INTEGER NOT NULL,
                 PRIMARY KEY (course_id, signatory_id),
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+            );
+        `);
+
+        await dbInstance.exec(`
+            CREATE TABLE IF NOT EXISTS certificate_signatories (
+                certificate_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (certificate_id, signatory_id),
+                FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
                 FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
             );
         `);
@@ -220,53 +232,59 @@ async function initializeDb() {
         console.log("Database seeded successfully.");
     } else {
         // Run migrations for existing databases
-        await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS certificates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                course_id INTEGER NOT NULL,
-                completion_date TEXT NOT NULL,
-                certificate_number TEXT,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
-            );
-        `).catch(e => console.log("Could not create certificates table, it might exist already:", e.message));
+        console.log("Running migrations for existing database...");
+        try {
+            // Recreate certificates table with new schema
+            await dbInstance.exec('ALTER TABLE certificates RENAME TO certificates_old;');
+            await dbInstance.exec(`
+                CREATE TABLE certificates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    course_id INTEGER,
+                    completion_date TEXT NOT NULL,
+                    certificate_number TEXT,
+                    type TEXT NOT NULL DEFAULT 'completion' CHECK(type IN ('completion', 'recognition')),
+                    reason TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
+                );
+            `);
+            await dbInstance.exec(`
+                INSERT INTO certificates (id, user_id, course_id, completion_date, certificate_number)
+                SELECT id, user_id, course_id, completion_date, certificate_number FROM certificates_old;
+            `);
+            await dbInstance.exec('DROP TABLE certificates_old;');
+            console.log("Certificates table migrated successfully.");
+        } catch (e) {
+            console.log("Could not migrate certificates table, it might already be up to date:", (e as Error).message);
+            await dbInstance.exec('DROP TABLE IF EXISTS certificates_old;').catch(() => {});
+             await dbInstance.exec('DROP TABLE IF EXISTS certificates;').catch(() => {});
+             await dbInstance.exec(`
+                CREATE TABLE IF NOT EXISTS certificates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    course_id INTEGER,
+                    completion_date TEXT NOT NULL,
+                    certificate_number TEXT,
+                    type TEXT NOT NULL DEFAULT 'completion' CHECK(type IN ('completion', 'recognition')),
+                    reason TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
+                );
+            `).catch(e => console.log("Could not create certificates table, it might exist already:", (e as Error).message));
+        }
+
 
         await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS signatories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                position TEXT,
-                signatureImagePath TEXT NOT NULL
-            );
-        `).catch(e => console.log("Could not create signatories table, it might exist already:", e.message));
-        
-        await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS enrollments (
-                user_id INTEGER NOT NULL,
-                course_id INTEGER NOT NULL,
-                PRIMARY KEY(user_id, course_id),
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
-            );
-        `).catch(e => console.log("Could not create enrollments table, it might exist already:", e.message));
-        
-        await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            );
-        `).catch(e => console.log("Could not create app_settings table, it might exist already:", e.message));
-
-        await dbInstance.exec(`
-            CREATE TABLE IF NOT EXISTS course_signatories (
-                course_id INTEGER NOT NULL,
+            CREATE TABLE IF NOT EXISTS certificate_signatories (
+                certificate_id INTEGER NOT NULL,
                 signatory_id INTEGER NOT NULL,
-                PRIMARY KEY (course_id, signatory_id),
-                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                PRIMARY KEY (certificate_id, signatory_id),
+                FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
                 FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
             );
-        `).catch(e => console.log("Could not create course_signatories table, it might exist already:", e.message));
+        `).catch(e => console.log("Could not create certificate_signatories table, it might exist already:", (e as Error).message));
+
 
         await dbInstance.exec(`
             CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -281,46 +299,42 @@ async function initializeDb() {
                 FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
             );
-        `).catch(e => console.log("Could not create quiz_attempts table, it might exist already:", e.message));
+        `).catch(e => console.log("Could not create quiz_attempts table, it might exist already:", (e as Error).message));
 
         await dbInstance.exec(`
             ALTER TABLE signatories ADD COLUMN position TEXT;
-        `).catch(e => console.log("Could not add position column to signatories, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add position column to signatories, it might exist already:", (e as Error).message));
 
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN department TEXT;
-        `).catch(e => console.log("Could not add department column to users, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add department column to users, it might exist already:", (e as Error).message));
         
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN position TEXT;
-        `).catch(e => console.log("Could not add position column to users, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add position column to users, it might exist already:", (e as Error).message));
         
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN role TEXT;
-        `).catch(e => console.log("Could not add role column to users, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add role column to users, it might exist already:", (e as Error).message));
         
         await dbInstance.exec(`
             ALTER TABLE courses ADD COLUMN startDate TEXT;
-        `).catch(e => console.log("Could not add startDate column to courses, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add startDate column to courses, it might exist already:", (e as Error).message));
 
         await dbInstance.exec(`
             ALTER TABLE courses ADD COLUMN endDate TEXT;
-        `).catch(e => console.log("Could not add endDate column to courses, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add endDate column to courses, it might exist already:", (e as Error).message));
         
         await dbInstance.exec(`
-            ALTER TABLE certificates ADD COLUMN certificate_number TEXT;
-        `).catch(e => console.log("Could not add certificate_number column to certificates, it might exist already:", e.message));
-
-        await dbInstance.exec(`
             ALTER TABLE courses ADD COLUMN venue TEXT;
-        `).catch(e => console.log("Could not add venue column to courses, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add venue column to courses, it might exist already:", (e as Error).message));
 
         await dbInstance.exec(`
             ALTER TABLE users ADD COLUMN fullName TEXT;
-        `).catch(e => console.log("Could not add fullName column to users, it might exist already:", e.message));
+        `).catch(e => console.log("Could not add fullName column to users, it might exist already:", (e as Error).message));
 
         // Backfill fullName for existing users
-        await dbInstance.run("UPDATE users SET fullName = username WHERE fullName IS NULL OR fullName = ''").catch(e => console.log("Failed to backfill fullName:", e.message));
+        await dbInstance.run("UPDATE users SET fullName = username WHERE fullName IS NULL OR fullName = ''").catch(e => console.log("Failed to backfill fullName:", (e as Error).message));
 
 
         // Seed default settings if they don't exist for existing dbs

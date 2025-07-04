@@ -12,9 +12,16 @@ export async function GET(request: NextRequest) {
     try {
         const db = await getDb();
         const certificates = await db.all(
-            `SELECT c.id, c.user_id, c.course_id, c.completion_date, co.title
+            `SELECT 
+                c.id, 
+                c.user_id, 
+                c.course_id, 
+                c.completion_date, 
+                c.type,
+                c.reason,
+                co.title
              FROM certificates c
-             JOIN courses co ON c.course_id = co.id
+             LEFT JOIN courses co ON c.course_id = co.id
              WHERE c.user_id = ?
              ORDER BY c.completion_date DESC`,
             [user.id]

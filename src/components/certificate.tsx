@@ -15,8 +15,10 @@ interface CertificateData {
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
   user: { username: string; fullName: string | null };
-  course: { title: string; venue: string | null };
+  course: { title: string; venue: string | null } | null;
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
+  type: 'completion' | 'recognition';
+  reason: string | null;
 }
 
 export function Certificate({ data }: { data: CertificateData }) {
@@ -24,7 +26,6 @@ export function Certificate({ data }: { data: CertificateData }) {
 
     useEffect(() => {
         if (data.certificateNumber) {
-            // Use a placeholder validation URL. A real implementation might point to a public validation page.
             const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}`;
             QRCode.toDataURL(validationUrl, {
                 errorCorrectionLevel: 'M',
@@ -84,19 +85,24 @@ export function Certificate({ data }: { data: CertificateData }) {
                                 {data.user.fullName || data.user.username}
                             </h1>
                         </div>
-                        <p className="text-xl">
-                            for successfully completing the course
-                        </p>
-                        <h3 className="text-4xl font-semibold my-2">
-                           "{data.course.title}"
-                        </h3>
-                        <p className="text-xl mt-2">
-                            on {format(new Date(data.completion_date), "MMMM d, yyyy")}
-                        </p>
-                        {data.course.venue && (
-                            <p className="text-lg mt-1 text-muted-foreground">
-                                at {data.course.venue}
-                            </p>
+                        
+                        {data.type === 'completion' && data.course && (
+                            <>
+                                <p className="text-xl">for successfully completing the course</p>
+                                <h3 className="text-4xl font-semibold my-2">"{data.course.title}"</h3>
+                                <p className="text-xl mt-2">on {format(new Date(data.completion_date), "MMMM d, yyyy")}</p>
+                                {data.course.venue && (
+                                    <p className="text-lg mt-1 text-muted-foreground">at {data.course.venue}</p>
+                                )}
+                            </>
+                        )}
+                        
+                        {data.type === 'recognition' && (
+                             <>
+                                <p className="text-xl">in recognition of</p>
+                                <h3 className="text-4xl font-semibold my-2">"{data.reason}"</h3>
+                                <p className="text-xl mt-2">Awarded on {format(new Date(data.completion_date), "MMMM d, yyyy")}</p>
+                            </>
                         )}
                     </main>
 

@@ -24,13 +24,18 @@ export async function GET(request: NextRequest) {
         }
         
         const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
-        const course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+        
+        let course = null;
+        if (certificate.course_id) {
+            course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+        }
+
         const signatories = await db.all(`
             SELECT s.name, s.position, s.signatureImagePath
             FROM signatories s
-            JOIN course_signatories cs ON s.id = cs.signatory_id
-            WHERE cs.course_id = ?
-        `, certificate.course_id);
+            JOIN certificate_signatories cs ON s.id = cs.signatory_id
+            WHERE cs.certificate_id = ?
+        `, certificate.id);
         
         const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
         
@@ -43,6 +48,8 @@ export async function GET(request: NextRequest) {
             id: certificate.id,
             completion_date: certificate.completion_date,
             certificateNumber: certificate.certificate_number,
+            type: certificate.type,
+            reason: certificate.reason,
             companyName: companyName,
             companyAddress: companyAddress,
             companyLogoPath: companyLogoPath,
@@ -51,10 +58,10 @@ export async function GET(request: NextRequest) {
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null
             },
-            course: {
+            course: course ? {
                 title: course?.title || 'Unknown Course',
                 venue: course?.venue || null,
-            },
+            } : null,
             signatories: signatories,
         };
 

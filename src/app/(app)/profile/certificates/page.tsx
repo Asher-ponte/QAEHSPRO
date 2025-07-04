@@ -24,12 +24,15 @@ import {
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 
 interface CertificateInfo {
   id: number;
-  course_id: number;
+  course_id: number | null;
   completion_date: string;
-  title: string;
+  title: string | null;
+  type: 'completion' | 'recognition';
+  reason: string | null;
 }
 
 export default function MyCertificatesPage() {
@@ -74,14 +77,15 @@ export default function MyCertificatesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Earned Certificates</CardTitle>
-          <CardDescription>A list of all the courses you have successfully completed.</CardDescription>
+          <CardDescription>A list of all the awards and course completions you have earned.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Course Title</TableHead>
-                <TableHead>Completion Date</TableHead>
+                <TableHead>Award / Course Title</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -90,6 +94,7 @@ export default function MyCertificatesPage() {
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                   </TableRow>
@@ -97,7 +102,12 @@ export default function MyCertificatesPage() {
               ) : certificates.length > 0 ? (
                 certificates.map((cert) => (
                   <TableRow key={cert.id}>
-                    <TableCell className="font-medium">{cert.title}</TableCell>
+                    <TableCell className="font-medium">{cert.title || 'Certificate of Recognition'}</TableCell>
+                    <TableCell>
+                      <Badge variant={cert.type === 'recognition' ? 'default' : 'secondary'}>
+                        {cert.type === 'recognition' ? 'Recognition' : 'Course'}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{format(new Date(cert.completion_date), "MMMM d, yyyy")}</TableCell>
                     <TableCell className="text-right">
                       <Button asChild size="sm">
@@ -111,7 +121,7 @@ export default function MyCertificatesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={4} className="h-24 text-center">
                     You haven't earned any certificates yet.
                   </TableCell>
                 </TableRow>
