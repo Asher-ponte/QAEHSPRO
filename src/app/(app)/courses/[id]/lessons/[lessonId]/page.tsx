@@ -292,6 +292,25 @@ export default function LessonPage() {
         fetchLesson();
     }, [fetchLesson]);
 
+    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
+        // This function is called when a lesson is successfully completed.
+        fetchLesson(); // Refetch to update UI state (e.g., show lesson as completed)
+
+        if (data.certificateId) {
+            toast({
+                title: "Congratulations!",
+                description: "You've completed the course! Redirecting to your new certificate...",
+            });
+            // Redirect to the certificate page
+            router.push(`/profile/certificates/${data.certificateId}`);
+        } else {
+            toast({
+                title: lesson?.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
+                description: "You can now proceed to the next lesson.",
+            });
+        }
+    };
+    
     const handleCompleteLesson = async () => {
         if (!lesson || isCompleting || lesson.type === 'quiz') return;
         setIsCompleting(true);
@@ -316,24 +335,6 @@ export default function LessonPage() {
             setIsCompleting(false);
         }
     }
-    
-    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
-        // This function is called when a lesson is successfully completed.
-        // We always refetch the lesson to update its "completed" status on the UI.
-        fetchLesson();
-
-        if (data.certificateId) {
-             toast({
-                title: "Congratulations!",
-                description: "You've completed the course and earned a certificate!",
-            });
-        } else {
-             toast({
-                title: lesson?.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
-                description: "You can now proceed to the next lesson.",
-            });
-        }
-    };
     
     const handleNextClick = () => {
         if (!lesson) return;
@@ -451,16 +452,24 @@ export default function LessonPage() {
                     </Button>
                 )}
 
-                 {lesson.type === 'quiz' && lesson.nextLessonId && (
-                     <Button asChild disabled={!lesson.completed}>
-                        <Link href={`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`}>
-                            Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                     </Button>
-                 )}
+                {lesson.type === 'quiz' && (
+                    <>
+                        {lesson.nextLessonId ? (
+                            <Button
+                                onClick={() => router.push(`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`)}
+                                disabled={!lesson.completed}
+                            >
+                                Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                        ) : (
+                            <Button disabled={true}>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                {lesson.completed ? 'Course Complete' : 'Pass Quiz to Finish'}
+                            </Button>
+                        )}
+                    </>
+                )}
             </div>
         </div>
     )
 }
-
-    
