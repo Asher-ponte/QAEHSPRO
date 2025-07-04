@@ -36,8 +36,6 @@ export async function POST(
         
         await db.run('BEGIN TRANSACTION');
 
-        // Logic to check, update, and potentially create certificate atomically.
-
         // 1. Get total lessons for the course
         const totalLessonsResult = await db.get(
             `SELECT COUNT(l.id) as count FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
