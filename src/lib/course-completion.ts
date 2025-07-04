@@ -45,36 +45,8 @@ export async function checkAndHandleCourseCompletion(
     );
     const completedLessonsCount = completedLessonsResult?.count ?? 0;
 
-    let nextLessonId: number | null = null;
-    let certificateId: number | null = null;
-
     // 3. Check if the course is complete
-    if (completedLessonsCount === totalLessons) {
-        // Course is complete. Create a new certificate. This allows for re-training to generate new certificates.
-        const today = new Date();
-        const datePrefix = format(today, 'yyyyMMdd');
-        const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-        const nextSerial = (countResult?.count ?? 0) + 1;
-        const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
-        
-        const certResult = await db.run(
-            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
-            [userId, courseId, today.toISOString(), certificateNumber]
-        );
-        certificateId = certResult.lastID ?? null;
-
-        if (certificateId) {
-            // Atomically copy all signatories assigned to the course to the new certificate
-            await db.run(
-                `INSERT INTO certificate_signatories (certificate_id, signatory_id)
-                 SELECT ?, s.signatory_id
-                 FROM course_signatories s
-                 WHERE s.course_id = ?`,
-                [certificateId, courseId]
-            );
-        }
-
-    } else {
+    if (completedLessonsCount < totalLessons) {
         // Course not complete, find the next lesson in sequence.
         const allLessonsOrderedResult = await db.all(
             `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
@@ -83,10 +55,37 @@ export async function checkAndHandleCourseCompletion(
         const allLessonsOrdered = allLessonsOrderedResult.map(l => l.id);
         const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === currentLessonId);
 
+        let nextLessonId: number | null = null;
         if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
             nextLessonId = allLessonsOrdered[currentIndex + 1];
         }
+        return { nextLessonId, certificateId: null };
     }
+    
+    // 4. Course IS complete. Create a certificate.
+    const today = new Date();
+    const datePrefix = format(today, 'yyyyMMdd');
+    const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+    const nextSerial = (countResult?.count ?? 0) + 1;
+    const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+    
+    const certResult = await db.run(
+        `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
+        [userId, courseId, today.toISOString(), certificateNumber]
+    );
+    const certificateId = certResult.lastID ?? null;
 
-    return { nextLessonId, certificateId };
+    if (certificateId) {
+        // Atomically copy all signatories assigned to the course to the new certificate
+        await db.run(
+            `INSERT INTO certificate_signatories (certificate_id, signatory_id)
+             SELECT ?, s.signatory_id
+             FROM course_signatories s
+             WHERE s.course_id = ?`,
+            [certificateId, courseId]
+        );
+    }
+    
+    // No next lesson, as the course is finished.
+    return { nextLessonId: null, certificateId };
 }

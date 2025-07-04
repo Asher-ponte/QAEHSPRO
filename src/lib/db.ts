@@ -113,9 +113,9 @@ async function setupSchema(dbInstance: Database) {
 }
 
 async function seedData(dbInstance: Database) {
-    const demoUser = await dbInstance.get('SELECT id FROM users WHERE id = ?', [1]);
-    if (demoUser) {
-        console.log("Demo user already exists, skipping seeding.");
+    const userCount = await dbInstance.get('SELECT COUNT(*) as count FROM users');
+    if (userCount && userCount.count > 0) {
+        console.log("Database already has users, skipping seeding.");
         return;
     }
 
@@ -169,6 +169,7 @@ async function initializeDb(): Promise<Database> {
     });
 
     await dbInstance.exec('PRAGMA journal_mode = WAL;');
+    await dbInstance.exec('PRAGMA synchronous = NORMAL;');
     await dbInstance.exec('PRAGMA busy_timeout = 5000;');
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
