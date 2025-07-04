@@ -14,11 +14,12 @@ let dbPromise: Promise<Database> | null = null;
 const setupDatabase = async (): Promise<Database> => {
     console.log("Setting up new database connection...");
     
-    const dbPath = path.join(process.cwd(), 'db.sqlite');
+    const dataDir = path.join(process.cwd(), 'data');
+    const dbPath = path.join(dataDir, 'db.sqlite');
     const imagesDir = path.join(process.cwd(), 'public', 'images');
 
     // Ensure directories exist. Since this function is called only once, this is safe.
-    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.mkdir(dataDir, { recursive: true });
     await fs.mkdir(imagesDir, { recursive: true });
     
     const db = await open({
