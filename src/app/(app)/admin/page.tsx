@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Database } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Database, Siren, ClipboardCheck, FolderKanban } from "lucide-react"
 import Link from "next/link"
 import fs from "fs"
 import path from "path"
@@ -18,30 +18,56 @@ const adminActions = [
     description: "Create, edit, and delete training courses.",
     icon: <BookOpen className="h-8 w-8 text-primary" />,
     href: "/admin/courses",
+    disabled: false,
   },
   {
     title: "Manage Users",
     description: "Onboard new employees and manage user roles.",
     icon: <Users className="h-8 w-8 text-primary" />,
     href: "/admin/users",
+    disabled: false,
   },
   {
     title: "View Analytics",
     description: "Track course completion and user engagement.",
     icon: <BarChart className="h-8 w-8 text-primary" />,
     href: "/admin/analytics",
+    disabled: false,
+  },
+  {
+    title: "Incident Tracking",
+    description: "Report and analyze incidents and near misses.",
+    icon: <Siren className="h-8 w-8 text-primary" />,
+    href: "#",
+    disabled: true,
+  },
+  {
+    title: "Audit Management",
+    description: "Schedule, conduct, and track internal audits.",
+    icon: <ClipboardCheck className="h-8 w-8 text-primary" />,
+    href: "#",
+    disabled: true,
+  },
+  {
+    title: "Document Control",
+    description: "Manage EHS policies, procedures, and records.",
+    icon: <FolderKanban className="h-8 w-8 text-primary" />,
+    href: "#",
+    disabled: true,
   },
   {
     title: "Manage Certificates",
     description: "Configure signatories for certificates.",
     icon: <Ribbon className="h-8 w-8 text-primary" />,
     href: "/admin/certificates",
+    disabled: false,
   },
   {
     title: "Platform Settings",
     description: "Configure global platform settings like company name.",
     icon: <Settings className="h-8 w-8 text-primary" />,
     href: "/admin/settings",
+    disabled: false,
   },
 ]
 
@@ -73,7 +99,7 @@ export default function AdminPage() {
         <div>
           <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage your organization's learning platform.
+            Manage your organization's Quality Assurance and EHS learning platform.
           </p>
         </div>
         <Link href="/admin/courses/new">
@@ -105,9 +131,9 @@ export default function AdminPage() {
        <div>
         <h2 className="text-2xl font-bold font-headline mb-4">Management Actions</h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {adminActions.map((action) => (
-            <Link href={action.href} key={action.title}>
-                <Card className="h-full hover:bg-muted/50 transition-colors">
+          {adminActions.map((action) => {
+            const card = (
+              <Card className={`h-full transition-colors ${action.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/50'}`}>
                 <CardHeader>
                     {action.icon}
                 </CardHeader>
@@ -117,9 +143,19 @@ export default function AdminPage() {
                     {action.description}
                     </CardDescription>
                 </CardContent>
-                </Card>
-            </Link>
-            ))}
+              </Card>
+            );
+
+            if (action.disabled) {
+                return <div key={action.title}>{card}</div>;
+            }
+
+            return (
+                <Link href={action.href} key={action.title}>
+                    {card}
+                </Link>
+            );
+          })}
         </div>
       </div>
     </div>

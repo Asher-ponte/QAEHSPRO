@@ -667,15 +667,17 @@ export default function ManageCoursesPage() {
                   value={filters.category}
                   onValueChange={(value) => handleFilterChange('category', value)}
               >
-                  <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[240px]">
                       <SelectValue placeholder="Filter by category" />
                   </SelectTrigger>
                   <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="Management">Management</SelectItem>
-                      <SelectItem value="Technical Skills">Technical Skills</SelectItem>
-                      <SelectItem value="Compliance">Compliance</SelectItem>
-                      <SelectItem value="Soft Skills">Soft Skills</SelectItem>
+                      <SelectItem value="OSHA Compliance">OSHA Compliance</SelectItem>
+                      <SelectItem value="ISO Standards">ISO Standards</SelectItem>
+                      <SelectItem value="Philippine Local Compliance">Philippine Local Compliance</SelectItem>
+                      <SelectItem value="Risk & Incident Mgmt.">Risk & Incident Mgmt.</SelectItem>
+                      <SelectItem value="Environmental Stewardship">Environmental Stewardship</SelectItem>
+                      <SelectItem value="Quality Control">Quality Control</SelectItem>
                   </SelectContent>
               </Select>
               <Button variant="outline" onClick={clearFilters} disabled={!filtersAreActive}>Clear Filters</Button>

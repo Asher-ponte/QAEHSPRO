@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -109,7 +110,7 @@ export default function LoginPage() {
             </div>
           <CardTitle className="text-2xl font-bold font-headline">Welcome Back</CardTitle>
           <CardDescription>
-            Enter your username to sign in to your account.
+            Sign in to the QA & EHS learning platform.
           </CardDescription>
         </CardHeader>
         <CardContent>

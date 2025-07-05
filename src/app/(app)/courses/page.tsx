@@ -78,9 +78,9 @@ export default function CoursesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold font-headline">Courses</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold font-headline">Course Catalog</h1>
         <p className="text-muted-foreground">
-          Browse our catalog of courses to enhance your skills.
+          Browse our catalog of QA & EHS courses to enhance your skills.
         </p>
       </div>
 
