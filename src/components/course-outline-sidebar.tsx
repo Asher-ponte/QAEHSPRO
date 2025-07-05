@@ -12,11 +12,6 @@ import {
   PlayCircle,
   CheckCircle,
 } from "lucide-react"
-import {
-  SidebarHeader,
-  SidebarContent,
-  SidebarTitle,
-} from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
 interface Lesson {
@@ -56,10 +51,10 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   
   return (
     <>
-      <SidebarHeader className="p-4 border-b">
-        <SidebarTitle className="text-xl font-bold text-foreground">{course.title}</SidebarTitle>
-      </SidebarHeader>
-      <SidebarContent>
+      <div className="p-4 border-b">
+        <h3 className="text-xl font-bold text-foreground">{course.title}</h3>
+      </div>
+      <div className="flex-1 overflow-y-auto">
         <Accordion type="multiple" defaultValue={currentModule ? [currentModule.title] : []} className="w-full">
             {course.modules.map((module) => (
             <AccordionItem value={module.title} key={module.id}>
@@ -90,7 +85,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
             </AccordionItem>
             ))}
         </Accordion>
-      </SidebarContent>
+      </div>
     </>
   )
 }
