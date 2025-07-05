@@ -400,12 +400,6 @@ export default function LessonPage() {
 
     return (
         <div className="space-y-6 pb-24 md:pb-6">
-            <Button asChild variant="outline">
-                <Link href={`/courses/${lesson.course_id}`} className="inline-flex items-center gap-2">
-                    <ArrowLeft className="h-4 w-4" />
-                    <span className="truncate">Back to "{lesson.course_title}"</span>
-                </Link>
-            </Button>
             
             <Card>
                 <CardHeader className="p-3">
