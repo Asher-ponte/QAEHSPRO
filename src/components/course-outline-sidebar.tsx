@@ -52,7 +52,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
             <p className="text-sm text-foreground">Course Content</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-            <Accordion type="single" collapsible defaultValue={currentModule?.id.toString()}>
+            <Accordion type="single" collapsible>
               {course.modules.map((module) => (
                 <AccordionItem value={module.id.toString()} key={module.id}>
                   <AccordionTrigger className="font-semibold text-left break-words px-4 text-sm hover:no-underline">
@@ -66,7 +66,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                              href={`/courses/${course.id}/lessons/${lesson.id}`}
                              onClick={() => setOpenMobile(false)}
                              className={cn(
-                                "flex items-center justify-between gap-2 text-sm p-2 mx-4 rounded-md hover:bg-muted transition-colors",
+                                "flex items-center justify-between gap-2 text-sm p-2 mx-4 rounded-md hover:bg-muted transition-colors text-foreground",
                                 lesson.id === currentLessonId && "bg-muted font-semibold"
                              )}
                            >
