@@ -36,10 +36,10 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "video": return <PlayCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
-      case "document": return <FileText className="h-5 w-5 mr-3 text-muted-foreground" />;
-      case "quiz": return <CheckCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
-      default: return <ListVideo className="h-5 w-5 mr-3 text-muted-foreground" />;
+      case "video": return <PlayCircle className="h-5 w-5 mr-3 text-foreground" />;
+      case "document": return <FileText className="h-5 w-5 mr-3 text-foreground" />;
+      case "quiz": return <CheckCircle className="h-5 w-5 mr-3 text-foreground" />;
+      default: return <ListVideo className="h-5 w-5 mr-3 text-foreground" />;
     }
   }
 
@@ -49,7 +49,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
     <div className="flex flex-col h-full bg-card">
         <div className="p-4 border-b">
             <h2 className="text-lg font-semibold truncate">{course.title}</h2>
-            <p className="text-sm text-muted-foreground">Course Content</p>
+            <p className="text-sm text-foreground">Course Content</p>
         </div>
         <div className="flex-1 overflow-y-auto">
             <Accordion type="single" collapsible defaultValue={currentModule?.id.toString()}>
