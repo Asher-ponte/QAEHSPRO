@@ -160,31 +160,26 @@ export default function CourseDetailPage() {
 
   if (isLoading) {
      return (
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <Card className="overflow-hidden">
-              <Skeleton className="w-full aspect-[3/2]" />
-              <CardContent className="p-6">
-                <Skeleton className="h-8 w-3/4 mb-4" />
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-4 w-2/3" />
-              </CardContent>
-            </Card>
-          </div>
-          <div className="space-y-6">
-            <Skeleton className="h-10 w-full hidden md:block" />
-            <Card>
-                <CardHeader>
-                    <Skeleton className="h-6 w-1/2" />
-                </CardHeader>
-                <CardContent className="space-y-4 pt-6">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </CardContent>
-            </Card>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-8 order-2 lg:order-1 space-y-6">
+                <div className="space-y-4">
+                    <Skeleton className="h-8 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                </div>
+                <Skeleton className="h-10 w-48" />
+                <Card>
+                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
+                    <CardContent className="space-y-4 pt-6">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="lg:col-span-4 order-1 lg:order-2">
+                <Skeleton className="w-full aspect-video sticky top-20 rounded-lg" />
+            </div>
         </div>
      )
   }
@@ -210,29 +205,15 @@ export default function CourseDetailPage() {
   };
 
   return (
-    <div className="grid md:grid-cols-3 gap-8 pb-24 md:pb-8">
-      <div className="md:col-span-2">
-        <Card className="overflow-hidden">
-          <div className="w-full aspect-[3/2] relative">
-            <Image
-              src={course.imagePath || 'https://placehold.co/600x400'}
-              alt={course.title}
-              fill
-              className="object-cover"
-              data-ai-hint="course cover"
-            />
-          </div>
-          <CardContent className="p-6">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-headline mb-2 break-words">{course.title}</h1>
-            <p className="text-muted-foreground break-words">{course.description}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-6">
-         <div className="w-full hidden md:flex">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-24 md:pb-8">
+      <div className="lg:col-span-8 order-2 lg:order-1 space-y-6">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-headline break-words">{course.title}</h1>
+        <p className="text-muted-foreground break-words">{course.description}</p>
+        
+        <div className="w-full hidden md:block">
             <ActionButton />
-         </div>
+        </div>
+          
         <Card>
           <CardHeader>
             <CardTitle>Course Content</CardTitle>
@@ -276,6 +257,22 @@ export default function CourseDetailPage() {
             </Accordion>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="lg:col-span-4 order-1 lg:order-2">
+         <div className="sticky top-20">
+            <Card className="overflow-hidden">
+                <div className="w-full aspect-video relative">
+                    <Image
+                    src={course.imagePath || 'https://placehold.co/600x400'}
+                    alt={course.title}
+                    fill
+                    className="object-cover"
+                    data-ai-hint="course cover"
+                    />
+                </div>
+            </Card>
+        </div>
       </div>
       
       {/* Floating button for mobile */}
