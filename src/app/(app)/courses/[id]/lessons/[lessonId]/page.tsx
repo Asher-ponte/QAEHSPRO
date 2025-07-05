@@ -130,18 +130,19 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
                 throw new Error(data.error || "Failed to submit quiz.");
             }
             
-            setShowResults(true);
-            setLastScore({ correct: data.score, total: data.total });
-            setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
-
-            if (data.passed) {
+            // This now correctly reflects the server's response.
+            if(data.passed) {
+                setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
                 onQuizPass(data);
             } else {
-                toast({
+                 setLastScore({ correct: data.score, total: data.total });
+                 setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
+                 toast({
                     title: "Some answers are incorrect",
                     description: `You got ${data.score} out of ${data.total}. The correct answers have been locked. Please try again.`,
                 });
             }
+            setShowResults(true);
 
         } catch (error) {
             const msg = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -243,10 +244,10 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
             );
         case 'document':
             const hasImage = !!lesson.imagePath;
-            return (
-                <div className="space-y-6">
-                    {hasImage && (
-                        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+            if (hasImage) {
+                return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg">
                             <Image
                                 src={lesson.imagePath!}
                                 alt={lesson.title}
@@ -254,12 +255,19 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
                                 className="object-cover"
                             />
                         </div>
-                    )}
-                    <article
-                        className="prose dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
-                    />
-                </div>
+                        <article
+                            className="prose dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
+                        />
+                    </div>
+                );
+            }
+            // Fallback for no image
+            return (
+                 <article
+                    className="prose dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
+                />
             );
         case 'quiz':
             return <QuizContent lesson={lesson} onQuizPass={onQuizPass} />;
@@ -270,8 +278,8 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
 
 function LessonPageSkeleton() {
     return (
-        <div className="flex h-screen">
-            <div className="hidden md:block w-72 border-r">
+        <SidebarProvider>
+            <Sidebar>
                 <div className="p-4 border-b">
                     <Skeleton className="h-6 w-3/4" />
                     <Skeleton className="h-4 w-1/2 mt-2" />
@@ -281,21 +289,23 @@ function LessonPageSkeleton() {
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                 </div>
-            </div>
-            <div className="flex-1 p-6 space-y-6">
-                <Skeleton className="h-8 w-48" />
-                <Card>
-                    <CardHeader>
-                        <Skeleton className="h-8 w-3/4" />
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                        <Skeleton className="h-48 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+            </Sidebar>
+            <SidebarInset>
+                <div className="flex-1 p-6 space-y-6">
+                    <Skeleton className="h-8 w-48" />
+                    <Card>
+                        <CardHeader>
+                            <Skeleton className="h-8 w-3/4" />
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-4">
+                            <Skeleton className="h-48 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-2/3" />
+                        </CardContent>
+                    </Card>
+                </div>
+            </SidebarInset>
+        </SidebarProvider>
     )
 }
 
@@ -307,11 +317,17 @@ export default function LessonPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
     
-    const fetchPageData = useCallback(async () => {
+    const fetchPageData = useCallback(async (options: { invalidateCache?: boolean } = {}) => {
         if (!params.id || !params.lessonId) return;
+        if (options.invalidateCache) {
+             setPageData(null);
+        }
         setIsLoading(true);
+
         try {
-            const res = await fetch(`/api/courses/${params.id}/lessons/${params.lessonId}`);
+            const url = `/api/courses/${params.id}/lessons/${params.lessonId}`;
+            const res = await fetch(url, { cache: options.invalidateCache ? 'no-store' : 'default' });
+            
             if (!res.ok) {
                 const errorData = await res.json().catch(() => (null));
                 throw new Error(errorData?.error || 'Failed to fetch lesson');
@@ -347,20 +363,26 @@ export default function LessonPage() {
     }, [params.id, params.lessonId, toast]);
 
     useEffect(() => {
+        // Use a key based on lessonId to force re-render when navigating between lessons
+        // This ensures the page data is always fresh for the current lesson
         fetchPageData();
-    }, [fetchPageData]);
+    }, [params.lessonId, fetchPageData]);
 
     const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
         // Refetch to update UI state (e.g., show lesson as completed in sidebar)
-        fetchPageData();
+        // Pass invalidateCache to ensure we get the latest progress state.
+        fetchPageData({ invalidateCache: true });
 
         if (data.certificateId) {
             toast({
-                title: "Congratulations!",
-                description: "You've completed the course! Redirecting to your new certificate...",
+                title: "Congratulations! Course Completed!",
+                description: "Redirecting to your new certificate...",
+                duration: 5000,
             });
             // Redirect to the certificate page
-            router.push(`/profile/certificates/${data.certificateId}`);
+            setTimeout(() => {
+                router.push(`/profile/certificates/${data.certificateId}`);
+            }, 2000);
         } else {
              toast({
                 title: pageData?.lesson.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
@@ -403,7 +425,7 @@ export default function LessonPage() {
         }
     };
 
-    if (isLoading) {
+    if (isLoading && !pageData) { // Only show full-page skeleton on initial load
         return <LessonPageSkeleton />
     }
 
@@ -500,10 +522,12 @@ export default function LessonPage() {
                             <>
                                 {nextLessonId ? (
                                     <Button
-                                        onClick={() => router.push(`/courses/${course.id}/lessons/${nextLessonId}`)}
+                                        asChild
                                         disabled={!lesson.completed}
                                     >
-                                        Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
+                                        <Link href={`/courses/${course.id}/lessons/${nextLessonId}`}>
+                                            Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
+                                        </Link>
                                     </Button>
                                 ) : (
                                     <Button disabled={!lesson.completed}>
