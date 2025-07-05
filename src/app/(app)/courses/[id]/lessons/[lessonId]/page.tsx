@@ -465,7 +465,7 @@ export default function LessonPage() {
     };
 
     return (
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false}>
             <Sidebar>
                 <CourseOutlineSidebar course={course} currentLessonId={lesson.id} />
             </Sidebar>
