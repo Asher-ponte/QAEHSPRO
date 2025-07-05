@@ -581,12 +581,12 @@ export default function CreateCoursePage() {
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="OSHA Compliance">OSHA Compliance</SelectItem>
-                                    <SelectItem value="ISO Standards">ISO Standards</SelectItem>
-                                    <SelectItem value="Philippine Local Compliance">Philippine Local Compliance</SelectItem>
-                                    <SelectItem value="Risk & Incident Mgmt.">Risk & Incident Mgmt.</SelectItem>
-                                    <SelectItem value="Environmental Stewardship">Environmental Stewardship</SelectItem>
-                                    <SelectItem value="Quality Control">Quality Control</SelectItem>
+                                    <SelectItem value="Leadership">Leadership</SelectItem>
+                                    <SelectItem value="Marketing">Marketing</SelectItem>
+                                    <SelectItem value="Sales">Sales</SelectItem>
+                                    <SelectItem value="Engineering">Engineering</SelectItem>
+                                    <SelectItem value="Product">Product</SelectItem>
+                                    <SelectItem value="Design">Design</SelectItem>
                                 </SelectContent>
                                 </Select>
                                 <FormDescription>

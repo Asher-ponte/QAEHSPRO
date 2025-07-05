@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Database, Siren, ClipboardCheck, FolderKanban } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Database } from "lucide-react"
 import Link from "next/link"
 import fs from "fs"
 import path from "path"
@@ -33,27 +33,6 @@ const adminActions = [
     icon: <BarChart className="h-8 w-8 text-primary" />,
     href: "/admin/analytics",
     disabled: false,
-  },
-  {
-    title: "Incident Tracking",
-    description: "Report and analyze incidents and near misses.",
-    icon: <Siren className="h-8 w-8 text-primary" />,
-    href: "#",
-    disabled: true,
-  },
-  {
-    title: "Audit Management",
-    description: "Schedule, conduct, and track internal audits.",
-    icon: <ClipboardCheck className="h-8 w-8 text-primary" />,
-    href: "#",
-    disabled: true,
-  },
-  {
-    title: "Document Control",
-    description: "Manage EHS policies, procedures, and records.",
-    icon: <FolderKanban className="h-8 w-8 text-primary" />,
-    href: "#",
-    disabled: true,
   },
   {
     title: "Manage Certificates",
@@ -99,7 +78,7 @@ export default function AdminPage() {
         <div>
           <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage your organization's Quality Assurance and EHS learning platform.
+            Manage your organization's learning and development platform.
           </p>
         </div>
         <Link href="/admin/courses/new">
