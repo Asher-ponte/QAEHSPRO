@@ -1,21 +1,21 @@
-
 "use client"
 
 import Link from "next/link"
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
   FileText,
   PlayCircle,
-  Sun,
-  Layers,
-  ClipboardList
+  CheckCircle,
 } from "lucide-react"
 import {
   SidebarHeader,
   SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
+  SidebarTitle,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
@@ -38,50 +38,58 @@ interface Course {
   modules: Module[];
 }
 
-
 const getIcon = (type: string) => {
   switch (type) {
     case "video":
-      return <Layers className="h-6 w-6" /> // Using Layers for all non-quiz
+      return <PlayCircle className="h-5 w-5 mr-3 text-muted-foreground" />
     case "document":
-      return <Layers className="h-6 w-6" />
+      return <FileText className="h-5 w-5 mr-3 text-muted-foreground" />
     case "quiz":
-      return <ClipboardList className="h-6 w-6" />
+      return <CheckCircle className="h-5 w-5 mr-3 text-muted-foreground" />
     default:
-      return <FileText className="h-6 w-6" />
+      return null
   }
 }
 
-
 export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
-  const allLessons = course.modules.flatMap(m => m.lessons.map(l => ({ ...l, moduleId: m.id })))
-
+  const currentModule = course.modules.find(module => module.lessons.some(lesson => lesson.id === currentLessonId));
+  
   return (
     <>
-      <SidebarHeader className="bg-primary h-16 flex items-center justify-end p-2 group-data-[collapsible=icon]:justify-center">
-        <SidebarTrigger className="text-primary-foreground hover:text-primary-foreground hover:bg-primary/80" />
+      <SidebarHeader className="p-4 border-b">
+        <SidebarTitle className="text-xl font-bold text-foreground">{course.title}</SidebarTitle>
       </SidebarHeader>
-      <SidebarContent className="p-0 bg-card">
-        <SidebarMenu className="gap-0">
-          {allLessons.map((lesson) => (
-            <SidebarMenuItem key={lesson.id} className="p-2 border-b">
-              <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="w-full">
-                <SidebarMenuButton
-                  isActive={lesson.id === currentLessonId}
-                  tooltip={{ children: lesson.title, side: "right" }}
-                  className={cn(
-                    "justify-center h-12 w-full",
-                    lesson.id === currentLessonId ? "bg-yellow-50 text-blue-600" : "text-primary hover:bg-primary/10"
-                  )}
-                  variant="ghost"
-                  size="icon"
-                >
-                  {lesson.id === currentLessonId ? <Sun className="h-6 w-6 text-orange-400" /> : getIcon(lesson.type)}
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+      <SidebarContent>
+        <Accordion type="multiple" defaultValue={currentModule ? [currentModule.title] : []} className="w-full">
+            {course.modules.map((module) => (
+            <AccordionItem value={module.title} key={module.id}>
+                <AccordionTrigger className="font-semibold text-sm hover:no-underline px-4 py-2 text-foreground/80">
+                    {module.title}
+                </AccordionTrigger>
+                <AccordionContent>
+                <ul className="space-y-1 pl-4">
+                    {module.lessons.map((lesson) => (
+                    <li key={lesson.id}>
+                        <Link
+                            href={`/courses/${course.id}/lessons/${lesson.id}`}
+                            className={cn(
+                            "flex items-center justify-between gap-2 text-sm p-2 rounded-md hover:bg-muted/50 transition-colors text-foreground",
+                            lesson.id === currentLessonId && "bg-primary/10 text-primary font-semibold"
+                            )}
+                        >
+                        <div className="flex items-center min-w-0">
+                            {getIcon(lesson.type)}
+                            <span className="truncate">{lesson.title}</span>
+                        </div>
+                        <CheckCircle className={`h-4 w-4 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/20'}`} />
+                        </Link>
+                    </li>
+                    ))}
+                </ul>
+                </AccordionContent>
+            </AccordionItem>
+            ))}
+        </Accordion>
       </SidebarContent>
     </>
   )

@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar"
+import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { CourseOutlineSidebar } from "@/components/course-outline-sidebar"
 
 // Types
@@ -485,6 +485,7 @@ export default function LessonPage() {
                         <CardHeader>
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-4">
+                                    <SidebarTrigger />
                                     {getIcon()}
                                     <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                                 </div>
