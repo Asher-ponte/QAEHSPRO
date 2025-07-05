@@ -485,9 +485,7 @@ export default function LessonPage() {
                         <CardHeader>
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-4">
-                                    <div className="md:hidden">
-                                        <SidebarTrigger />
-                                    </div>
+                                    <SidebarTrigger />
                                     {getIcon()}
                                     <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                                 </div>

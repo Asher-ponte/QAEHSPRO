@@ -48,11 +48,11 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   return (
     <div className="flex flex-col h-full bg-card">
         <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold truncate">{course.title}</h2>
+            <h2 className="text-lg font-semibold truncate text-foreground">{course.title}</h2>
             <p className="text-sm text-foreground">Course Content</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-            <Accordion type="single" collapsible>
+            <Accordion type="single" collapsible defaultValue={currentModule?.id.toString()}>
               {course.modules.map((module) => (
                 <AccordionItem value={module.id.toString()} key={module.id}>
                   <AccordionTrigger className="font-semibold text-left break-words px-4 text-sm hover:no-underline">
