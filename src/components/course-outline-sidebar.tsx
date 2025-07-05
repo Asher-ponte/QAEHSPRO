@@ -3,14 +3,21 @@
 
 import Link from "next/link"
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, ListVideo } from "lucide-react"
+  FileText,
+  PlayCircle,
+  Sun,
+  Layers,
+  ClipboardList
+} from "lucide-react"
+import {
+  SidebarHeader,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
-import { useSidebar } from "@/components/ui/sidebar"
 
 interface Lesson {
   id: number;
@@ -31,59 +38,51 @@ interface Course {
   modules: Module[];
 }
 
-export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
-  const { setOpenMobile } = useSidebar()
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "video": return <PlayCircle className="h-5 w-5 mr-3 text-foreground" />;
-      case "document": return <FileText className="h-5 w-5 mr-3 text-foreground" />;
-      case "quiz": return <CheckCircle className="h-5 w-5 mr-3 text-foreground" />;
-      default: return <ListVideo className="h-5 w-5 mr-3 text-foreground" />;
-    }
+const getIcon = (type: string) => {
+  switch (type) {
+    case "video":
+      return <Layers className="h-6 w-6" /> // Using Layers for all non-quiz
+    case "document":
+      return <Layers className="h-6 w-6" />
+    case "quiz":
+      return <ClipboardList className="h-6 w-6" />
+    default:
+      return <FileText className="h-6 w-6" />
   }
+}
 
-  const currentModule = course.modules.find(m => m.lessons.some(l => l.id === currentLessonId))
+
+export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
+  const allLessons = course.modules.flatMap(m => m.lessons.map(l => ({ ...l, moduleId: m.id })))
 
   return (
-    <div className="flex flex-col h-full bg-card">
-        <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold truncate text-foreground">{course.title}</h2>
-            <p className="text-sm text-foreground">Course Content</p>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-            <Accordion type="single" collapsible defaultValue={currentModule?.id.toString()}>
-              {course.modules.map((module) => (
-                <AccordionItem value={module.id.toString()} key={module.id}>
-                  <AccordionTrigger className="font-semibold text-left break-words px-4 text-sm hover:no-underline">
-                    {module.title}
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <ul className="space-y-1">
-                      {module.lessons.map((lesson) => (
-                        <li key={lesson.id}>
-                           <Link
-                             href={`/courses/${course.id}/lessons/${lesson.id}`}
-                             onClick={() => setOpenMobile(false)}
-                             className={cn(
-                                "flex items-center justify-between gap-2 text-sm p-2 mx-4 rounded-md hover:bg-muted transition-colors text-foreground",
-                                lesson.id === currentLessonId && "bg-muted font-semibold"
-                             )}
-                           >
-                            <div className="flex items-center min-w-0">
-                                {getIcon(lesson.type)}
-                                <span className="break-words flex-1">{lesson.title}</span>
-                            </div>
-                            <CheckCircle className={`h-5 w-5 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
-                           </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-        </div>
-    </div>
+    <>
+      <SidebarHeader className="bg-primary h-16 flex items-center justify-end p-2 group-data-[collapsible=icon]:justify-center">
+        <SidebarTrigger className="text-primary-foreground hover:text-primary-foreground hover:bg-primary/80" />
+      </SidebarHeader>
+      <SidebarContent className="p-0 bg-card">
+        <SidebarMenu className="gap-0">
+          {allLessons.map((lesson) => (
+            <SidebarMenuItem key={lesson.id} className="p-2 border-b">
+              <Link href={`/courses/${course.id}/lessons/${lesson.id}`} className="w-full">
+                <SidebarMenuButton
+                  isActive={lesson.id === currentLessonId}
+                  tooltip={{ children: lesson.title, side: "right" }}
+                  className={cn(
+                    "justify-center h-12 w-full",
+                    lesson.id === currentLessonId ? "bg-yellow-50 text-blue-600" : "text-primary hover:bg-primary/10"
+                  )}
+                  variant="ghost"
+                  size="icon"
+                >
+                  {lesson.id === currentLessonId ? <Sun className="h-6 w-6 text-orange-400" /> : getIcon(lesson.type)}
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+    </>
   )
 }
