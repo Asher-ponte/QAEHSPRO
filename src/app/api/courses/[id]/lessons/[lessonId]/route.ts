@@ -9,7 +9,8 @@ export async function GET(
 ) {
   try {
     const db = await getDb()
-    const { id: courseId, lessonId: currentLessonId } = params
+    const { id: courseId, lessonId: currentLessonIdStr } = params
+    const currentLessonId = parseInt(currentLessonIdStr, 10);
     
     const user = await getCurrentUser();
     if (!user) {
@@ -17,7 +18,6 @@ export async function GET(
     }
     const userId = user.id;
 
-    // Admins can view any content. Employees must be enrolled.
     if (user.role !== 'Admin') {
         const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
         if (!enrollment) {
@@ -33,10 +33,10 @@ export async function GET(
       [userId, currentLessonId]
     );
 
+    // Get current lesson data
     const lesson = await db.get(
         `SELECT 
             l.id, l.title, l.type, l.content, l.imagePath,
-            m.id as module_id, m.title as module_title, 
             c.id as course_id, c.title as course_title,
             CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
          FROM lessons l
@@ -45,49 +45,84 @@ export async function GET(
          LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
          WHERE l.id = ?`,
         [userId, currentLessonId]
-    )
+    );
     
     if (!lesson) {
-        return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+        return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
     }
-    
-    // 1. Get all lessons for the course to determine progress and navigation
-    const allCourseLessons = await db.all(`
-        SELECT l.id FROM lessons l
-        JOIN modules m ON l.module_id = m.id
-        WHERE m.course_id = ?
-        ORDER BY m."order", l."order"
-    `, courseId);
 
+    // Get full course structure
+    const courseData = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+    if (!courseData) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+    const modulesAndLessons = await db.all(
+        `SELECT 
+            m.id as module_id, 
+            m.title as module_title, 
+            m."order" as module_order,
+            l.id as lesson_id, 
+            l.title as lesson_title, 
+            l.type as lesson_type, 
+            CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
+        FROM modules m
+        LEFT JOIN lessons l ON m.id = l.module_id
+        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
+        WHERE m.course_id = ? 
+        ORDER BY m."order" ASC, l."order" ASC`,
+        [userId, courseId]
+    );
+
+    const modulesMap = new Map<number, any>();
+    for (const row of modulesAndLessons) {
+        if (!modulesMap.has(row.module_id)) {
+            modulesMap.set(row.module_id, {
+                id: row.module_id,
+                title: row.module_title,
+                lessons: []
+            });
+        }
+        if (row.lesson_id) {
+            modulesMap.get(row.module_id).lessons.push({
+                id: row.lesson_id,
+                title: row.lesson_title,
+                type: row.lesson_type,
+                completed: !!row.completed
+            });
+        }
+    }
+    const courseStructure = {
+      id: courseData.id,
+      title: courseData.title,
+      modules: Array.from(modulesMap.values())
+    };
+
+    // Calculate progress and navigation
+    const allCourseLessons = modulesAndLessons.filter(ml => ml.lesson_id);
     const totalLessons = allCourseLessons.length;
-
-    // 2. Get completed lessons for progress calculation
-    const completedLessons = await db.get(`
-        SELECT COUNT(up.lesson_id) as count
-        FROM user_progress up
-        JOIN lessons l ON up.lesson_id = l.id
-        JOIN modules m ON l.module_id = m.id
-        WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
-    `, [userId, courseId]);
-
-    const courseProgress = totalLessons > 0 ? Math.round((completedLessons.count / totalLessons) * 100) : 0;
-
-    // 3. Determine next and previous lesson IDs
-    const currentLessonIndex = allCourseLessons.findIndex(l => l.id === parseInt(currentLessonId, 10));
-    const previousLessonId = currentLessonIndex > 0 ? allCourseLessons[currentLessonIndex - 1].id : null;
-    const nextLessonId = currentLessonIndex < totalLessons - 1 ? allCourseLessons[currentLessonIndex + 1].id : null;
-
-    const lessonWithDetails = {
-        ...lesson,
-        completed: !!lesson.completed,
-        courseProgress,
+    const completedLessonsCount = allCourseLessons.filter(l => l.completed).length;
+    const courseProgress = totalLessons > 0 ? Math.round((completedLessonsCount / totalLessons) * 100) : 0;
+    
+    const allLessonsOrderedIds = allCourseLessons.map(l => l.lesson_id);
+    const currentLessonIndex = allLessonsOrderedIds.findIndex(l_id => l_id === currentLessonId);
+    const previousLessonId = currentLessonIndex > 0 ? allLessonsOrderedIds[currentLessonIndex - 1] : null;
+    const nextLessonId = currentLessonIndex < totalLessons - 1 ? allLessonsOrderedIds[currentLessonIndex + 1] : null;
+    
+    // Assemble the final response
+    const responseData = {
+        lesson: {
+            ...lesson,
+            completed: !!lesson.completed,
+        },
+        course: courseStructure,
+        progress: courseProgress,
         previousLessonId,
         nextLessonId,
-    }
+    };
 
-    return NextResponse.json(lessonWithDetails)
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error(error)
-    return NextResponse.json({ error: 'Failed to fetch lesson' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch lesson data' }, { status: 500 })
   }
 }

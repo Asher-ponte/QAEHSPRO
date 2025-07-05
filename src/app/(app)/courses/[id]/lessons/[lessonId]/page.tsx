@@ -15,7 +15,10 @@ import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
+import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { CourseOutlineSidebar } from "@/components/course-outline-sidebar"
 
+// Types
 interface Lesson {
   id: number;
   title: string;
@@ -25,9 +28,33 @@ interface Lesson {
   course_id: number;
   course_title: string;
   completed: boolean;
-  courseProgress: number;
-  previousLessonId: number | null;
-  nextLessonId: number | null;
+}
+
+interface ModuleLesson {
+  id: number;
+  title: string;
+  type: string;
+  completed: boolean;
+}
+
+interface Module {
+  id: number;
+  title: string;
+  lessons: ModuleLesson[];
+}
+
+interface Course {
+  id: number;
+  title: string;
+  modules: Module[];
+}
+
+interface LessonPageData {
+    lesson: Lesson;
+    course: Course;
+    progress: number;
+    nextLessonId: number | null;
+    previousLessonId: number | null;
 }
 
 interface QuizQuestion {
@@ -205,7 +232,7 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     );
 };
 
-const LessonContent = ({ lesson, onComplete, onQuizPass }: { lesson: Lesson; onComplete: () => Promise<void>; onQuizPass: (data: any) => void; }) => {
+const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (data: any) => void; }) => {
     switch (lesson.type) {
         case 'video':
             return (
@@ -241,16 +268,46 @@ const LessonContent = ({ lesson, onComplete, onQuizPass }: { lesson: Lesson; onC
     }
 }
 
+function LessonPageSkeleton() {
+    return (
+        <div className="flex h-screen">
+            <div className="hidden md:block w-72 border-r">
+                <div className="p-4 border-b">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2 mt-2" />
+                </div>
+                <div className="p-4 space-y-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            </div>
+            <div className="flex-1 p-6 space-y-6">
+                <Skeleton className="h-8 w-48" />
+                <Card>
+                    <CardHeader>
+                        <Skeleton className="h-8 w-3/4" />
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-4">
+                        <Skeleton className="h-48 w-full" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    )
+}
 
 export default function LessonPage() {
     const params = useParams<{ id: string, lessonId: string }>()
     const router = useRouter();
     const { toast } = useToast();
-    const [lesson, setLesson] = useState<Lesson | null>(null);
+    const [pageData, setPageData] = useState<LessonPageData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
     
-    const fetchLesson = useCallback(async () => {
+    const fetchPageData = useCallback(async () => {
         if (!params.id || !params.lessonId) return;
         setIsLoading(true);
         try {
@@ -261,21 +318,22 @@ export default function LessonPage() {
             }
             const data = await res.json();
 
-            if (data.type === 'quiz' && data.content) {
+            // Sanitize quiz content for student view
+            if (data.lesson.type === 'quiz' && data.lesson.content) {
                 try {
-                    const parsedContent = JSON.parse(data.content);
+                    const parsedContent = JSON.parse(data.lesson.content);
                     const questionsForStudent = parsedContent.map((q: any) => ({
                         text: q.text,
                         options: q.options.map((opt: any) => ({ text: opt.text }))
                     }));
-                    data.content = JSON.stringify(questionsForStudent);
+                    data.lesson.content = JSON.stringify(questionsForStudent);
                 } catch (e) {
                     console.error("Failed to parse and sanitize quiz content", e);
-                    data.content = '[]';
+                    data.lesson.content = '[]';
                 }
             }
 
-            setLesson(data);
+            setPageData(data);
         } catch (error) {
             console.error(error);
              toast({
@@ -289,12 +347,12 @@ export default function LessonPage() {
     }, [params.id, params.lessonId, toast]);
 
     useEffect(() => {
-        fetchLesson();
-    }, [fetchLesson]);
+        fetchPageData();
+    }, [fetchPageData]);
 
     const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
-        // This function is called when a lesson is successfully completed.
-        fetchLesson(); // Refetch to update UI state (e.g., show lesson as completed)
+        // Refetch to update UI state (e.g., show lesson as completed in sidebar)
+        fetchPageData();
 
         if (data.certificateId) {
             toast({
@@ -304,18 +362,18 @@ export default function LessonPage() {
             // Redirect to the certificate page
             router.push(`/profile/certificates/${data.certificateId}`);
         } else {
-            toast({
-                title: lesson?.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
+             toast({
+                title: pageData?.lesson.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
                 description: "You can now proceed to the next lesson.",
             });
         }
     };
     
     const handleCompleteLesson = async () => {
-        if (!lesson || isCompleting || lesson.type === 'quiz') return;
+        if (!pageData || isCompleting || pageData.lesson.type === 'quiz') return;
         setIsCompleting(true);
         try {
-            const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/complete`, {
+            const res = await fetch(`/api/courses/${pageData.lesson.course_id}/lessons/${pageData.lesson.id}/complete`, {
                 method: 'POST'
             });
             const data = await res.json();
@@ -337,35 +395,19 @@ export default function LessonPage() {
     }
     
     const handleNextClick = () => {
-        if (!lesson) return;
-        if (lesson.completed && lesson.nextLessonId) {
-            router.push(`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`);
-        } else if (!lesson.completed) {
+        if (!pageData) return;
+        if (pageData.lesson.completed && pageData.nextLessonId) {
+            router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
+        } else if (!pageData.lesson.completed) {
             handleCompleteLesson();
         }
     };
 
     if (isLoading) {
-        return (
-             <div className="space-y-6">
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-20 w-full" />
-                <Card>
-                    <CardHeader>
-                        <Skeleton className="h-8 w-3/4" />
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                        <Skeleton className="h-48 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                </Card>
-            </div>
-        )
+        return <LessonPageSkeleton />
     }
 
-    if (!lesson) {
+    if (!pageData) {
         return (
              <div className="flex flex-col items-center justify-center text-center gap-4 py-12">
                 <h2 className="text-2xl font-bold">Lesson Not Found</h2>
@@ -381,6 +423,8 @@ export default function LessonPage() {
              </div>
         );
     }
+    
+    const { lesson, course, progress, nextLessonId, previousLessonId } = pageData;
 
     const getIcon = () => {
         switch (lesson.type) {
@@ -399,71 +443,79 @@ export default function LessonPage() {
     };
 
     return (
-        <div className="space-y-6 pb-24 md:pb-6">
-            
-            <Card>
-                <CardHeader className="p-3">
-                    <div className="flex justify-between items-center mb-1">
-                        <CardTitle className="text-sm font-medium">Course Progress</CardTitle>
-                        <span className="text-sm font-semibold">{lesson.courseProgress}%</span>
-                    </div>
-                    <Progress value={lesson.courseProgress} className="h-2" />
-                </CardHeader>
-            </Card>
+        <SidebarProvider>
+            <Sidebar>
+                <CourseOutlineSidebar course={course} currentLessonId={lesson.id} />
+            </Sidebar>
+            <SidebarInset>
+                 <div className="space-y-6 p-4 sm:p-6 pb-24 md:pb-6">
+                    <Card>
+                        <CardHeader className="p-3">
+                            <div className="flex justify-between items-center mb-1">
+                                <CardTitle className="text-sm font-medium">Course Progress</CardTitle>
+                                <span className="text-sm font-semibold">{progress}%</span>
+                            </div>
+                            <Progress value={progress} className="h-2" />
+                        </CardHeader>
+                    </Card>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                         <div className="flex items-center gap-4">
-                            {getIcon()}
-                            <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
-                        </div>
-                        {lesson.completed && (
-                            <Badge variant="secondary" className="text-green-600 border-green-600">
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Completed
-                            </Badge>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                   <LessonContent lesson={lesson} onComplete={handleCompleteLesson} onQuizPass={handlePostCompletion} />
-                </CardContent>
-            </Card>
-
-            
-            <div className="flex justify-between items-center mt-4">
-                <Button asChild variant="outline" disabled={!lesson.previousLessonId}>
-                    <Link href={lesson.previousLessonId ? `/courses/${lesson.course_id}/lessons/${lesson.previousLessonId}` : '#'}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Previous
-                    </Link>
-                </Button>
-                
-                {lesson.type !== 'quiz' && (
-                    <Button onClick={handleNextClick} disabled={isCompleting || (lesson.completed && !lesson.nextLessonId)}>
-                        <NextButtonContent />
-                    </Button>
-                )}
-
-                {lesson.type === 'quiz' && (
-                    <>
-                        {lesson.nextLessonId ? (
-                            <Button
-                                onClick={() => router.push(`/courses/${lesson.course_id}/lessons/${lesson.nextLessonId}`)}
-                                disabled={!lesson.completed}
-                            >
-                                Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        ) : (
-                            <Button disabled={true}>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                {lesson.completed ? 'Course Complete' : 'Pass Quiz to Finish'}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-4">
+                                    <div className="md:hidden">
+                                        <SidebarTrigger />
+                                    </div>
+                                    {getIcon()}
+                                    <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
+                                </div>
+                                {lesson.completed && (
+                                    <Badge variant="secondary" className="text-green-600 border-green-600">
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Completed
+                                    </Badge>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                           <LessonContent lesson={lesson} onQuizPass={handlePostCompletion} />
+                        </CardContent>
+                    </Card>
+                    
+                    <div className="flex justify-between items-center mt-4">
+                        <Button asChild variant="outline" disabled={!previousLessonId}>
+                            <Link href={previousLessonId ? `/courses/${course.id}/lessons/${previousLessonId}` : '#'}>
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Previous
+                            </Link>
+                        </Button>
+                        
+                        {lesson.type !== 'quiz' && (
+                            <Button onClick={handleNextClick} disabled={isCompleting || (lesson.completed && !nextLessonId)}>
+                                <NextButtonContent />
                             </Button>
                         )}
-                    </>
-                )}
-            </div>
-        </div>
+
+                        {lesson.type === 'quiz' && (
+                            <>
+                                {nextLessonId ? (
+                                    <Button
+                                        onClick={() => router.push(`/courses/${course.id}/lessons/${nextLessonId}`)}
+                                        disabled={!lesson.completed}
+                                    >
+                                        Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                ) : (
+                                    <Button disabled={!lesson.completed}>
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        {lesson.completed ? 'Course Complete' : 'Pass Quiz to Finish'}
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            </SidebarInset>
+        </SidebarProvider>
     )
 }
