@@ -43,6 +43,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
+            password TEXT,
             fullName TEXT,
             department TEXT,
             position TEXT,
@@ -155,23 +156,24 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         );
     `);
     
-    // Add password column if it doesn't exist (for backward compatibility)
+    // Add columns if they don't exist (for backward compatibility / migrations)
     const usersTableInfo = await db.all("PRAGMA table_info(users)");
-    const passwordColumnExists = usersTableInfo.some(col => col.name === 'password');
-
-    if (!passwordColumnExists) {
+    
+    if (!usersTableInfo.some(col => col.name === 'password')) {
         console.log(`Applying migration for site '${siteId}': Adding 'password' column to 'users' table.`);
-        try {
-            await db.exec('ALTER TABLE users ADD COLUMN password TEXT');
-        } catch (e) {
-            console.error(`Failed to add password column for site '${siteId}'. This might happen in a race condition. Checking again.`, e);
-            const newInfo = await db.all("PRAGMA table_info(users)");
-            if (!newInfo.some(col => col.name === 'password')) {
-                throw new Error(`Migration failed for site '${siteId}'. Could not add password column.`);
-            }
-        }
+        await db.exec('ALTER TABLE users ADD COLUMN password TEXT');
+    }
+    if (!usersTableInfo.some(col => col.name === 'type')) {
+        console.log(`Applying migration for site '${siteId}': Adding 'type' column to 'users' table.`);
+        await db.exec("ALTER TABLE users ADD COLUMN type TEXT NOT NULL DEFAULT 'Employee'");
     }
 
+    const coursesTableInfo = await db.all("PRAGMA table_info(courses)");
+    if (!coursesTableInfo.some(col => col.name === 'is_public')) {
+        console.log(`Applying migration for site '${siteId}': Adding 'is_public' and 'price' columns to 'courses' table.`);
+        await db.exec('ALTER TABLE courses ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT 0');
+        await db.exec('ALTER TABLE courses ADD COLUMN price REAL');
+    }
 
     // Seed data
     await db.run(
@@ -183,7 +185,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     const demoUser = await db.get('SELECT password FROM users WHERE id = 1');
     const defaultPassword = 'password';
 
-    // A valid bcrypt hash starts with $2a$, $2b$, or $2y$, a cost factor, and is 60 characters long.
     const isValidBcryptHash = (hash: string | null | undefined): boolean => {
         if (!hash) return false;
         return /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
