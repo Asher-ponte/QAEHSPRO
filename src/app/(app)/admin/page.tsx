@@ -7,10 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Database } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, DollarSign, CreditCard } from "lucide-react"
 import Link from "next/link"
-import fs from "fs"
-import path from "path"
+import { getCurrentSession } from "@/lib/session"
+import { getDb } from "@/lib/db"
+import { SITES } from "@/lib/sites"
+
 
 const adminActions = [
   {
@@ -48,29 +50,40 @@ const adminActions = [
     href: "/admin/settings",
     disabled: false,
   },
+  {
+    title: "Payment Management",
+    description: "View transactions and manage gateways.",
+    icon: <CreditCard className="h-8 w-8 text-primary" />,
+    href: "#",
+    disabled: true,
+  },
 ]
 
-function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
 
-
-export default function AdminPage() {
-    let dbSize = 'N/A';
-    try {
-        const dbPath = path.join(process.cwd(), 'db.sqlite');
-        if (fs.existsSync(dbPath)) {
-            const stats = fs.statSync(dbPath);
-            dbSize = formatBytes(stats.size);
-        }
-    } catch (error) {
-        console.error("Could not read database size:", error);
+export default async function AdminPage() {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
+        return <p className="p-4">Session not found. Please log in.</p>;
     }
+    
+    const db = await getDb(siteId);
+
+    const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM users');
+    const totalCoursesResult = await db.get('SELECT COUNT(*) as count FROM courses');
+    
+    const statsData = {
+        totalUsers: totalUsersResult?.count ?? 0,
+        totalCourses: totalCoursesResult?.count ?? 0,
+        totalBranches: SITES.length,
+        totalRevenue: 0, // Placeholder
+    };
+    
+    const statCards = [
+        { title: "Total Users", value: statsData.totalUsers, icon: <Users className="h-4 w-4 text-muted-foreground" />, description: "Users in this branch." },
+        { title: "Total Courses", value: statsData.totalCourses, icon: <BookOpen className="h-4 w-4 text-muted-foreground" />, description: "Courses in this branch." },
+        { title: "Total Branches", value: statsData.totalBranches, icon: <Library className="h-4 w-4 text-muted-foreground" />, description: "All company branches." },
+        { title: "Total Revenue", value: `$${statsData.totalRevenue.toFixed(2)}`, icon: <DollarSign className="h-4 w-4 text-muted-foreground" />, description: "From external users." },
+    ];
     
   return (
     <div className="flex flex-col gap-8">
@@ -90,20 +103,22 @@ export default function AdminPage() {
       </div>
 
        <div>
-        <h2 className="text-2xl font-bold font-headline mb-4">Platform Stats</h2>
+        <h2 className="text-2xl font-bold font-headline mb-4">Branch Overview</h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Database Size</CardTitle>
-                    <Database className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{dbSize}</div>
-                    <p className="text-xs text-muted-foreground">
-                        Current size of the SQLite database file.
-                    </p>
-                </CardContent>
-            </Card>
+          {statCards.map(card => (
+               <Card key={card.title}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+                        {card.icon}
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{card.value}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {card.description}
+                        </p>
+                    </CardContent>
+                </Card>
+           ))}
         </div>
       </div>
 
