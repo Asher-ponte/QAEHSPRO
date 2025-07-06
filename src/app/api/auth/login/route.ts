@@ -32,11 +32,17 @@ export async function POST(request: NextRequest) {
 
         // Check if user exists and has a non-empty password
         if (user && user.password && typeof user.password === 'string' && user.password.length > 0) {
-            const passwordMatch = await bcrypt.compare(password, user.password);
-            if (passwordMatch) {
-                loggedInUser = user;
-                loggedInSiteId = site.id;
-                break; // Exit loop once user is found and authenticated
+            try {
+                const passwordMatch = await bcrypt.compare(password, user.password);
+                if (passwordMatch) {
+                    loggedInUser = user;
+                    loggedInSiteId = site.id;
+                    break; // Exit loop once user is found and authenticated
+                }
+            } catch (compareError) {
+                // This can happen if the stored password is not a valid hash.
+                // We can treat it as a failed login attempt for this site and continue.
+                console.warn(`Could not compare password for user '${username}' on site '${site.id}'. This might be due to an invalid hash.`);
             }
         }
     }
