@@ -202,11 +202,21 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        // ---- Start: Update course in the CURRENT site ----
-        db = await getDb(siteId);
-        await db.run('BEGIN TRANSACTION');
-
         const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
+
+        // ---- Start: Get original title before making changes ----
+        const sourceDb = await getDb(siteId);
+        const originalCourse = await sourceDb.get('SELECT title FROM courses WHERE id = ?', courseId);
+        if (!originalCourse) {
+            throw new Error(`Original course with ID ${courseId} not found in source site ${siteId}`);
+        }
+        const originalTitle = originalCourse.title;
+        // ---- End: Get original title ----
+
+
+        // ---- Start: Update course in the CURRENT site ----
+        db = sourceDb; // Use sourceDb for current site update
+        await db.run('BEGIN TRANSACTION');
 
         await db.run(
             'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?',
@@ -267,75 +277,47 @@ export async function PUT(
                 await targetDb.run('BEGIN TRANSACTION');
 
                 try {
-                    // Find if a course with the same title exists. If so, we'll update it. Otherwise, create it.
-                    const existingCourse = await targetDb.get('SELECT id FROM courses WHERE title = ?', title);
+                    // Find if a course with the original title exists.
+                    const existingCourse = await targetDb.get('SELECT id FROM courses WHERE title = ?', originalTitle);
+                    let targetCourseId;
 
                     if (existingCourse) {
                         // UPDATE existing course
-                        const targetCourseId = existingCourse.id;
+                        targetCourseId = existingCourse.id;
                         await targetDb.run('UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, targetCourseId]);
-                        await targetDb.run('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
-                        if (signatoryIds && signatoryIds.length > 0) {
-                            const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-                            for (const signatoryId of signatoryIds) { await stmt.run(targetCourseId, signatoryId); }
-                            await stmt.finalize();
-                        }
-                        const existingModulesTarget = await targetDb.all('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
-                        const existingModuleIdsTarget = new Set(existingModulesTarget.map(m => m.id));
-                        for (const m of modules) { if (m.id && !existingModuleIdsTarget.has(m.id)) { m.id = undefined; for(const l of m.lessons) { l.id = undefined; }}} // Unset IDs to force creation
-                        
-                        const payloadModuleIdsTarget = new Set(modules.filter(m => m.id).map(m => m.id as number));
-                        for (const existingId of existingModuleIdsTarget) { if (!payloadModuleIdsTarget.has(existingId)) { await targetDb.run('DELETE FROM modules WHERE id = ?', existingId); }}
-
-                        for (const [moduleIndex, moduleData] of modules.entries()) {
-                            let moduleId = moduleData.id;
-                            if (moduleId && existingModuleIdsTarget.has(moduleId)) {
-                                await targetDb.run('UPDATE modules SET title = ?, "order" = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
-                            } else {
-                                const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
-                                moduleId = moduleResult.lastID; if (!moduleId) throw new Error(`Failed to create module`);
-                            }
-                            const existingLessonsTarget = await targetDb.all('SELECT id FROM lessons WHERE module_id = ?', moduleId);
-                            const existingLessonIdsTarget = new Set(existingLessonsTarget.map(l => l.id));
-                            for (const l of moduleData.lessons) { if (l.id && !existingLessonIdsTarget.has(l.id)) { l.id = undefined; } }
-
-                            const payloadLessonIdsTarget = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
-                            for (const existingId of existingLessonIdsTarget) { if (!payloadLessonIdsTarget.has(existingId)) { await targetDb.run('DELETE FROM lessons WHERE id = ?', existingId); } }
-
-                            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                                let contentToStore = lessonData.content ?? null;
-                                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
-                                if (lessonData.id && existingLessonIdsTarget.has(lessonData.id)) {
-                                    await targetDb.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]);
-                                } else {
-                                    await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
-                                }
-                            }
-                        }
+                        // Clear existing content for a full resync
+                        await targetDb.run('DELETE FROM modules WHERE course_id = ?', targetCourseId);
                     } else {
                         // CREATE new course from scratch
                         const courseResult = await targetDb.run('INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]);
-                        const newCourseId = courseResult.lastID; if (!newCourseId) { throw new Error('Failed to create course'); }
-                        if (signatoryIds && signatoryIds.length > 0) {
-                            const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-                            for (const signatoryId of signatoryIds) { await stmt.run(newCourseId, signatoryId); }
-                            await stmt.finalize();
-                        }
-                        for (const [moduleIndex, moduleData] of modules.entries()) {
-                            const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [newCourseId, moduleData.title, moduleIndex + 1]);
-                            const moduleId = moduleResult.lastID; if (!moduleId) { throw new Error(`Failed to create module`); }
-                            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                                let contentToStore = lessonData.content ?? null;
-                                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
-                                await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
-                            }
+                        targetCourseId = courseResult.lastID; 
+                        if (!targetCourseId) { throw new Error('Failed to create course in target branch'); }
+                    }
+
+                    // Resync signatories
+                    await targetDb.run('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
+                    if (signatoryIds && signatoryIds.length > 0) {
+                        const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+                        for (const signatoryId of signatoryIds) { await stmt.run(targetCourseId, signatoryId); }
+                        await stmt.finalize();
+                    }
+                    
+                    // Re-create all modules and lessons from payload
+                    for (const [moduleIndex, moduleData] of modules.entries()) {
+                        const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
+                        const moduleId = moduleResult.lastID; 
+                        if (!moduleId) { throw new Error('Failed to create module'); }
+                        for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                            let contentToStore = lessonData.content ?? null;
+                            if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
+                            await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
                         }
                     }
+                    
                     await targetDb.run('COMMIT');
                 } catch (e) {
                     await targetDb.run('ROLLBACK');
                     console.error(`Failed to propagate course update to site ${targetSiteId}:`, e);
-                    // Decide if we should continue or stop. For now, let's just log and continue.
                 }
             }
         }
