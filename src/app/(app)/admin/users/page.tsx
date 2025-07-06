@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
@@ -80,6 +81,8 @@ interface User {
   position: string | null;
   role: 'Employee' | 'Admin';
   type: 'Employee' | 'External';
+  siteId?: string;
+  siteName?: string;
 }
 
 const createUserFormSchema = z.object({
@@ -338,6 +341,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User | null; onFormSubmit: () => void; open: boolean; onOpenChange: (open: boolean) => void; }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+    const { isSuperAdmin } = useSession();
 
     const form = useForm<UpdateUserFormValues>({
         resolver: zodResolver(updateUserFormSchema),
@@ -356,8 +360,14 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
     async function onSubmit(values: UpdateUserFormValues) {
         if (!user) return;
         setIsSubmitting(true);
+        
+        let url = `/api/admin/users/${user.id}`;
+        if (isSuperAdmin && user.siteId) {
+            url += `?siteId=${user.siteId}`;
+        }
+
         try {
-            const response = await fetch(`/api/admin/users/${user.id}`, {
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(values),
@@ -531,6 +541,8 @@ export default function ManageUsersPage() {
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast();
+  const { isSuperAdmin, site } = useSession();
+
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -552,17 +564,21 @@ export default function ManageUsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [site]); // Refetch users when the site context changes
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
 
     setIsDialogDeleting(true);
     setIsDeleting(userToDelete.id);
+    
+    let url = `/api/admin/users/${userToDelete.id}`;
+    if (isSuperAdmin && userToDelete.siteId) {
+        url += `?siteId=${userToDelete.siteId}`;
+    }
+
     try {
-      const res = await fetch(`/api/admin/users/${userToDelete.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(url, { method: "DELETE" });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Failed to delete user");
@@ -595,6 +611,12 @@ export default function ManageUsersPage() {
     setUserToEdit(user);
   };
 
+  const pageTitle = isSuperAdmin ? "Manage All Users" : "Manage Users";
+  const pageDescription = isSuperAdmin
+    ? "View, create, and manage users across all branches."
+    : `Onboard new employees and manage user roles for the ${site?.name || 'current'} branch.`;
+
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -603,10 +625,8 @@ export default function ManageUsersPage() {
                 <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
             </Button>
             <div>
-                <h1 className="text-3xl font-bold font-headline">Manage Users</h1>
-                <p className="text-muted-foreground">
-                    Onboard new employees and manage user roles for the current branch.
-                </p>
+                <h1 className="text-3xl font-bold font-headline">{pageTitle}</h1>
+                <p className="text-muted-foreground">{pageDescription}</p>
             </div>
         </div>
         <UserForm onFormSubmit={fetchUsers}>
@@ -619,7 +639,12 @@ export default function ManageUsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Platform Users</CardTitle>
-          <CardDescription>A list of all users with access to the platform.</CardDescription>
+          <CardDescription>
+            {isSuperAdmin 
+              ? "A list of all users across all branches." 
+              : "A list of all users with access to your branch."
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -627,6 +652,7 @@ export default function ManageUsersPage() {
               <TableRow>
                 <TableHead>Full Name</TableHead>
                 <TableHead>Username</TableHead>
+                {isSuperAdmin && <TableHead>Branch</TableHead>}
                 <TableHead>Department</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Role</TableHead>
@@ -640,6 +666,7 @@ export default function ManageUsersPage() {
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    {isSuperAdmin && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -649,9 +676,10 @@ export default function ManageUsersPage() {
                 ))
               ) : users.length > 0 ? (
                 users.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={`${user.id}-${user.siteId || ''}`}>
                     <TableCell className="font-medium">{user.fullName || user.username}</TableCell>
                     <TableCell className="text-muted-foreground">{user.username}</TableCell>
+                    {isSuperAdmin && <TableCell>{user.siteName}</TableCell>}
                     <TableCell>{user.department}</TableCell>
                     <TableCell>{user.position}</TableCell>
                     <TableCell>
@@ -679,14 +707,14 @@ export default function ManageUsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => openEditDialog(user)} disabled={user.id === 1}>
+                           <DropdownMenuItem onSelect={() => openEditDialog(user)} disabled={user.username === 'florante'}>
                              <Edit className="mr-2 h-4 w-4" />
                              <span>Edit</span>
                            </DropdownMenuItem>
                            <DropdownMenuItem 
                             onSelect={() => openDeleteDialog(user)} 
                             className="text-destructive"
-                            disabled={user.id === 1}
+                            disabled={user.username === 'florante'}
                            >
                              <Trash2 className="mr-2 h-4 w-4" />
                              <span>Delete</span>
@@ -698,7 +726,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-24 text-center">
                     No users found.
                   </TableCell>
                 </TableRow>
@@ -739,3 +767,5 @@ export default function ManageUsersPage() {
     </div>
   )
 }
+
+    

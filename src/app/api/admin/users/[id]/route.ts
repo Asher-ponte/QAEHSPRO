@@ -15,17 +15,31 @@ const userUpdateSchema = z.object({
   type: z.enum(["Employee", "External"]),
 });
 
+async function getEffectiveSiteId(request: NextRequest): Promise<string | null> {
+    const { user: sessionUser, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (sessionUser?.role !== 'Admin' || !sessionSiteId) return null;
+
+    let effectiveSiteId = sessionSiteId;
+    if (isSuperAdmin) {
+        const url = new URL(request.url);
+        const targetSiteId = url.searchParams.get('siteId');
+        if (targetSiteId) {
+            effectiveSiteId = targetSiteId;
+        }
+    }
+    return effectiveSiteId;
+}
 
 export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const { user: sessionUser, siteId } = await getCurrentSession();
-    if (sessionUser?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const effectiveSiteId = await getEffectiveSiteId(request);
+    if (!effectiveSiteId) {
+        return NextResponse.json({ error: 'Unauthorized or invalid site context' }, { status: 403 });
     }
     
-    const db = await getDb(siteId);
+    const db = await getDb(effectiveSiteId);
     const { id: userId } = params;
 
     if (!userId) {
@@ -48,20 +62,23 @@ export async function PUT(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const { user: sessionUser, siteId } = await getCurrentSession();
-    if (sessionUser?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const effectiveSiteId = await getEffectiveSiteId(request);
+     if (!effectiveSiteId) {
+        return NextResponse.json({ error: 'Unauthorized or invalid site context' }, { status: 403 });
     }
 
-    const db = await getDb(siteId);
     const { id: userId } = params;
 
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    if (parseInt(userId, 10) === 1) {
-         return NextResponse.json({ error: 'The Demo User cannot be edited.' }, { status: 403 });
+    const db = await getDb(effectiveSiteId);
+    
+    // Globally protected user
+    const userToEdit = await db.get('SELECT username from users WHERE id = ?', userId);
+    if (userToEdit?.username === 'florante') {
+         return NextResponse.json({ error: 'The Super Admin user cannot be edited.' }, { status: 403 });
     }
 
     try {
@@ -107,20 +124,22 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const { user: sessionUser, siteId } = await getCurrentSession();
-    if (sessionUser?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const effectiveSiteId = await getEffectiveSiteId(request);
+     if (!effectiveSiteId) {
+        return NextResponse.json({ error: 'Unauthorized or invalid site context' }, { status: 403 });
     }
-
-    const db = await getDb(siteId);
+    
     const { id: userId } = params;
 
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    if (parseInt(userId, 10) === 1) {
-         return NextResponse.json({ error: 'Cannot delete the default Demo User.' }, { status: 403 });
+    const db = await getDb(effectiveSiteId);
+
+    const userToDelete = await db.get('SELECT username from users WHERE id = ?', userId);
+    if (userToDelete?.username === 'florante') {
+         return NextResponse.json({ error: 'The Super Admin user cannot be deleted.' }, { status: 403 });
     }
 
     try {
@@ -134,3 +153,5 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
     }
 }
+
+    

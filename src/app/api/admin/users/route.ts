@@ -18,15 +18,37 @@ const userSchema = z.object({
 });
 
 export async function GET() {
-  const { user, siteId } = await getCurrentSession();
+  const { user, siteId, isSuperAdmin } = await getCurrentSession();
   if (user?.role !== 'Admin' || !siteId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
   try {
-    const db = await getDb(siteId);
-    const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
-    return NextResponse.json(users);
+    if (isSuperAdmin) {
+      // Super admin gets all users from all branches
+      const allSites = await getAllSites();
+      let allUsers = [];
+
+      for (const site of allSites) {
+        // Exclude the 'external' site from the main user management view
+        if (site.id === 'external') continue;
+          
+        const db = await getDb(site.id);
+        const siteUsers = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+        
+        allUsers.push(...siteUsers.map(u => ({
+          ...u,
+          siteId: site.id,
+          siteName: site.name,
+        })));
+      }
+      return NextResponse.json(allUsers);
+    } else {
+      // Client admin gets users from their own branch
+      const db = await getDb(siteId);
+      const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+      return NextResponse.json(users);
+    }
   } catch (error) {
     console.error("Failed to fetch users:", error);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
@@ -90,4 +112,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-    
+  
