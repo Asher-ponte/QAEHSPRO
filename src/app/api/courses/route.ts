@@ -82,20 +82,23 @@ export async function GET() {
   }
 
   try {
-    const db = await getDb(siteId);
+    // If user is external, fetch public courses from 'main' site.
+    // Otherwise, fetch courses from the user's own site.
+    const courseDbSiteId = user.type === 'External' ? 'main' : siteId;
+    const db = await getDb(courseDbSiteId);
 
     let courses;
-    // Admins and Employees see all internal courses, plus all public courses.
-    // External users see only public courses.
-    if (user.role === 'Admin' || user.type === 'Employee') {
+    // Admins and Employees see courses available on their site.
+    // External users see only public courses from the MAIN site.
+    if (user.type === 'External') {
+         courses = await db.all(`
+            SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
+        `);
+    } else { // Employee or Admin
         courses = await db.all(`
             SELECT * FROM courses 
             WHERE is_internal = 1 OR is_public = 1
             ORDER BY title ASC
-        `);
-    } else { // External user
-         courses = await db.all(`
-            SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
         `);
     }
     

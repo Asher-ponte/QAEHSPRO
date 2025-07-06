@@ -11,33 +11,31 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    const db = await getDb(siteId);
-    
+    const courseDbSiteId = user.type === 'External' ? 'main' : siteId;
+    const courseDb = await getDb(courseDbSiteId);
+    const userDb = await getDb(siteId);
+
     const userId = user.id;
     const courseId = params.id;
 
-    const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
+    const course = await courseDb.get('SELECT * FROM courses WHERE id = ?', courseId)
     
     if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
     }
 
     // Access control logic
-    if (user.role !== 'Admin') { // Not an admin
+    if (user.role !== 'Admin') {
         if (user.type === 'External' && !course.is_public) {
-            // External user trying to access non-public course
             return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
         }
         if (user.type === 'Employee' && !course.is_internal && !course.is_public) {
-            // This case shouldn't happen if form validation is right, but as a safeguard:
-            // if a course is neither public nor internal, an employee can't see it.
             return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
         }
     }
 
 
-    // Fetch all modules and lessons in one go, including modules without lessons
-    const modulesAndLessons = await db.all(
+    const modulesAndLessons = await courseDb.all(
         `SELECT 
             m.id as module_id, 
             m.title as module_title, 
@@ -45,25 +43,27 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             l.id as lesson_id, 
             l.title as lesson_title, 
             l.type as lesson_type, 
-            l."order" as lesson_order,
-            CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
+            l."order" as lesson_order
         FROM modules m
         LEFT JOIN lessons l ON m.id = l.module_id
-        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
         WHERE m.course_id = ? 
         ORDER BY m."order" ASC, l."order" ASC`,
-        [userId, courseId]
+        [courseId]
     );
 
-    // Determine course completion status
-    const allLessonsInCourse = modulesAndLessons.filter(ml => ml.lesson_id);
-    const completedLessons = allLessonsInCourse.filter(l => l.completed);
-    const isCourseCompleted = allLessonsInCourse.length > 0 && allLessonsInCourse.length === completedLessons.length;
-
-
+    const allLessonIds = modulesAndLessons.filter(l => l.lesson_id).map(l => l.lesson_id);
+    let completedLessonIds = new Set<number>();
+    if (allLessonIds.length > 0) {
+        const progressResults = await userDb.all(
+            `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (${allLessonIds.map(() => '?').join(',')}) AND completed = 1`,
+            [userId, ...allLessonIds]
+        );
+        completedLessonIds = new Set(progressResults.map(r => r.lesson_id));
+    }
+    
+    const isCourseCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
     const courseDetail = { ...course, modules: [] as any[], isCompleted: isCourseCompleted };
 
-    // Process the flat list into a nested structure
     const modulesMap = new Map<number, any>();
     for (const row of modulesAndLessons) {
         if (!modulesMap.has(row.module_id)) {
@@ -73,12 +73,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
                 lessons: []
             });
         }
-        if (row.lesson_id) { // Only add lesson if it exists
+        if (row.lesson_id) {
             modulesMap.get(row.module_id).lessons.push({
                 id: row.lesson_id,
                 title: row.lesson_title,
                 type: row.lesson_type,
-                completed: !!row.completed
+                completed: completedLessonIds.has(row.lesson_id)
             });
         }
     }
@@ -94,7 +94,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           ],
         },)
     }
-
 
     return NextResponse.json(courseDetail)
   } catch (error) {
