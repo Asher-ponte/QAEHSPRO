@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -543,6 +543,35 @@ export default function ManageUsersPage() {
   const { toast } = useToast();
   const { isSuperAdmin, site } = useSession();
 
+  const [filters, setFilters] = useState({
+      fullName: '',
+      username: '',
+      siteName: 'all',
+      department: '',
+      position: '',
+      role: 'all',
+      type: 'all',
+    });
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    try {
+        const savedFilters = localStorage.getItem('userAdminFilters');
+        if (savedFilters) {
+            setFilters(JSON.parse(savedFilters));
+        }
+    } catch (error) {
+        console.error("Failed to parse filters from localStorage", error);
+        // Reset to default if parsing fails
+        setFilters({ fullName: '', username: '', siteName: 'all', department: '', position: '', role: 'all', type: 'all' });
+    }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    localStorage.setItem('userAdminFilters', JSON.stringify(filters));
+  }, [filters, isSuperAdmin]);
+
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -601,6 +630,47 @@ export default function ManageUsersPage() {
       setIsDialogDeleting(false);
     }
   };
+  
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({ fullName: '', username: '', siteName: 'all', department: '', position: '', role: 'all', type: 'all' });
+  };
+  
+  const uniqueSites = useMemo(() => {
+    if (!isSuperAdmin) return [];
+    const siteSet = new Set(users.map(user => user.siteName).filter(Boolean) as string[]);
+    return Array.from(siteSet).sort();
+  }, [users, isSuperAdmin]);
+
+  const filteredUsers = useMemo(() => {
+    if (!isSuperAdmin) return users;
+    return users.filter(user => {
+        const fullNameMatch = user.fullName ? user.fullName.toLowerCase().includes(filters.fullName.toLowerCase()) : filters.fullName === '';
+        const usernameMatch = user.username.toLowerCase().includes(filters.username.toLowerCase());
+        const siteMatch = filters.siteName === 'all' || user.siteName === filters.siteName;
+        const departmentMatch = user.department ? user.department.toLowerCase().includes(filters.department.toLowerCase()) : filters.department === '';
+        const positionMatch = user.position ? user.position.toLowerCase().includes(filters.position.toLowerCase()) : filters.position === '';
+        const roleMatch = filters.role === 'all' || user.role === filters.role;
+        const typeMatch = filters.type === 'all' || user.type === filters.type;
+        return fullNameMatch && usernameMatch && siteMatch && departmentMatch && positionMatch && roleMatch && typeMatch;
+    });
+  }, [users, filters, isSuperAdmin]);
+
+  const filtersAreActive = useMemo(() => {
+    return (
+      filters.fullName !== '' ||
+      filters.username !== '' ||
+      filters.siteName !== 'all' ||
+      filters.department !== '' ||
+      filters.position !== '' ||
+      filters.role !== 'all' ||
+      filters.type !== 'all'
+    );
+  }, [filters]);
+
 
   const openDeleteDialog = (user: User) => {
     setUserToDelete(user);
@@ -613,7 +683,7 @@ export default function ManageUsersPage() {
 
   const pageTitle = isSuperAdmin ? "Manage All Users" : "Manage Users";
   const pageDescription = isSuperAdmin
-    ? "View, create, and manage users across all branches."
+    ? "View, create, and manage users across all client branches."
     : `Onboard new employees and manage user roles for the ${site?.name || 'current'} branch.`;
 
 
@@ -641,10 +711,48 @@ export default function ManageUsersPage() {
           <CardTitle>Platform Users</CardTitle>
           <CardDescription>
             {isSuperAdmin 
-              ? "A list of all users across all branches." 
+              ? "A list of all users across all client branches." 
               : "A list of all users with access to your branch."
             }
           </CardDescription>
+           {isSuperAdmin && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t mt-4">
+                  <Input placeholder="Filter by Full Name..." value={filters.fullName} onChange={(e) => handleFilterChange('fullName', e.target.value)} />
+                  <Input placeholder="Filter by Username..." value={filters.username} onChange={(e) => handleFilterChange('username', e.target.value)} />
+                  <Input placeholder="Filter by Department..." value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} />
+                  <Input placeholder="Filter by Position..." value={filters.position} onChange={(e) => handleFilterChange('position', e.target.value)} />
+                  
+                  <Select value={filters.siteName} onValueChange={(value) => handleFilterChange('siteName', value)}>
+                    <SelectTrigger><SelectValue placeholder="Filter by Branch" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {uniqueSites.map(siteName => <SelectItem key={siteName} value={siteName}>{siteName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filters.role} onValueChange={(value) => handleFilterChange('role', value)}>
+                    <SelectTrigger><SelectValue placeholder="Filter by Role" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Employee">Employee</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filters.type} onValueChange={(value) => handleFilterChange('type', value)}>
+                    <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="Employee">Employee</SelectItem>
+                      <SelectItem value="External">External</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button variant="outline" onClick={clearFilters} disabled={!filtersAreActive}>
+                    Clear Filters
+                  </Button>
+              </div>
+           )}
         </CardHeader>
         <CardContent>
           <Table>
@@ -674,8 +782,8 @@ export default function ManageUsersPage() {
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : users.length > 0 ? (
-                users.map((user) => (
+              ) : filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
                   <TableRow key={`${user.id}-${user.siteId || ''}`}>
                     <TableCell className="font-medium">{user.fullName || user.username}</TableCell>
                     <TableCell className="text-muted-foreground">{user.username}</TableCell>
@@ -727,7 +835,7 @@ export default function ManageUsersPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-24 text-center">
-                    No users found.
+                    No users found{isSuperAdmin && filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
               )}
