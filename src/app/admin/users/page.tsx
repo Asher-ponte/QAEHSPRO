@@ -71,6 +71,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import type { Site } from "@/lib/sites"
+import { useSession } from "@/hooks/use-session"
 
 interface User {
   id: number;
@@ -112,9 +113,11 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sites, setSites] = useState<Site[]>([]);
     const { toast } = useToast();
+    const { user, site } = useSession();
 
     useEffect(() => {
         async function fetchSites() {
+            if (!open) return;
             try {
                 const res = await fetch('/api/sites');
                 if (!res.ok) throw new Error("Failed to fetch sites");
@@ -124,15 +127,20 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                 toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches.' });
             }
         }
-        if (open) {
-            fetchSites();
-        }
+        fetchSites();
     }, [open, toast]);
 
     const form = useForm<CreateUserFormValues>({
         resolver: zodResolver(createUserFormSchema),
-        defaultValues: { username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee" },
+        defaultValues: { username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee", siteId: site?.id },
     });
+    
+    // Reset form default when site context changes or dialog opens/closes
+    useEffect(() => {
+        if (site) {
+             form.reset({ username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee", siteId: site.id });
+        }
+    }, [site, open, form]);
 
     async function onSubmit(values: CreateUserFormValues) {
         setIsSubmitting(true);
@@ -163,6 +171,9 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
             setIsSubmitting(false);
         }
     }
+    
+    // A super admin is defined as an Admin in the 'main' site context.
+    const isSuperAdmin = user?.role === 'Admin' && site?.id === 'main';
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -182,7 +193,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Branch</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!isSuperAdmin}>
                                         <FormControl>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Select a branch for this user" />
@@ -196,7 +207,9 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                             )) : <SelectItem value="loading" disabled>Loading branches...</SelectItem>}
                                         </SelectContent>
                                     </Select>
-                                     <FormDescription>The branch where the user will be created.</FormDescription>
+                                     <FormDescription>
+                                        {isSuperAdmin ? "The branch where the user will be created." : "Client admins can only create users in their own branch."}
+                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -730,3 +743,5 @@ export default function ManageUsersPage() {
     </div>
   )
 }
+
+    

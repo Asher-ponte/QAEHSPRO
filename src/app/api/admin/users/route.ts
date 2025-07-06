@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import bcrypt from 'bcrypt';
-import { SITES } from '@/lib/sites';
+import { getAllSites } from '@/lib/sites';
 
 const userSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -35,7 +35,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const { user: adminUser, siteId: adminSiteId } = await getCurrentSession();
-  if (adminUser?.role !== 'Admin' || !adminSiteId) {
+  if (!adminUser || adminUser?.role !== 'Admin' || !adminSiteId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
   
@@ -48,9 +48,19 @@ export async function POST(request: NextRequest) {
     }
 
     const { username, fullName, password, department, position, role, type, siteId } = parsedData.data;
+    
+    // Determine if the calling user is a super admin
+    const isSuperAdmin = adminUser.role === 'Admin' && adminSiteId === 'main';
+
+    // Security check: Only Super Admins can create users in a different branch.
+    // Client admins can only create users in their own branch.
+    if (!isSuperAdmin && siteId !== adminSiteId) {
+        return NextResponse.json({ error: 'You do not have permission to create users in other branches.' }, { status: 403 });
+    }
 
     // Check if the target site is valid
-    if (!SITES.some(s => s.id === siteId)) {
+    const allSites = await getAllSites();
+    if (!allSites.some(s => s.id === siteId)) {
         return NextResponse.json({ error: 'Invalid branch specified.' }, { status: 400 });
     }
     
@@ -60,7 +70,8 @@ export async function POST(request: NextRequest) {
     // Check for existing username (case-insensitive) in the target database
     const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', username);
     if (existingUser) {
-        return NextResponse.json({ error: `Username already exists in the branch '${SITES.find(s => s.id === siteId)?.name}'.` }, { status: 409 });
+        const targetSiteName = allSites.find(s => s.id === siteId)?.name || siteId;
+        return NextResponse.json({ error: `Username already exists in the branch '${targetSiteName}'.` }, { status: 409 });
     }
 
     const saltRounds = 10;
@@ -78,3 +89,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
   }
 }
+
+    
