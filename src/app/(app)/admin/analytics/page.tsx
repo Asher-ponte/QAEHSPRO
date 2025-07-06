@@ -128,10 +128,8 @@ export default function ViewAnalyticsPage() {
 
     // Update selectedSiteId when session context changes via the main SiteSwitcher
     useEffect(() => {
-        if (currentSite?.id !== selectedSiteId) {
-            setSelectedSiteId(currentSite?.id);
-        }
-    }, [currentSite, selectedSiteId]);
+        setSelectedSiteId(currentSite?.id);
+    }, [currentSite]);
 
     // Effect to fetch analytics data
     useEffect(() => {
