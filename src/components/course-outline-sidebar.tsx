@@ -1,13 +1,14 @@
-
 "use client"
 
 import Link from "next/link"
 import {
   FileText,
   PlayCircle,
-  CheckCircle,
+  CheckCircle as CheckCircleIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+
 
 interface Lesson {
   id: number;
@@ -35,48 +36,57 @@ const getIcon = (type: string) => {
     case "document":
       return <FileText className="h-5 w-5 shrink-0 text-gray-500" />
     case "quiz":
-      return <CheckCircle className="h-5 w-5 shrink-0 text-gray-500" />
+      return <CheckCircleIcon className="h-5 w-5 shrink-0 text-gray-500" />
     default:
       return <FileText className="h-5 w-5 shrink-0 text-gray-500" />
   }
 }
 
 export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
-  const allLessons = course.modules.flatMap(module => module.lessons);
-
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-gray-300">
       <div className="p-4 border-b border-gray-700/50">
-        <h3 className="font-bold text-white whitespace-nowrap overflow-hidden">
+        <h3 className="font-bold text-black dark:text-white">
             {course.title}
         </h3>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <ul className="space-y-1 p-2">
-            {allLessons.map((lesson) => (
-                <li key={lesson.id}>
-                    <Link
-                        href={`/courses/${course.id}/lessons/${lesson.id}`}
-                        className={cn(
-                            "flex items-center justify-between gap-3 text-sm p-2 rounded-md transition-colors w-full",
-                            lesson.id === currentLessonId
-                            ? "bg-blue-900/50 text-blue-400"
-                            : "hover:bg-gray-800/70 text-gray-300",
-                        )}
-                    >
-                        <div className="flex items-center gap-3 min-w-0">
-                            {getIcon(lesson.type)}
-                            <span className="truncate">{lesson.title}</span>
-                        </div>
-                        <CheckCircle className={cn(
-                                "h-5 w-5 shrink-0", 
-                                lesson.completed ? 'text-green-500' : 'text-gray-600'
-                            )} />
-                    </Link>
-                </li>
+        <Accordion type="multiple" defaultValue={[]} className="w-full">
+            {course.modules.map((module) => (
+                <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
+                    <AccordionTrigger className="text-sm font-semibold text-gray-400 hover:text-white hover:no-underline [&[data-state=open]>svg]:text-white">
+                       <span className="text-left">{module.title}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <ul className="space-y-1 pt-1">
+                            {module.lessons.map((lesson) => (
+                                <li key={lesson.id}>
+                                    <Link
+                                        href={`/courses/${course.id}/lessons/${lesson.id}`}
+                                        className={cn(
+                                            "flex items-center justify-between gap-3 text-sm p-2 rounded-md transition-colors w-full",
+                                            lesson.id === currentLessonId
+                                            ? "bg-blue-900/50 text-blue-400"
+                                            : "hover:bg-gray-800/70 text-gray-300",
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {getIcon(lesson.type)}
+                                            <span className="text-black dark:text-white">{lesson.title}</span>
+                                        </div>
+                                        <CheckCircleIcon className={cn(
+                                                "h-5 w-5 shrink-0", 
+                                                lesson.completed ? 'text-green-500' : 'text-gray-600'
+                                            )} />
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </AccordionContent>
+                </AccordionItem>
             ))}
-        </ul>
+        </Accordion>
       </div>
     </div>
   )
