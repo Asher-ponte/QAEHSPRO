@@ -21,9 +21,9 @@ const slugify = (text: string): string => {
 }
 
 export async function POST(request: NextRequest) {
-    const { user: adminUser, siteId: adminSiteId } = await getCurrentSession();
-    if (adminUser?.role !== 'Admin' || !adminSiteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const { user: adminUser, isSuperAdmin } = await getCurrentSession();
+    if (!adminUser || !isSuperAdmin) {
+        return NextResponse.json({ error: 'Unauthorized: Super Admin access required' }, { status: 403 });
     }
 
     try {

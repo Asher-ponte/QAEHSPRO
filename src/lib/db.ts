@@ -204,28 +204,30 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         await db.run('UPDATE users SET password = ? WHERE id = 1', hashedPassword);
     }
     
-    // Ensure 'florante' exists and is an Admin.
-    const floranteUser = await db.get('SELECT id, password FROM users WHERE username = ?', 'florante');
-    if (floranteUser) {
-        // If user exists, ensure role is Admin.
-        await db.run('UPDATE users SET role = ? WHERE id = ?', ['Admin', floranteUser.id]);
-        
-        // Also ensure password is valid, just in case.
-        if (!isValidBcryptHash(floranteUser.password)) {
-            console.log(`Password for 'florante' on site '${siteId}' is invalid. Resetting to default.`);
+    // Ensure 'florante' exists as a Super Admin ONLY in the 'main' database.
+    if (siteId === 'main') {
+        const floranteUser = await db.get('SELECT id, password FROM users WHERE username = ?', 'florante');
+        if (floranteUser) {
+            // If user exists, ensure role is Admin.
+            await db.run('UPDATE users SET role = ? WHERE id = ?', ['Admin', floranteUser.id]);
+            
+            // Also ensure password is valid, just in case.
+            if (!isValidBcryptHash(floranteUser.password)) {
+                console.log(`Password for 'florante' on site '${siteId}' is invalid. Resetting to default.`);
+                const saltRounds = 10;
+                const hashedPassword = await bcrypt.hash('password', saltRounds);
+                await db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, floranteUser.id]);
+            }
+        } else {
+            // If user does not exist, create it as an Admin.
+            console.log(`Creating 'florante' as Admin user on site '${siteId}'.`);
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash('password', saltRounds);
-            await db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, floranteUser.id]);
+            await db.run(
+                `INSERT INTO users (username, password, fullName, role, type) VALUES (?, ?, ?, ?, ?)`,
+                ['florante', hashedPassword, 'Florante', 'Admin', 'Employee']
+            );
         }
-    } else {
-        // If user does not exist, create it as an Admin.
-        console.log(`Creating 'florante' as Admin user on site '${siteId}'.`);
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash('password', saltRounds);
-        await db.run(
-            `INSERT INTO users (username, password, fullName, role, type) VALUES (?, ?, ?, ?, ?)`,
-            ['florante', hashedPassword, 'Florante', 'Admin', 'Employee']
-        );
     }
     
     const siteDetails = CORE_SITES.find(s => s.id === siteId);

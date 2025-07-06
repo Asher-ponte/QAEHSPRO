@@ -18,6 +18,7 @@ interface User {
 export interface SessionData {
     user: User | null;
     siteId: string | null;
+    isSuperAdmin: boolean;
 }
 
 /**
@@ -31,21 +32,23 @@ export async function getCurrentSession(): Promise<SessionData> {
     
     const allSites = await getAllSites();
     if (!sessionId || !siteId || !allSites.some(s => s.id === siteId)) {
-      return { user: null, siteId: null };
+      return { user: null, siteId: null, isSuperAdmin: false };
     }
     
     const db = await getDb(siteId);
     const userId = parseInt(sessionId, 10);
     
     if (isNaN(userId)) {
-        return { user: null, siteId: null };
+        return { user: null, siteId: null, isSuperAdmin: false };
     }
 
     const user = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
     
-    return { user: user ?? null, siteId };
+    const isSuperAdmin = !!(user && user.role === 'Admin' && siteId === 'main');
+
+    return { user: user ?? null, siteId, isSuperAdmin };
   } catch (error) {
     console.error("Failed to get current session from DB:", error);
-    return { user: null, siteId: null };
+    return { user: null, siteId: null, isSuperAdmin: false };
   }
 }

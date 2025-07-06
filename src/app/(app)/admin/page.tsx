@@ -1,5 +1,4 @@
 
-
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,61 +15,8 @@ import { getAllSites, getSiteById } from "@/lib/sites"
 import { SiteSwitcher } from "@/components/site-switcher"
 
 
-const adminActions = [
-  {
-    title: "Manage Courses",
-    description: "Create, edit, and delete training courses.",
-    icon: <BookOpen className="h-8 w-8 text-primary" />,
-    href: "/admin/courses",
-    disabled: false,
-  },
-  {
-    title: "Manage Users",
-    description: "Onboard new employees and manage user roles.",
-    icon: <Users className="h-8 w-8 text-primary" />,
-    href: "/admin/users",
-    disabled: false,
-  },
-   {
-    title: "Branch Management",
-    description: "View and manage company branches.",
-    icon: <Building className="h-8 w-8 text-primary" />,
-    href: "/admin/branches",
-    disabled: false,
-  },
-  {
-    title: "View Analytics",
-    description: "Track course completion and user engagement.",
-    icon: <BarChart className="h-8 w-8 text-primary" />,
-    href: "/admin/analytics",
-    disabled: false,
-  },
-  {
-    title: "Manage Certificates",
-    description: "Configure signatories for certificates.",
-    icon: <Ribbon className="h-8 w-8 text-primary" />,
-    href: "/admin/certificates",
-    disabled: false,
-  },
-  {
-    title: "Platform Settings",
-    description: "Configure global platform settings like company name.",
-    icon: <Settings className="h-8 w-8 text-primary" />,
-    href: "/admin/settings",
-    disabled: false,
-  },
-  {
-    title: "Payment Management",
-    description: "View transactions and manage gateways.",
-    icon: <CreditCard className="h-8 w-8 text-primary" />,
-    href: "/admin/payments",
-    disabled: false,
-  },
-]
-
-
 export default async function AdminPage() {
-    const { user, siteId } = await getCurrentSession();
+    const { user, siteId, isSuperAdmin } = await getCurrentSession();
     if (!user || !siteId) {
         return <p className="p-4">Session not found. Please log in.</p>;
     }
@@ -92,9 +38,68 @@ export default async function AdminPage() {
     const statCards = [
         { title: "Total Users", value: statsData.totalUsers, icon: <Users className="h-4 w-4 text-muted-foreground" />, description: "Users in this branch." },
         { title: "Total Courses", value: statsData.totalCourses, icon: <BookOpen className="h-4 w-4 text-muted-foreground" />, description: "Courses in this branch." },
-        { title: "Total Branches", value: statsData.totalBranches, icon: <Library className="h-4 w-4 text-muted-foreground" />, description: "All company branches." },
-        { title: "Total Revenue", value: `$${statsData.totalRevenue.toFixed(2)}`, icon: <DollarSign className="h-4 w-4 text-muted-foreground" />, description: "From external users." },
+        ...(isSuperAdmin ? [{ title: "Total Branches", value: statsData.totalBranches, icon: <Library className="h-4 w-4 text-muted-foreground" />, description: "All company branches." }] : []),
+        ...(isSuperAdmin ? [{ title: "Total Revenue", value: `$${statsData.totalRevenue.toFixed(2)}`, icon: <DollarSign className="h-4 w-4 text-muted-foreground" />, description: "From external users." }] : []),
     ];
+
+    const adminActions = [
+      {
+        title: "Manage Courses",
+        description: "Create, edit, and delete training courses.",
+        icon: <BookOpen className="h-8 w-8 text-primary" />,
+        href: "/admin/courses",
+        disabled: false,
+        superAdminOnly: false,
+      },
+      {
+        title: "Manage Users",
+        description: "Onboard new employees and manage user roles.",
+        icon: <Users className="h-8 w-8 text-primary" />,
+        href: "/admin/users",
+        disabled: false,
+        superAdminOnly: false,
+      },
+      {
+        title: "Branch Management",
+        description: "Onboard new clients and manage branches.",
+        icon: <Building className="h-8 w-8 text-primary" />,
+        href: "/admin/branches",
+        disabled: false,
+        superAdminOnly: true,
+      },
+      {
+        title: "View Analytics",
+        description: "Track course completion and user engagement.",
+        icon: <BarChart className="h-8 w-8 text-primary" />,
+        href: "/admin/analytics",
+        disabled: false,
+        superAdminOnly: false,
+      },
+      {
+        title: "Manage Certificates",
+        description: "Configure signatories for certificates.",
+        icon: <Ribbon className="h-8 w-8 text-primary" />,
+        href: "/admin/certificates",
+        disabled: false,
+        superAdminOnly: false,
+      },
+      {
+        title: "Platform Settings",
+        description: "Configure global platform settings like company name.",
+        icon: <Settings className="h-8 w-8 text-primary" />,
+        href: "/admin/settings",
+        disabled: false,
+        superAdminOnly: false,
+      },
+      {
+        title: "Payment Management",
+        description: "View all transactions and manage gateways.",
+        icon: <CreditCard className="h-8 w-8 text-primary" />,
+        href: "/admin/payments",
+        disabled: false,
+        superAdminOnly: true,
+      },
+    ].filter(action => !action.superAdminOnly || isSuperAdmin);
     
   return (
     <div className="flex flex-col gap-8">
@@ -102,10 +107,10 @@ export default async function AdminPage() {
         <div>
           <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage your organization's learning and development platform.
+            {isSuperAdmin ? "Manage the entire platform and all client branches." : "Manage your organization's learning and development platform."}
           </p>
         </div>
-        <SiteSwitcher />
+        {isSuperAdmin && <SiteSwitcher />}
       </div>
 
        <div>
