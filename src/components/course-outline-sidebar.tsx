@@ -47,7 +47,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-gray-300">
       <div className="p-4 border-b border-gray-700/50">
-        <h3 className="font-bold text-white break-words text-lg">
+        <h3 className="font-bold text-white break-words text-base">
             {course.title}
         </h3>
       </div>
@@ -56,7 +56,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
         <Accordion type="multiple" defaultValue={[]} className="w-full">
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
-                    <AccordionTrigger className="text-sm font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
+                    <AccordionTrigger className="text-base font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
                        <div className="text-left flex-1 break-words">{module.title}</div>
                     </AccordionTrigger>
                     <AccordionContent>
@@ -66,7 +66,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                                     <Link
                                         href={`/courses/${course.id}/lessons/${lesson.id}`}
                                         className={cn(
-                                            "flex items-center justify-between gap-3 text-sm p-2 rounded-md transition-colors w-full",
+                                            "flex items-center justify-between gap-3 text-base p-2 rounded-md transition-colors w-full",
                                             lesson.id === currentLessonId
                                             ? "bg-blue-900/50 text-blue-400"
                                             : "hover:bg-gray-800/70 text-gray-300",
