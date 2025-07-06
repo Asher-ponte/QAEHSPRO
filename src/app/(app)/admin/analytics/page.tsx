@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
+import { useSession } from "@/hooks/use-session"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { Site } from "@/lib/sites"
+
 
 interface AnalyticsData {
     stats: {
@@ -101,12 +105,42 @@ export default function ViewAnalyticsPage() {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const { site: currentSite, isSuperAdmin } = useSession();
+    const [sites, setSites] = useState<Site[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
+    
+    // Effect to fetch sites for the dropdown
+    useEffect(() => {
+        if (isSuperAdmin) {
+            const fetchSites = async () => {
+                try {
+                    const res = await fetch('/api/sites');
+                    if (!res.ok) throw new Error("Failed to fetch sites");
+                    setSites(await res.json());
+                } catch (error) {
+                    console.error(error);
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches for filtering.' });
+                }
+            };
+            fetchSites();
+        }
+    }, [isSuperAdmin, toast]);
 
+    // Update selectedSiteId when session context changes via the main SiteSwitcher
+    useEffect(() => {
+        if (currentSite?.id !== selectedSiteId) {
+            setSelectedSiteId(currentSite?.id);
+        }
+    }, [currentSite, selectedSiteId]);
+
+    // Effect to fetch analytics data
     useEffect(() => {
         const fetchAnalytics = async () => {
+            if (!selectedSiteId) return;
+
             setIsLoading(true);
             try {
-                const res = await fetch("/api/admin/analytics");
+                const res = await fetch(`/api/admin/analytics?siteId=${selectedSiteId}`);
                 if (!res.ok) {
                     throw new Error("Failed to fetch analytics data");
                 }
@@ -118,13 +152,14 @@ export default function ViewAnalyticsPage() {
                     title: "Error",
                     description: error instanceof Error ? error.message : "Could not load analytics.",
                 });
+                 setData(null); // Clear data on error
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchAnalytics();
-    }, [toast]);
+    }, [toast, selectedSiteId]);
     
     const statCards = data ? [
         { title: "Total Users", value: data.stats.totalUsers, icon: <Users className="h-4 w-4 text-muted-foreground" /> },
@@ -132,19 +167,42 @@ export default function ViewAnalyticsPage() {
         { title: "Total Enrollments", value: data.stats.totalEnrollments, icon: <UserCheck className="h-4 w-4 text-muted-foreground" /> },
         { title: "Courses Completed", value: data.stats.coursesCompleted, icon: <BadgeCheck className="h-4 w-4 text-muted-foreground" /> },
     ] : [];
+    
+    const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
 
   return (
     <div className="flex flex-col gap-6 h-full">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold font-headline">Platform Analytics</h1>
-          <p className="text-muted-foreground">
-            An overview of platform engagement and performance.
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" asChild>
+              <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold font-headline">Platform Analytics</h1>
+               <p className="text-muted-foreground">
+                {isSuperAdmin && selectedSiteName ? `Viewing data for: ${selectedSiteName}` : 'An overview of platform engagement and performance.'}
+              </p>
+            </div>
         </div>
+        {isSuperAdmin && (
+            <div className="ml-auto">
+                <Select
+                    value={selectedSiteId}
+                    onValueChange={setSelectedSiteId}
+                >
+                    <SelectTrigger className="w-full sm:w-[280px]">
+                        <SelectValue placeholder="Select a branch to view..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {sites.map(site => (
+                            <SelectItem key={site.id} value={site.id}>
+                                {site.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        )}
       </div>
        
        {isLoading && <AnalyticsSkeleton />}

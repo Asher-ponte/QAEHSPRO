@@ -1,17 +1,32 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { format, startOfMonth } from 'date-fns';
 import { getCurrentSession } from '@/lib/session';
+import { getAllSites } from '@/lib/sites';
 
-export async function GET() {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+export async function GET(request: NextRequest) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    const requestedSiteId = request.nextUrl.searchParams.get('siteId');
+    let targetSiteId = sessionSiteId;
+
+    if (isSuperAdmin && requestedSiteId) {
+        const allSites = await getAllSites();
+        if (allSites.some(s => s.id === requestedSiteId)) {
+            targetSiteId = requestedSiteId;
+        } else {
+            return NextResponse.json({ error: 'Invalid site specified' }, { status: 400 });
+        }
+    } else if (requestedSiteId && !isSuperAdmin) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb(siteId);
+        const db = await getDb(targetSiteId);
 
         // Overall Stats
         const totalUsers = await db.get('SELECT COUNT(*) as count FROM users');
