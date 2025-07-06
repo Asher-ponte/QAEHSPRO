@@ -160,9 +160,9 @@ function AudienceAndPricing({ control }: { control: Control<CourseFormValues> })
                     name="price"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Course Price (USD)</FormLabel>
+                            <FormLabel>Course Price (PHP)</FormLabel>
                             <FormControl>
-                                <Input type="number" placeholder="e.g., 49.99" {...field} value={field.value ?? ''} />
+                                <Input type="number" placeholder="e.g., 2500" {...field} value={field.value ?? ''} />
                             </FormControl>
                             <FormDescription>
                                Set the price for external users. Enter 0 for a free public course.
@@ -586,7 +586,7 @@ export default function CreateCoursePage() {
       form.reset()
       router.push('/admin/courses')
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
         console.error(error)
         toast({
             variant: "destructive",

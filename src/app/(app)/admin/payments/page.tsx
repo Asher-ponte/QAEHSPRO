@@ -118,7 +118,7 @@ export default function PaymentManagementPage() {
                   <TableRow key={tx.id}>
                     <TableCell className="font-medium">{tx.userName}</TableCell>
                     <TableCell>{tx.courseTitle}</TableCell>
-                    <TableCell>${tx.amount.toFixed(2)}</TableCell>
+                    <TableCell>₱{tx.amount.toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(tx.status)}>
                         {tx.status}

@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock, DollarSign, Loader2 } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, Loader2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -218,8 +218,8 @@ export default function CourseDetailPage() {
     if (isExternalUser && isPaidCourse && !canAccessContent) {
         return (
              <Button className="w-full" onClick={handlePurchase} disabled={isPurchasing}>
-                {isPurchasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                Buy Now for ${course.price?.toFixed(2)}
+                {isPurchasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Buy Now for ₱{course.price?.toFixed(2)}
             </Button>
         );
     }
@@ -320,7 +320,7 @@ export default function CourseDetailPage() {
                     />
                      {isExternalUser && isPaidCourse && (
                          <Badge variant="default" className="absolute top-2 right-2 text-lg">
-                            ${course.price?.toFixed(2)}
+                            ₱{course.price?.toFixed(2)}
                          </Badge>
                      )}
                 </div>

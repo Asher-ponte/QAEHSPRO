@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, DollarSign, CreditCard, Building } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building } from "lucide-react"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
@@ -39,7 +39,7 @@ export default async function AdminPage() {
         { title: "Total Users", value: statsData.totalUsers, icon: <Users className="h-4 w-4 text-muted-foreground" />, description: "Users in this branch." },
         { title: "Total Courses", value: statsData.totalCourses, icon: <BookOpen className="h-4 w-4 text-muted-foreground" />, description: "Courses in this branch." },
         ...(isSuperAdmin ? [{ title: "Total Branches", value: statsData.totalBranches, icon: <Library className="h-4 w-4 text-muted-foreground" />, description: "All company branches." }] : []),
-        ...(isSuperAdmin ? [{ title: "Total Revenue", value: `$${statsData.totalRevenue.toFixed(2)}`, icon: <DollarSign className="h-4 w-4 text-muted-foreground" />, description: "From external users." }] : []),
+        ...(isSuperAdmin ? [{ title: "Total Revenue", value: `₱${statsData.totalRevenue.toFixed(2)}`, icon: <Banknote className="h-4 w-4 text-muted-foreground" />, description: "From external users." }] : []),
     ];
 
     const adminActions = [

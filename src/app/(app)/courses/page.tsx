@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { DollarSign, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { useSession } from "@/hooks/use-session"
@@ -130,7 +130,6 @@ export default function CoursesPage() {
                     return (
                         <Button asChild className="flex-1">
                             <Link href={`/courses/${course.id}`}>
-                                <DollarSign className="mr-2 h-4 w-4" />
                                 Buy Now
                             </Link>
                         </Button>
@@ -161,7 +160,7 @@ export default function CoursesPage() {
                     )}
                      {isExternalUser && isPaidCourse && (
                          <Badge variant="default" className="absolute top-2 left-2">
-                            ${course.price?.toFixed(2)}
+                            ₱{course.price?.toFixed(2)}
                          </Badge>
                      )}
                     </CardHeader>
