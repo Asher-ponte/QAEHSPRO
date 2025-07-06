@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { SITES } from '@/lib/sites';
+import { getAllSites } from '@/lib/sites';
 
 const switchSiteSchema = z.object({
   siteId: z.string(),
@@ -18,9 +18,10 @@ export async function POST(request: NextRequest) {
     }
     
     const { siteId } = parsedData.data;
+    const allSites = await getAllSites();
 
     // Validate that it's a real site
-    if (!SITES.some(site => site.id === siteId)) {
+    if (!allSites.some(site => site.id === siteId)) {
         return NextResponse.json({ error: 'Invalid site specified.' }, { status: 400 });
     }
 

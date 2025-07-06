@@ -3,7 +3,7 @@
 
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
-import { SITES } from './sites';
+import { getAllSites } from './sites';
 
 interface User {
   id: number;
@@ -29,7 +29,8 @@ export async function getCurrentSession(): Promise<SessionData> {
     const sessionId = cookieStore.get('session_id')?.value;
     const siteId = cookieStore.get('site_id')?.value;
     
-    if (!sessionId || !siteId || !SITES.some(s => s.id === siteId)) {
+    const allSites = await getAllSites();
+    if (!sessionId || !siteId || !allSites.some(s => s.id === siteId)) {
       return { user: null, siteId: null };
     }
     

@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { SITES } from '@/lib/sites';
+import { getAllSites } from '@/lib/sites';
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
     if (!number || !siteId) {
         return NextResponse.json({ error: 'Certificate number and site ID are required.' }, { status: 400 });
     }
-
-    if (!SITES.some(s => s.id === siteId)) {
+    
+    const allSites = await getAllSites();
+    if (!allSites.some(s => s.id === siteId)) {
         return NextResponse.json({ error: 'Invalid site specified.' }, { status: 400 });
     }
     

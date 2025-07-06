@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import bcrypt from 'bcrypt';
-import { SITES } from '@/lib/sites';
+import { getAllSites } from '@/lib/sites';
 
 const registerSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
 
     // External users are always created in the 'external' site database
     const siteId = 'external';
-    if (!SITES.some(s => s.id === siteId)) {
+    const allSites = await getAllSites();
+    if (!allSites.some(s => s.id === siteId)) {
         return NextResponse.json({ error: 'The external user site is not configured correctly.' }, { status: 500 });
     }
 

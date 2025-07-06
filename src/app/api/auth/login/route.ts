@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { SITES } from '@/lib/sites';
+import { getAllSites } from '@/lib/sites';
 import bcrypt from 'bcrypt';
 
 const loginSchema = z.object({
@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
     let loggedInUser = null;
     let loggedInSiteId = null;
 
+    const allSites = await getAllSites();
+
     // Iterate over all sites to find the user
-    for (const site of SITES) {
+    for (const site of allSites) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 

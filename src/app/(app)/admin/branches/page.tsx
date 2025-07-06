@@ -1,63 +1,166 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { ArrowLeft, Building, Info } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { ArrowLeft, Building, PlusCircle, Loader2 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { useToast } from "@/hooks/use-toast"
 import type { Site } from "@/lib/sites"
+
+const newBranchFormSchema = z.object({
+  name: z.string().min(3, { message: "Branch name must be at least 3 characters." }),
+})
+
+type NewBranchFormValues = z.infer<typeof newBranchFormSchema>
+
+
+function CreateBranchForm({ onFormSubmit }: { onFormSubmit: () => void }) {
+    const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+
+    const form = useForm<NewBranchFormValues>({
+        resolver: zodResolver(newBranchFormSchema),
+        defaultValues: { name: "" },
+    });
+
+    async function onSubmit(values: NewBranchFormValues) {
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('/api/admin/branches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to create branch.");
+            }
+            toast({
+                title: "Branch Created",
+                description: `The branch "${values.name}" has been created successfully.`,
+            });
+            onFormSubmit();
+            setOpen(false);
+            form.reset();
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add Branch
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Branch</DialogTitle>
+                    <DialogDescription>
+                        This will create a new, isolated environment with its own database for users and courses.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Branch Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Dubai Main Office" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Create Branch
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function BranchManagementPage() {
     const [sites, setSites] = useState<Site[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        async function fetchSites() {
-            setIsLoading(true);
-            try {
-                const res = await fetch('/api/sites');
-                if (!res.ok) throw new Error("Failed to fetch sites");
-                setSites(await res.json());
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setIsLoading(false);
-            }
+    const fetchSites = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/sites');
+            if (!res.ok) throw new Error("Failed to fetch sites");
+            const data = await res.json();
+            // Sort to show user-created branches after core branches
+            const sortedSites = data.sort((a: Site, b: Site) => {
+                if (a.id.startsWith('main') || a.id.startsWith('external')) return -1;
+                if (b.id.startsWith('main') || b.id.startsWith('external')) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            setSites(sortedSites);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsLoading(false);
         }
+    }
+
+    useEffect(() => {
         fetchSites();
     }, []);
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" asChild>
-                    <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold font-headline">Branch Management</h1>
-                    <p className="text-muted-foreground">
-                        View all company branches configured in the system.
-                    </p>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="outline" size="icon" asChild>
+                        <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline">Branch Management</h1>
+                        <p className="text-muted-foreground">
+                            View and create company branches in the system.
+                        </p>
+                    </div>
                 </div>
+                <CreateBranchForm onFormSubmit={fetchSites} />
             </div>
-            
-            <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>Developer Note</AlertTitle>
-                <AlertDescription>
-                   Adding or removing branches requires code changes in `src/lib/sites.ts`. Each branch has its own isolated database file, which is created automatically when the application starts.
-                </AlertDescription>
-            </Alert>
             
             <Card>
                 <CardHeader>
                     <CardTitle>Configured Branches</CardTitle>
                     <CardDescription>
-                        This is the list of all active branches.
+                        This is the list of all active branches. Each has its own database.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

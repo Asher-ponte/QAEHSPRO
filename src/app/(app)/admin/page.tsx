@@ -12,7 +12,7 @@ import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Dolla
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
-import { SITES, getSiteById } from "@/lib/sites"
+import { getAllSites, getSiteById } from "@/lib/sites"
 import { SiteSwitcher } from "@/components/site-switcher"
 
 
@@ -76,7 +76,8 @@ export default async function AdminPage() {
     }
     
     const db = await getDb(siteId);
-    const currentSite = getSiteById(siteId);
+    const currentSite = await getSiteById(siteId);
+    const allSites = await getAllSites();
 
     const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM users');
     const totalCoursesResult = await db.get('SELECT COUNT(*) as count FROM courses');
@@ -84,7 +85,7 @@ export default async function AdminPage() {
     const statsData = {
         totalUsers: totalUsersResult?.count ?? 0,
         totalCourses: totalCoursesResult?.count ?? 0,
-        totalBranches: SITES.length,
+        totalBranches: allSites.length,
         totalRevenue: 0, // Placeholder
     };
     

@@ -1,12 +1,11 @@
 
-
 'use server';
 
 import { open, type Database } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs/promises';
-import { SITES } from './sites';
+import { CORE_SITES } from './sites';
 import bcrypt from 'bcrypt';
 
 // Use a Map to hold a singleton promise for each site's database.
@@ -15,13 +14,8 @@ const dbPromises = new Map<string, Promise<Database>>();
 const setupDatabase = async (siteId: string): Promise<Database> => {
     console.log(`Setting up new database connection for site: ${siteId}`);
     
-    const site = SITES.find(s => s.id === siteId);
-    if (!site) {
-        throw new Error(`Invalid site ID: ${siteId}`);
-    }
-
     const dataDir = path.join(process.cwd(), 'data');
-    const dbPath = path.join(dataDir, `${site.id}.sqlite`);
+    const dbPath = path.join(dataDir, `${siteId}.sqlite`);
     const imagesDir = path.join(process.cwd(), 'public', 'images');
 
     // Ensure directories exist.
@@ -38,6 +32,15 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     await db.exec('PRAGMA busy_timeout = 5000;');
     await db.exec('PRAGMA foreign_keys = ON;');
     await db.exec('PRAGMA synchronous = NORMAL;');
+
+    if (siteId === 'main') {
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS custom_sites (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE
+            );
+        `);
+    }
 
     // Schema creation
     await db.exec(`
@@ -225,7 +228,10 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         );
     }
     
-    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', site.name]);
+    const siteDetails = CORE_SITES.find(s => s.id === siteId);
+    if (siteDetails) {
+        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', siteDetails.name]);
+    }
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
     console.log(`Database connection for site '${siteId}' is ready.`);
@@ -233,10 +239,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
 }
 
 export async function getDb(siteId: string): Promise<Database> {
-    if (!SITES.some(s => s.id === siteId)) {
-        throw new Error(`Attempted to access an invalid site: ${siteId}`);
-    }
-
     let dbPromise = dbPromises.get(siteId);
     if (!dbPromise) {
         dbPromise = setupDatabase(siteId);

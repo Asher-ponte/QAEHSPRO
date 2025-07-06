@@ -1,17 +1,39 @@
 
+import { getDb } from './db';
+
 export interface Site {
     id: string;
     name: string;
 }
 
-// NOTE: The 'id' must be a valid filename character set.
-export const SITES: Site[] = [
+// This remains the source for the core, un-deletable sites.
+export const CORE_SITES: Site[] = [
     { id: 'main', name: 'QAEHS Main Site' },
     { id: 'branch-one', name: 'Branch One' },
     { id: 'branch-two', name: 'Branch Two' },
     { id: 'external', name: 'External Users' },
 ];
 
-export function getSiteById(id: string): Site | undefined {
-    return SITES.find(site => site.id === id);
+export async function getAllSites(): Promise<Site[]> {
+    const db = await getDb('main');
+    // The table might not exist on first run, so handle errors gracefully.
+    const customSites = await db.all<Site[]>('SELECT * FROM custom_sites ORDER BY name').catch(() => []);
+    
+    const allSitesMap = new Map<string, Site>();
+
+    // Add core sites first
+    for (const site of CORE_SITES) {
+        allSitesMap.set(site.id, site);
+    }
+    // Add custom sites, overwriting if an ID somehow conflicts (though this shouldn't happen with validation)
+    for (const customSite of customSites) {
+        allSitesMap.set(customSite.id, customSite);
+    }
+    
+    return Array.from(allSitesMap.values());
+}
+
+export async function getSiteById(id: string): Promise<Site | undefined> {
+    const sites = await getAllSites();
+    return sites.find(site => site.id === id);
 }
