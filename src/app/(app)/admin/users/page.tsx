@@ -70,6 +70,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import type { Site } from "@/lib/sites"
 
 interface User {
   id: number;
@@ -89,6 +90,7 @@ const createUserFormSchema = z.object({
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
   role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
   type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
+  siteId: z.string({ required_error: "Branch is required." }),
 })
 
 type CreateUserFormValues = z.infer<typeof createUserFormSchema>
@@ -108,7 +110,24 @@ type UpdateUserFormValues = z.infer<typeof updateUserFormSchema>
 function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, children: ReactNode }) {
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [sites, setSites] = useState<Site[]>([]);
     const { toast } = useToast();
+
+    useEffect(() => {
+        async function fetchSites() {
+            try {
+                const res = await fetch('/api/sites');
+                if (!res.ok) throw new Error("Failed to fetch sites");
+                setSites(await res.json());
+            } catch (error) {
+                console.error(error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches.' });
+            }
+        }
+        if (open) {
+            fetchSites();
+        }
+    }, [open, toast]);
 
     const form = useForm<CreateUserFormValues>({
         resolver: zodResolver(createUserFormSchema),
@@ -157,6 +176,31 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                         <FormField
+                            control={form.control}
+                            name="siteId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Branch</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a branch for this user" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {sites.length > 0 ? sites.map(site => (
+                                                <SelectItem key={site.id} value={site.id}>
+                                                    {site.name}
+                                                </SelectItem>
+                                            )) : <SelectItem value="loading" disabled>Loading branches...</SelectItem>}
+                                        </SelectContent>
+                                    </Select>
+                                     <FormDescription>The branch where the user will be created.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <FormField
                             control={form.control}
                             name="fullName"
@@ -336,7 +380,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                 <DialogHeader>
                     <DialogTitle>Edit User</DialogTitle>
                     <DialogDescription>
-                        Update the user's details below.
+                        Update the user's details below. Branch cannot be changed after creation.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -552,7 +596,7 @@ export default function ManageUsersPage() {
             <div>
                 <h1 className="text-3xl font-bold font-headline">Manage Users</h1>
                 <p className="text-muted-foreground">
-                    Onboard new employees and manage user roles.
+                    Onboard new employees and manage user roles for the current branch.
                 </p>
             </div>
         </div>

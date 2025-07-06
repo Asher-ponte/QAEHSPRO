@@ -1,4 +1,5 @@
 
+
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -7,11 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, DollarSign, CreditCard } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, DollarSign, CreditCard, Building } from "lucide-react"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
-import { SITES } from "@/lib/sites"
+import { SITES, getSiteById } from "@/lib/sites"
+import { SiteSwitcher } from "@/components/site-switcher"
 
 
 const adminActions = [
@@ -27,6 +29,13 @@ const adminActions = [
     description: "Onboard new employees and manage user roles.",
     icon: <Users className="h-8 w-8 text-primary" />,
     href: "/admin/users",
+    disabled: false,
+  },
+   {
+    title: "Branch Management",
+    description: "View and manage company branches.",
+    icon: <Building className="h-8 w-8 text-primary" />,
+    href: "/admin/branches",
     disabled: false,
   },
   {
@@ -67,6 +76,7 @@ export default async function AdminPage() {
     }
     
     const db = await getDb(siteId);
+    const currentSite = getSiteById(siteId);
 
     const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM users');
     const totalCoursesResult = await db.get('SELECT COUNT(*) as count FROM courses');
@@ -87,23 +97,20 @@ export default async function AdminPage() {
     
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
           <p className="text-muted-foreground">
             Manage your organization's learning and development platform.
           </p>
         </div>
-        <Link href="/admin/courses/new">
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create New Course
-          </Button>
-        </Link>
+        <SiteSwitcher />
       </div>
 
        <div>
-        <h2 className="text-2xl font-bold font-headline mb-4">Branch Overview</h2>
+        <h2 className="text-2xl font-bold font-headline mb-4">
+            Overview for <span className="text-primary">{currentSite?.name}</span>
+        </h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map(card => (
                <Card key={card.title}>
