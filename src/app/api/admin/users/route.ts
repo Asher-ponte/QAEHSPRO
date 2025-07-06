@@ -10,6 +10,7 @@ const userSchema = z.object({
   department: z.string().min(2, "Department must be at least 2 characters long."),
   position: z.string().min(2, "Position must be at least 2 characters long."),
   role: z.enum(["Employee", "Admin"]),
+  type: z.enum(["Employee", "External"]),
 });
 
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
 
   try {
     const db = await getDb(siteId);
-    const users = await db.all('SELECT id, username, fullName, department, position, role FROM users ORDER BY username');
+    const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
     return NextResponse.json(users);
   } catch (error) {
     console.error("Failed to fetch users:", error);
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { username, fullName, department, position, role } = parsedData.data;
+    const { username, fullName, department, position, role, type } = parsedData.data;
 
     // Check for existing username (case-insensitive)
     const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', username);
@@ -52,10 +53,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await db.run(
-      'INSERT INTO users (username, fullName, department, position, role) VALUES (?, ?, ?, ?, ?)', 
-      [username, fullName, department, position, role]
+      'INSERT INTO users (username, fullName, department, position, role, type) VALUES (?, ?, ?, ?, ?, ?)', 
+      [username, fullName, department, position, role, type]
     );
-    const newUser = await db.get('SELECT id, username, fullName, department, position, role FROM users WHERE id = ?', result.lastID);
+    const newUser = await db.get('SELECT id, username, fullName, department, position, role, type FROM users WHERE id = ?', result.lastID);
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {

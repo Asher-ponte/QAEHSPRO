@@ -45,7 +45,8 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             fullName TEXT,
             department TEXT,
             position TEXT,
-            role TEXT NOT NULL DEFAULT 'Employee' CHECK(role IN ('Employee', 'Admin'))
+            role TEXT NOT NULL DEFAULT 'Employee' CHECK(role IN ('Employee', 'Admin')),
+            type TEXT NOT NULL DEFAULT 'Employee' CHECK(type IN ('Employee', 'External'))
         );
         CREATE TABLE IF NOT EXISTS courses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,12 +142,13 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     
     // Seed data
     await db.run(
-        `INSERT INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)
+        `INSERT INTO users (id, username, fullName, role, type) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            username=excluded.username,
            fullName=excluded.fullName,
-           role=excluded.role;`,
-        [1, 'Demo User', 'Demo User', 'Admin']
+           role=excluded.role,
+           type=excluded.type;`,
+        [1, 'Demo User', 'Demo User', 'Admin', 'Employee']
     );
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', site.name]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);

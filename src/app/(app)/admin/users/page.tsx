@@ -77,6 +77,7 @@ interface User {
   department: string | null;
   position: string | null;
   role: 'Employee' | 'Admin';
+  type: 'Employee' | 'External';
 }
 
 const userFormSchema = z.object({
@@ -85,6 +86,7 @@ const userFormSchema = z.object({
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
   role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
+  type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
 })
 
 type UserFormValues = z.infer<typeof userFormSchema>
@@ -96,7 +98,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userFormSchema),
-        defaultValues: { username: "", fullName: "", department: "", position: "", role: "Employee" },
+        defaultValues: { username: "", fullName: "", department: "", position: "", role: "Employee", type: "Employee" },
     });
 
     async function onSubmit(values: UserFormValues) {
@@ -193,27 +195,50 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="role"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Role</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a role" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="Employee">Employee</SelectItem>
-                                            <SelectItem value="Admin">Admin</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="role"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Role</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a role" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Employee">Employee</SelectItem>
+                                                <SelectItem value="Admin">Admin</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>User Type</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a type" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Employee">Employee</SelectItem>
+                                                <SelectItem value="External">External</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">Cancel</Button>
@@ -340,27 +365,50 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="role"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Role</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a role" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="Employee">Employee</SelectItem>
-                                            <SelectItem value="Admin">Admin</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="role"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Role</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a role" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Employee">Employee</SelectItem>
+                                                <SelectItem value="Admin">Admin</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>User Type</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a type" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Employee">Employee</SelectItem>
+                                                <SelectItem value="External">External</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">Cancel</Button>
@@ -485,6 +533,7 @@ export default function ManageUsersPage() {
                 <TableHead>Department</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -495,6 +544,7 @@ export default function ManageUsersPage() {
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
@@ -510,6 +560,11 @@ export default function ManageUsersPage() {
                     <TableCell>
                       <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>
                         {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.type === 'External' ? 'outline' : 'secondary'}>
+                        {user.type}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -546,7 +601,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     No users found.
                   </TableCell>
                 </TableRow>

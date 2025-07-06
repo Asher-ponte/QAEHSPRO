@@ -13,6 +13,7 @@ interface User {
   department: string | null;
   position: string | null;
   role: 'Employee' | 'Admin';
+  type: 'Employee' | 'External';
 }
 
 interface SessionContextType {
