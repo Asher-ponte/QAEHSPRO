@@ -7,18 +7,31 @@ export async function GET(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     try {
-        const db = await getDb(siteId);
-        const { id: courseId } = params;
+        const searchParams = request.nextUrl.searchParams;
+        const targetSiteId = searchParams.get('targetSiteId');
+        const courseTitle = searchParams.get('courseTitle');
+        
+        let effectiveSiteId = sessionSiteId;
+        let effectiveCourseId = parseInt(params.id, 10);
 
-        if (!courseId) {
-            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        if (isSuperAdmin && targetSiteId && courseTitle) {
+            effectiveSiteId = targetSiteId;
+            const db = await getDb(effectiveSiteId);
+            const course = await db.get('SELECT id FROM courses WHERE title = ?', courseTitle);
+            if (!course) {
+                // If the course with that title doesn't exist in the target branch, return empty progress.
+                return NextResponse.json([]); 
+            }
+            effectiveCourseId = course.id;
         }
+
+        const db = await getDb(effectiveSiteId);
 
         // Get total number of lessons for the course
         const totalLessonsResult = await db.get(`
@@ -26,7 +39,7 @@ export async function GET(
             FROM lessons l
             JOIN modules m ON l.module_id = m.id
             WHERE m.course_id = ?
-        `, [courseId]);
+        `, [effectiveCourseId]);
         const totalLessons = totalLessonsResult?.count ?? 0;
 
         // Get all enrolled users for the course
@@ -35,7 +48,7 @@ export async function GET(
             FROM users u
             JOIN enrollments e ON u.id = e.user_id
             WHERE e.course_id = ?
-        `, [courseId]);
+        `, [effectiveCourseId]);
 
         if (enrolledUsers.length === 0) {
             return NextResponse.json([]);
@@ -60,7 +73,7 @@ export async function GET(
                 JOIN lessons l ON up.lesson_id = l.id
                 JOIN modules m ON l.module_id = m.id
                 WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1
-            `, [user.id, courseId]);
+            `, [user.id, effectiveCourseId]);
 
             const completedLessons = completedLessonsResult?.count ?? 0;
             const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;

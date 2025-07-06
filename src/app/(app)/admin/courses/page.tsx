@@ -4,7 +4,6 @@
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
 import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign } from "lucide-react"
-import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -62,7 +61,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { cn } from "@/lib/utils"
+import { useSession } from "@/hooks/use-session"
+import type { Site } from "@/lib/sites"
 
 interface CourseAdminView {
   id: number;
@@ -82,24 +82,6 @@ interface User {
   username: string;
   department: string | null;
 }
-
-function getCourseStatus(
-    startDate?: string | null,
-    endDate?: string | null
-): { text: "Active" | "Scheduled" | "Archived"; variant: "default" | "secondary" | "outline" } {
-    const now = new Date();
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-
-    if (start && now < start) {
-        return { text: "Scheduled", variant: "secondary" };
-    }
-    if (end && now > end) {
-        return { text: "Archived", variant: "outline" };
-    }
-    return { text: "Active", variant: "default" };
-}
-
 
 function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -311,21 +293,56 @@ interface UserProgress {
 }
 
 function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+    const { isSuperAdmin, site: currentSite } = useSession();
+    const [sites, setSites] = useState<Site[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const [showNotCompleted, setShowNotCompleted] = useState(false);
     const { toast } = useToast();
 
+    // Reset local state when dialog closes or course changes
     useEffect(() => {
-        if (open && course) {
+        if (open) {
+            setSelectedSiteId(currentSite?.id);
+        } else {
+            setFilter('');
+            setProgressData([]);
+            setShowNotCompleted(false);
+            setIsLoading(true);
+        }
+    }, [open, currentSite]);
+
+    // Fetch sites for super admin dropdown
+    useEffect(() => {
+        if (open && isSuperAdmin) {
+            const fetchSites = async () => {
+                try {
+                    const res = await fetch('/api/sites');
+                    if (!res.ok) throw new Error("Failed to fetch sites");
+                    setSites(await res.json());
+                } catch (error) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches.' });
+                }
+            };
+            fetchSites();
+        }
+    }, [open, isSuperAdmin, toast]);
+    
+    useEffect(() => {
+        if (open && course && selectedSiteId) {
             const fetchProgress = async () => {
                 setIsLoading(true);
                 try {
-                    const res = await fetch(`/api/admin/courses/${course.id}/progress`);
-                    if (!res.ok) {
-                        throw new Error('Failed to load user progress.');
+                    const url = new URL(`/api/admin/courses/${course.id}/progress`, window.location.origin);
+                    if (isSuperAdmin) {
+                        url.searchParams.append('targetSiteId', selectedSiteId);
+                        url.searchParams.append('courseTitle', course.title);
                     }
+                    const res = await fetch(url.toString());
+                    if (!res.ok) throw new Error('Failed to load user progress.');
+                    
                     const data = await res.json();
                     setProgressData(data);
                 } catch (error) {
@@ -334,18 +351,15 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         title: 'Error',
                         description: error instanceof Error ? error.message : 'Could not load data.'
                     });
+                     setProgressData([]);
                 } finally {
                     setIsLoading(false);
                 }
             };
             fetchProgress();
-        } else {
-            setFilter('');
-            setProgressData([]);
-            setShowNotCompleted(false);
-            setIsLoading(true);
         }
-    }, [open, course, toast]);
+    }, [open, course, selectedSiteId, toast, isSuperAdmin]);
+
 
     const { completedCount, notCompletedCount } = useMemo(() => {
         if (!progressData.length) return { completedCount: 0, notCompletedCount: 0 };
@@ -381,11 +395,31 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
             <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>User Progress for "{course?.title}"</DialogTitle>
-                    <DialogDescription>
-                        Track the completion progress of all enrolled users for this course.
+                     <DialogDescription>
+                        {isSuperAdmin 
+                            ? `Viewing data for branch: ${sites.find(s => s.id === selectedSiteId)?.name || '... '}`
+                            : 'Track the completion progress of all enrolled users for this course.'
+                        }
                     </DialogDescription>
                 </DialogHeader>
+
                 <div className="py-4 space-y-4">
+                     {isSuperAdmin && (
+                        <div className="space-y-2">
+                             <Label htmlFor="branch-select">View Progress in Branch</Label>
+                             <Select value={selectedSiteId} onValueChange={setSelectedSiteId} name="branch-select">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a branch..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {sites.map(site => (
+                                        <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
                      <div className="grid grid-cols-2 gap-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
@@ -464,7 +498,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                                     )) : (
                                        <TableRow>
                                            <TableCell colSpan={3} className="h-24 text-center">
-                                                {progressData.length === 0 ? 'No users are enrolled in this course yet.' : 'No users match the current filter.'}
+                                                {progressData.length === 0 ? 'No users are enrolled in this course.' : 'No users match the current filter.'}
                                            </TableCell>
                                        </TableRow>
                                     )}
@@ -481,6 +515,107 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     );
 }
 
+function RetrainingDialog({ course, open, onOpenChange, onInitiate }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void; onInitiate: () => void; }) {
+    const { isSuperAdmin, site: currentSite } = useSession();
+    const [sites, setSites] = useState<Site[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
+    const [isRetraining, setIsRetraining] = useState(false);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (open && isSuperAdmin) {
+            const fetchSites = async () => {
+                try {
+                    const res = await fetch('/api/sites');
+                    if (!res.ok) throw new Error("Failed to fetch sites");
+                    setSites(await res.json());
+                } catch (error) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches.' });
+                }
+            };
+            fetchSites();
+        }
+        if (open) {
+            setSelectedSiteId(currentSite?.id);
+        }
+    }, [open, isSuperAdmin, toast, currentSite]);
+
+    const handleRetraining = async () => {
+        if (!course) return;
+        setIsRetraining(true);
+        try {
+            const payload: any = {};
+            if (isSuperAdmin && selectedSiteId) {
+                payload.targetSiteId = selectedSiteId;
+                payload.courseTitle = course.title;
+            }
+
+            const res = await fetch(`/api/admin/courses/${course.id}/retraining`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to start re-training.");
+            }
+
+            toast({
+                title: "Re-Training Initiated",
+                description: data.message || `Progress for all completed users of "${course.title}" has been reset.`,
+            });
+            onInitiate();
+            onOpenChange(false);
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+            });
+        } finally {
+            setIsRetraining(false);
+        }
+    };
+    
+    const branchName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Initiate Re-Training for "{course?.title}"</DialogTitle>
+                     <DialogDescription>
+                        This will reset the progress for all users who have completed this course. Their existing certificates will be kept, but they will be required to complete the course again. This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                 {isSuperAdmin && (
+                    <div className="space-y-2 py-4">
+                         <Label htmlFor="retrain-branch-select">Select Branch to Apply Re-training</Label>
+                         <Select value={selectedSiteId} onValueChange={setSelectedSiteId} name="retrain-branch-select">
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a branch..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {sites.map(site => (
+                                    <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+                <AlertDialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleRetraining} disabled={isRetraining}>
+                        {isRetraining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Initiate for "{branchName}"
+                    </Button>
+                </AlertDialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function ManageCoursesPage() {
   const [courses, setCourses] = useState<CourseAdminView[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -491,8 +626,8 @@ export default function ManageCoursesPage() {
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
   const [courseForRetraining, setCourseForRetraining] = useState<CourseAdminView | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
-  const [isDialogRetraining, setIsDialogRetraining] = useState(false);
   const { toast } = useToast()
+  const { isSuperAdmin } = useSession();
   
   const [filters, setFilters] = useState({ title: '', category: 'all' });
 
@@ -568,34 +703,6 @@ export default function ManageCoursesPage() {
       setIsDialogDeleting(false);
     }
   };
-
-  const handleRetraining = async () => {
-    if (!courseForRetraining) return;
-    setIsDialogRetraining(true);
-    try {
-        const res = await fetch(`/api/admin/courses/${courseForRetraining.id}/retraining`, {
-            method: 'POST',
-        });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Failed to start re-training.");
-        }
-        toast({
-            title: "Re-Training Initiated",
-            description: `Progress for all completed users of "${courseForRetraining.title}" has been reset.`,
-        });
-        await fetchCourses();
-        setCourseForRetraining(null);
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: error instanceof Error ? error.message : "An unknown error occurred.",
-        });
-    } finally {
-        setIsDialogRetraining(false);
-    }
-};
   
   const handleFilterChange = (key: 'title' | 'category', value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -813,23 +920,12 @@ export default function ManageCoursesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-       <AlertDialog open={!!courseForRetraining} onOpenChange={(open) => !open && setCourseForRetraining(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Initiate Re-Training?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will reset the progress for all users who have completed the course "{courseForRetraining?.title}". Their existing certificates will be kept, but they will be required to complete the course again. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRetraining} disabled={isDialogRetraining}>
-                {isDialogRetraining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Initiate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+       <RetrainingDialog
+            course={courseForRetraining}
+            open={!!courseForRetraining}
+            onOpenChange={(open) => !open && setCourseForRetraining(null)}
+            onInitiate={fetchCourses}
+        />
 
       <ManageEnrollmentsDialog 
         course={courseToEnroll}

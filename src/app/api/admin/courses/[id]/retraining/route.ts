@@ -7,28 +7,49 @@ export async function POST(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    let db;
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
-
+    
+    let db;
     try {
-        db = await getDb(siteId);
-        const courseId = parseInt(params.id, 10);
+        let body: { targetSiteId?: string; courseTitle?: string } = {};
+        try {
+            // It's a POST, but the body might be empty if not a super admin action
+            body = await request.json();
+        } catch (e) {
+            // Ignore error if body is empty
+        }
 
-        if (isNaN(courseId)) {
+        const { targetSiteId, courseTitle } = body;
+        let effectiveSiteId = sessionSiteId;
+        let effectiveCourseId = parseInt(params.id, 10);
+        
+        if (isSuperAdmin && targetSiteId && courseTitle) {
+            effectiveSiteId = targetSiteId;
+            const targetDb = await getDb(effectiveSiteId);
+            const course = await targetDb.get('SELECT id FROM courses WHERE title = ?', courseTitle);
+
+            if (!course) {
+                 return NextResponse.json({ error: `Course "${courseTitle}" not found in the selected branch.` }, { status: 404 });
+            }
+            effectiveCourseId = course.id;
+        }
+
+        db = await getDb(effectiveSiteId);
+
+        if (isNaN(effectiveCourseId)) {
             return NextResponse.json({ error: 'Course ID must be a number.' }, { status: 400 });
         }
 
         await db.run('BEGIN TRANSACTION');
 
-        // 1. Get all lesson IDs and total lesson count for the course
         const lessons = await db.all(`
             SELECT l.id FROM lessons l
             JOIN modules m ON l.module_id = m.id
             WHERE m.course_id = ?
-        `, courseId);
+        `, effectiveCourseId);
         
         const lessonIds = lessons.map(l => l.id);
         const totalLessons = lessonIds.length;
@@ -38,15 +59,13 @@ export async function POST(
             return NextResponse.json({ success: true, message: 'Course has no lessons, so no progress to reset.' });
         }
         
-        // 2. Get all users enrolled in the course
-        const enrolledUsers = await db.all(`SELECT user_id FROM enrollments WHERE course_id = ?`, courseId);
+        const enrolledUsers = await db.all(`SELECT user_id FROM enrollments WHERE course_id = ?`, effectiveCourseId);
         if (enrolledUsers.length === 0) {
             await db.run('COMMIT');
             return NextResponse.json({ success: true, message: 'No users are enrolled in this course.' });
         }
         const enrolledUserIds = enrolledUsers.map(u => u.user_id);
 
-        // 3. Find which of the enrolled users have 100% progress
         const userProgressCounts = await db.all(`
             SELECT user_id, COUNT(lesson_id) as completed_count
             FROM user_progress
@@ -65,7 +84,6 @@ export async function POST(
             return NextResponse.json({ success: true, message: 'No users have 100% completion to reset for re-training.' });
         }
         
-        // 4. Delete progress for these completed users for this course's lessons
         const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
         const userIdsPlaceholder = userIdsToReset.map(() => '?').join(',');
 
@@ -73,9 +91,6 @@ export async function POST(
             `DELETE FROM user_progress WHERE lesson_id IN (${lessonIdsPlaceholder}) AND user_id IN (${userIdsPlaceholder})`,
             [...lessonIds, ...userIdsToReset]
         );
-
-        // We specifically DO NOT delete the certificates. They serve as a historical record.
-        // A new certificate will be generated upon next completion.
 
         await db.run('COMMIT');
         
