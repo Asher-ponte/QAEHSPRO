@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -55,8 +56,8 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
         <Accordion type="multiple" defaultValue={[]} className="w-full">
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
-                    <AccordionTrigger className="text-sm font-semibold text-gray-300 hover:text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
-                       <span className="text-left">{module.title}</span>
+                    <AccordionTrigger className="text-sm font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
+                       <span className="text-left flex-1">{module.title}</span>
                     </AccordionTrigger>
                     <AccordionContent>
                         <ul className="space-y-1 pt-1">
@@ -73,7 +74,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
                                             {getIcon(lesson.type)}
-                                            <span className="break-words">{lesson.title}</span>
+                                            <span className="break-words text-white">{lesson.title}</span>
                                         </div>
                                         <CheckCircleIcon className={cn(
                                                 "h-5 w-5 shrink-0", 
