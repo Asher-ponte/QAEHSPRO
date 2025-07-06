@@ -236,7 +236,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Manage Course Enrollments</DialogTitle>
                     <DialogDescription>
@@ -378,7 +378,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>User Progress for "{course?.title}"</DialogTitle>
                     <DialogDescription>
