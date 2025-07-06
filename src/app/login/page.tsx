@@ -71,18 +71,8 @@ function LoginForm() {
             }
             toast({ title: "Login Successful", description: "Redirecting to your dashboard..." })
 
-            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000';
-            const protocol = window.location.protocol;
-
-            // Super admins on the main site can log in without a subdomain redirect
-            if (data.siteId === 'main') {
-                 router.push("/dashboard")
-                 router.refresh();
-            } else {
-                // Otherwise, redirect to the tenant's subdomain
-                const newUrl = `${protocol}//${data.siteId}.${rootDomain}/dashboard`;
-                window.location.href = newUrl;
-            }
+            router.push("/dashboard")
+            router.refresh(); // Ensure the session is re-evaluated on the server
 
         } catch (error) {
             toast({
@@ -181,10 +171,8 @@ function SignUpForm() {
                 description: "Your account has been created. Redirecting...",
             });
 
-            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000';
-            const protocol = window.location.protocol;
-            const newUrl = `${protocol}//${data.siteId}.${rootDomain}/dashboard`;
-            window.location.href = newUrl;
+            router.push('/dashboard');
+            router.refresh(); // Ensure the session is re-evaluated on the server
 
         } catch (error) {
             toast({
