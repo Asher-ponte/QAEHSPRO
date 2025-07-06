@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarProvider, Sidebar, SidebarInset, useSidebar } from "@/components/ui/sidebar"
 import { CourseOutlineSidebar } from "@/components/course-outline-sidebar"
 
 // Types
@@ -60,6 +60,21 @@ interface LessonPageData {
 interface QuizQuestion {
     text: string;
     options: { text: string }[];
+}
+
+function SidebarToggleButton() {
+    const { toggleSidebar, state } = useSidebar()
+    return (
+        <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleSidebar}
+        >
+           {state === 'collapsed' ? <ChevronsRight /> : <ChevronsLeft />}
+           <span className="sr-only">Toggle Sidebar</span>
+        </Button>
+    )
 }
 
 const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data: any) => void }) => {
@@ -280,10 +295,6 @@ function LessonPageSkeleton() {
     return (
         <SidebarProvider>
             <Sidebar>
-                <div className="p-4 border-b">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2 mt-2" />
-                </div>
                 <div className="p-4 space-y-4">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
@@ -471,6 +482,11 @@ export default function LessonPage() {
             </Sidebar>
             <SidebarInset>
                  <div className="space-y-6 p-4 sm:p-6 pb-24 md:pb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold font-headline">{course.title}</h1>
+                        <p className="text-muted-foreground">Follow the modules below to complete the course.</p>
+                    </div>
+
                     <Card>
                         <CardHeader className="p-3">
                             <div className="flex justify-between items-center mb-1">
@@ -485,7 +501,7 @@ export default function LessonPage() {
                         <CardHeader>
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-4">
-                                    <SidebarTrigger />
+                                    <SidebarToggleButton />
                                     {getIcon()}
                                     <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                                 </div>

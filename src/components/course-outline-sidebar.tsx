@@ -45,15 +45,9 @@ const getIcon = (type: string) => {
 
 export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
   return (
-    <div className="flex flex-col h-full bg-[#0d1117] text-gray-300">
-      <div className="p-4 border-b border-gray-700/50">
-        <h3 className="font-bold text-white break-words text-base">
-            {course.title}
-        </h3>
-      </div>
-
+    <div className="flex flex-col h-full bg-[#0d1117] text-gray-300 pt-4">
       <div className="flex-1 overflow-y-auto">
-        <Accordion type="multiple" defaultValue={[]} className="w-full">
+        <Accordion type="multiple" defaultValue={course.modules.map(m => m.title)} className="w-full">
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
                     <AccordionTrigger className="text-base font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
