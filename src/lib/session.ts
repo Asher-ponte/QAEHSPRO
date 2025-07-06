@@ -2,7 +2,7 @@
 'use server'
 
 import { getDb } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getAllSites } from './sites';
 
 interface User {
@@ -26,9 +26,15 @@ export interface SessionData {
  */
 export async function getCurrentSession(): Promise<SessionData> {
   try {
+    const headersList = headers();
     const cookieStore = cookies();
+    
+    // Prioritize siteId from middleware header, fallback to cookie for super admin switching
+    const siteIdFromHeader = headersList.get('x-site-id');
+    const siteIdFromCookie = cookieStore.get('site_id')?.value;
+    const siteId = siteIdFromHeader || siteIdFromCookie;
+    
     const sessionId = cookieStore.get('session_id')?.value;
-    const siteId = cookieStore.get('site_id')?.value;
     
     const allSites = await getAllSites();
     if (!sessionId || !siteId || !allSites.some(s => s.id === siteId)) {
@@ -44,6 +50,8 @@ export async function getCurrentSession(): Promise<SessionData> {
 
     const user = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
     
+    // A user is a super admin ONLY if they are an admin AND they are operating on the main site.
+    // The context can be from the header (a tenant URL) or the cookie (super admin using switcher).
     const isSuperAdmin = !!(user && user.role === 'Admin' && siteId === 'main');
 
     return { user: user ?? null, siteId, isSuperAdmin };

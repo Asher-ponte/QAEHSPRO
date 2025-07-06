@@ -32,11 +32,8 @@ export async function POST(request: NextRequest) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
-        // We must check if user and user.password exist before trying to compare.
         if (user && user.password) {
             try {
-                // This is the critical operation that can fail if the hash is malformed.
-                // Wrapping it in a try...catch makes the login process resilient.
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
                     loggedInUser = user;
@@ -44,7 +41,6 @@ export async function POST(request: NextRequest) {
                     break; // Exit loop once user is found and authenticated
                 }
             } catch (e) {
-                 // This will catch errors from bcrypt if the hash is malformed.
                  console.warn(`Bcrypt error for user '${username}' on site '${site.id}'. Hash might be invalid. Skipping. Error: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
@@ -69,7 +65,11 @@ export async function POST(request: NextRequest) {
     });
 
 
-    return NextResponse.json({ success: true, message: 'Login successful' });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Login successful',
+      siteId: loggedInSiteId 
+    });
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'An internal server error occurred.' }, { status: 500 });

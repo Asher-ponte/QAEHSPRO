@@ -68,7 +68,11 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    return NextResponse.json({ success: true, message: 'Registration successful' });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Registration successful',
+      siteId: siteId,
+    });
 
   } catch (error) {
     console.error('Registration error:', error);

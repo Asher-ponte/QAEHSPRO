@@ -65,13 +65,25 @@ function LoginForm() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(values),
             })
+            const data = await response.json()
             if (!response.ok) {
-                const data = await response.json()
                 throw new Error(data.error || "Login failed")
             }
-            toast({ title: "Login Successful", description: "Welcome back!" })
-            router.push("/dashboard")
-            router.refresh()
+            toast({ title: "Login Successful", description: "Redirecting to your dashboard..." })
+
+            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000';
+            const protocol = window.location.protocol;
+
+            // Super admins on the main site can log in without a subdomain redirect
+            if (data.siteId === 'main') {
+                 router.push("/dashboard")
+                 router.refresh();
+            } else {
+                // Otherwise, redirect to the tenant's subdomain
+                const newUrl = `${protocol}//${data.siteId}.${rootDomain}/dashboard`;
+                window.location.href = newUrl;
+            }
+
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -166,10 +178,14 @@ function SignUpForm() {
             }
             toast({
                 title: "Registration Successful",
-                description: "Your account has been created.",
+                description: "Your account has been created. Redirecting...",
             });
-            router.push('/dashboard');
-            router.refresh();
+
+            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000';
+            const protocol = window.location.protocol;
+            const newUrl = `${protocol}//${data.siteId}.${rootDomain}/dashboard`;
+            window.location.href = newUrl;
+
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -264,20 +280,10 @@ export default function AuthPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    async function checkAuth() {
-        try {
-            const authRes = await fetch('/api/auth/me');
-            if (authRes.ok) {
-                router.push('/dashboard');
-            }
-        } catch (e) {
-            // Ignore auth check errors, proceed to login form
-        } finally {
-            setIsCheckingAuth(false);
-        }
-    }
-    checkAuth();
-  }, [router]);
+    // We prevent automatic redirection on the login page itself,
+    // as the middleware now handles routing. We just want to remove the loader.
+    setIsCheckingAuth(false);
+  }, []);
 
 
   if (isCheckingAuth) {

@@ -5,7 +5,6 @@ import { open, type Database } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs/promises';
-import { CORE_SITES } from './sites';
 import bcrypt from 'bcrypt';
 
 // Use a Map to hold a singleton promise for each site's database.
@@ -230,10 +229,8 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         }
     }
     
-    const siteDetails = CORE_SITES.find(s => s.id === siteId);
-    if (siteDetails) {
-        await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', siteDetails.name]);
-    }
+    // Seed default settings if they don't exist. This replaces the logic that caused the circular dependency.
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', `Company ${siteId}`]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
     console.log(`Database connection for site '${siteId}' is ready.`);
