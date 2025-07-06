@@ -43,7 +43,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
-            password TEXT,
             fullName TEXT,
             department TEXT,
             position TEXT,
@@ -156,6 +155,24 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         );
     `);
     
+    // Add password column if it doesn't exist (for backward compatibility)
+    const usersTableInfo = await db.all("PRAGMA table_info(users)");
+    const passwordColumnExists = usersTableInfo.some(col => col.name === 'password');
+
+    if (!passwordColumnExists) {
+        console.log(`Applying migration for site '${siteId}': Adding 'password' column to 'users' table.`);
+        try {
+            await db.exec('ALTER TABLE users ADD COLUMN password TEXT');
+        } catch (e) {
+            console.error(`Failed to add password column for site '${siteId}'. This might happen in a race condition. Checking again.`, e);
+            const newInfo = await db.all("PRAGMA table_info(users)");
+            if (!newInfo.some(col => col.name === 'password')) {
+                throw new Error(`Migration failed for site '${siteId}'. Could not add password column.`);
+            }
+        }
+    }
+
+
     // Seed data
     await db.run(
         `INSERT OR IGNORE INTO users (id, username, fullName, role, type) VALUES (?, ?, ?, ?, ?)`,
