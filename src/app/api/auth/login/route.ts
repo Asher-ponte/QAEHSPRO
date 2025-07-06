@@ -24,26 +24,30 @@ export async function POST(request: NextRequest) {
 
     let loggedInUser = null;
     let loggedInSiteId = null;
+    
+    // A valid bcrypt hash starts with $2a$, $2b$, or $2y$, a cost factor, and is 60 characters long.
+    const isValidBcryptHash = (hash: string | null | undefined): boolean => {
+        if (!hash) return false;
+        return /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
+    };
 
     // Iterate over all sites to find the user
     for (const site of SITES) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
-        // Check if user exists and has a non-empty password
-        if (user && user.password && typeof user.password === 'string' && user.password.length > 0) {
-            try {
-                const passwordMatch = await bcrypt.compare(password, user.password);
-                if (passwordMatch) {
-                    loggedInUser = user;
-                    loggedInSiteId = site.id;
-                    break; // Exit loop once user is found and authenticated
-                }
-            } catch (compareError) {
-                // This can happen if the stored password is not a valid hash.
-                // We can treat it as a failed login attempt for this site and continue.
-                console.warn(`Could not compare password for user '${username}' on site '${site.id}'. This might be due to an invalid hash.`);
+        // This is the critical check. We only proceed if the user exists AND their password hash is valid.
+        if (user && isValidBcryptHash(user.password)) {
+            // Because of the check above, this call is now safe and will not crash.
+            const passwordMatch = await bcrypt.compare(password, user.password);
+            if (passwordMatch) {
+                loggedInUser = user;
+                loggedInSiteId = site.id;
+                break; // Exit loop once user is found and authenticated
             }
+        } else if (user && !isValidBcryptHash(user.password)) {
+            // This case handles users with invalid/corrupted passwords. We log it and skip them.
+            console.warn(`Skipping user '${username}' on site '${site.id}' due to an invalid password format in the database.`);
         }
     }
 
@@ -72,5 +76,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
-
-    
