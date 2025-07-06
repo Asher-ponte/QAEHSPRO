@@ -136,7 +136,16 @@ export default function CoursesPage() {
                       <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
                       <CardTitle className="text-lg font-headline break-words">{course.title}</CardTitle>
                       <CardDescription className="mt-2 text-sm break-words">
-                          {course.description}
+                        {course.description.length > 120 ? (
+                            <>
+                                {`${course.description.substring(0, 120)}... `}
+                                <Link href={`/courses/${course.id}`} className="text-primary font-medium hover:underline">
+                                    See more
+                                </Link>
+                            </>
+                        ) : (
+                            course.description
+                        )}
                       </CardDescription>
                     </CardContent>
                     <CardFooter className="p-4 pt-0 flex gap-2">
