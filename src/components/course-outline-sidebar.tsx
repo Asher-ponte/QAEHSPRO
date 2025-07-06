@@ -46,7 +46,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-gray-300">
       <div className="p-4 border-b border-gray-700/50">
-        <h3 className="font-bold text-black dark:text-white">
+        <h3 className="font-bold text-white break-words">
             {course.title}
         </h3>
       </div>
@@ -55,7 +55,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
         <Accordion type="multiple" defaultValue={[]} className="w-full">
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
-                    <AccordionTrigger className="text-sm font-semibold text-gray-400 hover:text-white hover:no-underline [&[data-state=open]>svg]:text-white">
+                    <AccordionTrigger className="text-sm font-semibold text-gray-300 hover:text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
                        <span className="text-left">{module.title}</span>
                     </AccordionTrigger>
                     <AccordionContent>
@@ -73,7 +73,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
                                             {getIcon(lesson.type)}
-                                            <span className="text-black dark:text-white">{lesson.title}</span>
+                                            <span className="break-words">{lesson.title}</span>
                                         </div>
                                         <CheckCircleIcon className={cn(
                                                 "h-5 w-5 shrink-0", 
