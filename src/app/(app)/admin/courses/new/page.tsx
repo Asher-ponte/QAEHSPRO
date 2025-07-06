@@ -27,6 +27,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { Separator } from "@/components/ui/separator"
+import { useSession } from "@/hooks/use-session"
+import type { Site } from "@/lib/sites"
 
 interface SignatoryOption {
     id: number;
@@ -70,6 +72,7 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
+  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -95,6 +98,83 @@ const courseSchema = z.object({
 
 
 type CourseFormValues = z.infer<typeof courseSchema>
+
+function BranchAvailabilityField({ control }: { control: Control<CourseFormValues> }) {
+    const [sites, setSites] = useState<Site[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAllSites = async () => {
+            setIsLoading(true);
+            try {
+                const res = await fetch('/api/sites');
+                if (!res.ok) throw new Error("Failed to load sites");
+                const allSitesData = await res.json();
+                // Filter out main and external sites, as courses are for clients
+                const clientSites = allSitesData.filter((s: Site) => !['main', 'external'].includes(s.id));
+                setSites(clientSites);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAllSites();
+    }, []);
+
+    return (
+         <FormField
+            control={control}
+            name="targetSiteIds"
+            render={() => (
+                <FormItem>
+                    {isLoading ? (
+                         <div className="space-y-2">
+                            <Skeleton className="h-6 w-1/2" />
+                            <Skeleton className="h-6 w-1/2" />
+                        </div>
+                    ) : sites.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sites.map((site) => (
+                                <FormField
+                                    key={site.id}
+                                    control={control}
+                                    name="targetSiteIds"
+                                    render={({ field }) => {
+                                        return (
+                                            <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(site.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const currentValue = field.value || [];
+                                                            return checked
+                                                                ? field.onChange([...currentValue, site.id])
+                                                                : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                    {site.name}
+                                                </FormLabel>
+                                            </FormItem>
+                                        );
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                         <p className="text-sm text-muted-foreground">
+                            No client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
+                        </p>
+                    )}
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    )
+}
+
 
 function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
     const isPublic = useWatch({
@@ -514,6 +594,7 @@ export default function CreateCoursePage() {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const { isSuperAdmin } = useSession();
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -530,6 +611,7 @@ export default function CreateCoursePage() {
       price: null,
       modules: [],
       signatoryIds: [],
+      targetSiteIds: [],
     },
     mode: "onChange"
   })
@@ -541,6 +623,15 @@ export default function CreateCoursePage() {
 
 
   async function onSubmit(values: CourseFormValues) {
+    if (isSuperAdmin && (!values.targetSiteIds || values.targetSiteIds.length === 0)) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "As a super admin, you must select at least one branch to create the course in.",
+        });
+        return;
+    }
+
     setIsLoading(true)
 
     const payload = {
@@ -571,9 +662,9 @@ export default function CreateCoursePage() {
         body: JSON.stringify(payload),
       })
 
+      const data = await response.json();
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred" }));
-        const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to create course");
+        const message = data.details ? JSON.stringify(data.details, null, 2) : (data.error || "Failed to create course");
         throw new Error(message);
       }
 
@@ -586,7 +677,7 @@ export default function CreateCoursePage() {
       form.reset()
       router.push('/admin/courses')
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
+        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred."
         console.error(error)
         toast({
             variant: "destructive",
@@ -814,6 +905,20 @@ export default function CreateCoursePage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {isSuperAdmin && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Branch Availability</CardTitle>
+                        <CardDescription>
+                            Select which branches this course will be created in.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <BranchAvailabilityField control={form.control} />
+                    </CardContent>
+                </Card>
+            )}
             
             <Card>
                 <CardHeader>

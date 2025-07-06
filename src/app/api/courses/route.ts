@@ -52,6 +52,7 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
+  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -110,13 +111,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, siteId } = await getCurrentSession();
-  if (user?.role !== 'Admin' || !siteId) {
+  const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !sessionSiteId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
   
-  const db = await getDb(siteId);
-
   try {
     const data = await request.json()
     const parsedData = courseSchema.safeParse(data)
@@ -125,59 +124,72 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
+    const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
 
-    await db.run('BEGIN TRANSACTION');
-
-    const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]
-    )
-    const courseId = courseResult.lastID;
-    if (!courseId) {
-        throw new Error('Failed to create course');
+    // Use selected sites for super admin, or session site for client admin
+    const sitesToCreateIn = isSuperAdmin ? (targetSiteIds || []) : [sessionSiteId];
+    if (sitesToCreateIn.length === 0) {
+        return NextResponse.json({ error: 'Super admins must select at least one branch.' }, { status: 400 });
     }
 
-    // Assign signatories
-    if (signatoryIds && signatoryIds.length > 0) {
-        const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-        for (const signatoryId of signatoryIds) {
-            await stmt.run(courseId, signatoryId);
-        }
-        await stmt.finalize();
-    }
-
-    for (const [moduleIndex, moduleData] of modules.entries()) {
-        const moduleResult = await db.run(
-            'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
-            [courseId, moduleData.title, moduleIndex + 1]
-        );
-        const moduleId = moduleResult.lastID;
-        if (!moduleId) {
-            throw new Error(`Failed to create module: ${moduleData.title}`);
-        }
-
-        for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-            let contentToStore = lessonData.content ?? null;
-            if (lessonData.type === 'quiz' && lessonData.questions) {
-                contentToStore = transformQuestionsToDbFormat(lessonData.questions);
+    // This block will execute the creation logic for each selected branch.
+    for (const targetSiteId of sitesToCreateIn) {
+        const db = await getDb(targetSiteId);
+        await db.run('BEGIN TRANSACTION');
+        try {
+            const courseResult = await db.run(
+              'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]
+            )
+            const courseId = courseResult.lastID;
+            if (!courseId) {
+                throw new Error('Failed to create course');
             }
 
-            await db.run(
-                'INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)',
-                [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]
-            );
+            // Assign signatories
+            if (signatoryIds && signatoryIds.length > 0) {
+                const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+                for (const signatoryId of signatoryIds) {
+                    await stmt.run(courseId, signatoryId);
+                }
+                await stmt.finalize();
+            }
+
+            for (const [moduleIndex, moduleData] of modules.entries()) {
+                const moduleResult = await db.run(
+                    'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
+                    [courseId, moduleData.title, moduleIndex + 1]
+                );
+                const moduleId = moduleResult.lastID;
+                if (!moduleId) {
+                    throw new Error(`Failed to create module: ${moduleData.title}`);
+                }
+
+                for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                    let contentToStore = lessonData.content ?? null;
+                    if (lessonData.type === 'quiz' && lessonData.questions) {
+                        contentToStore = transformQuestionsToDbFormat(lessonData.questions);
+                    }
+
+                    await db.run(
+                        'INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)',
+                        [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]
+                    );
+                }
+            }
+            
+            await db.run('COMMIT');
+        } catch (innerError) {
+            await db.run('ROLLBACK');
+            // Re-throw to be caught by the outer catch block, ensuring the loop stops.
+            throw new Error(`Failed to create course in branch '${targetSiteId}': ${innerError instanceof Error ? innerError.message : String(innerError)}`);
         }
     }
-    
-    await db.run('COMMIT');
-    
-    const newCourse = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
 
-    return NextResponse.json(newCourse, { status: 201 })
+    return NextResponse.json({ success: true, message: `Course created in ${sitesToCreateIn.length} branch(es).` }, { status: 201 });
+
   } catch (error) {
-    await db.run('ROLLBACK');
-    console.error(error)
-    return NextResponse.json({ error: 'Failed to create course', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+    console.error("Course creation process failed:", error)
+    return NextResponse.json({ error: 'Failed to create course in one or more branches.', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
