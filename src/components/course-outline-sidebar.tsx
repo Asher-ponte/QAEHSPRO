@@ -47,7 +47,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-gray-300">
       <div className="p-4 border-b border-gray-700/50">
-        <h3 className="font-bold text-white break-words">
+        <h3 className="font-bold text-white break-words text-lg">
             {course.title}
         </h3>
       </div>
@@ -57,7 +57,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
                     <AccordionTrigger className="text-sm font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
-                       <span className="text-left flex-1">{module.title}</span>
+                       <div className="text-left flex-1 break-words">{module.title}</div>
                     </AccordionTrigger>
                     <AccordionContent>
                         <ul className="space-y-1 pt-1">
