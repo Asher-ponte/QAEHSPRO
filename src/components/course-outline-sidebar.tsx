@@ -44,13 +44,18 @@ const getIcon = (type: string) => {
 }
 
 export function CourseOutlineSidebar({ course, currentLessonId }: { course: Course; currentLessonId: number }) {
+  // Find which module is currently active to open it by default.
+  const activeModule = course.modules.find(module => 
+    module.lessons.some(lesson => lesson.id === currentLessonId)
+  )?.title;
+
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-gray-300 pt-4">
       <div className="flex-1 overflow-y-auto">
-        <Accordion type="multiple" defaultValue={course.modules.map(m => m.title)} className="w-full">
+        <Accordion type="multiple" defaultValue={activeModule ? [activeModule] : []} className="w-full">
             {course.modules.map((module) => (
                 <AccordionItem value={module.title} key={module.id} className="border-b-0 px-2">
-                    <AccordionTrigger className="text-base font-semibold text-white hover:no-underline [&[data-state=open]]:text-white [&[data-state=open]>svg]:text-white">
+                    <AccordionTrigger className="text-sm font-semibold text-white hover:no-underline [&[data-state=open]]:text-white">
                        <div className="text-left flex-1 break-words">{module.title}</div>
                     </AccordionTrigger>
                     <AccordionContent>
@@ -60,7 +65,7 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                                     <Link
                                         href={`/courses/${course.id}/lessons/${lesson.id}`}
                                         className={cn(
-                                            "flex items-center justify-between gap-3 text-base p-2 rounded-md transition-colors w-full",
+                                            "flex items-center justify-between gap-3 text-sm p-2 rounded-md transition-colors w-full",
                                             lesson.id === currentLessonId
                                             ? "bg-blue-900/50 text-blue-400"
                                             : "hover:bg-gray-800/70 text-gray-300",
