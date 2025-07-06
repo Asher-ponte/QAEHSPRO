@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import { DollarSign, Search } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { useSession } from "@/hooks/use-session"
 
 interface Course {
   id: string;
@@ -26,6 +27,8 @@ interface Course {
   imagePath: string;
   startDate: string | null;
   endDate: string | null;
+  is_public: boolean;
+  price: number | null;
 }
 
 function getCourseStatus(
@@ -52,6 +55,7 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const { user } = useSession();
 
   useEffect(() => {
     async function fetchCourses() {
@@ -115,6 +119,30 @@ export default function CoursesPage() {
           filteredCourses.map((course) => {
               const status = getCourseStatus(course.startDate, course.endDate);
               const isActionable = !status || status.text === 'Active';
+              const isPaidCourse = course.is_public && course.price && course.price > 0;
+              const isExternalUser = user?.type === 'External';
+
+              const ActionButton = () => {
+                if (!isActionable) {
+                    return <Button className="flex-1" disabled>{status?.text}</Button>;
+                }
+                if (isExternalUser && isPaidCourse) {
+                    return (
+                        <Button asChild className="flex-1">
+                            <Link href={`/courses/${course.id}`}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                Buy Now
+                            </Link>
+                        </Button>
+                    );
+                }
+                return (
+                    <Button asChild className="flex-1">
+                        <Link href={`/courses/${course.id}`}>Start Learning</Link>
+                    </Button>
+                );
+              }
+
               return (
                 <Card key={course.id} className="h-full flex flex-col">
                     <CardHeader className="p-0 relative">
@@ -131,6 +159,11 @@ export default function CoursesPage() {
                      {status && status.text !== 'Active' && (
                         <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
                     )}
+                     {isExternalUser && isPaidCourse && (
+                         <Badge variant="default" className="absolute top-2 left-2">
+                            ${course.price?.toFixed(2)}
+                         </Badge>
+                     )}
                     </CardHeader>
                     <CardContent className="flex-grow p-4">
                       <Badge variant="secondary" className="mb-2 h-auto whitespace-normal">{course.category}</Badge>
@@ -152,9 +185,7 @@ export default function CoursesPage() {
                         <Button asChild variant="outline" className="flex-1">
                             <Link href={`/courses/${course.id}`}>More Info</Link>
                         </Button>
-                        <Button asChild className="flex-1" disabled={!isActionable}>
-                            <Link href={`/courses/${course.id}`}>Start Learning</Link>
-                        </Button>
+                        <ActionButton />
                     </CardFooter>
                 </Card>
             )

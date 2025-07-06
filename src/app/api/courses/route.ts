@@ -46,6 +46,8 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_public: z.boolean().default(false),
+  price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
@@ -56,6 +58,14 @@ const courseSchema = z.object({
 }, {
     message: "End date must be on or after the start date.",
     path: ["endDate"],
+}).refine(data => {
+    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Price must be a positive number for public courses.",
+    path: ["price"],
 });
 
 export async function GET() {
@@ -68,18 +78,23 @@ export async function GET() {
     const db = await getDb(siteId);
 
     let courses;
-    // Admins see all courses in the catalog.
-    // Employees only see courses they have been enrolled in.
+    // Admins see all courses in their branch.
+    // Employees see internal courses they are enrolled in.
+    // External users see public courses.
     if (user.role === 'Admin') {
         courses = await db.all('SELECT * FROM courses ORDER BY title ASC');
-    } else {
+    } else if (user.type === 'Employee') {
         courses = await db.all(`
             SELECT c.* 
             FROM courses c
             JOIN enrollments e ON c.id = e.course_id
-            WHERE e.user_id = ?
+            WHERE e.user_id = ? AND c.is_public = 0
             ORDER BY c.title ASC
         `, [user.id]);
+    } else { // External user
+         courses = await db.all(`
+            SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
+        `);
     }
     
     return NextResponse.json(courses)
@@ -105,13 +120,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath, venue, startDate, endDate, signatoryIds } = parsedData.data;
+    const { title, description, category, modules, imagePath, venue, startDate, endDate, is_public, price, signatoryIds } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
     const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [title, description, category, imagePath, venue, startDate, endDate]
+      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, category, imagePath, venue, startDate, endDate, is_public, price]
     )
     const courseId = courseResult.lastID;
     if (!courseId) {

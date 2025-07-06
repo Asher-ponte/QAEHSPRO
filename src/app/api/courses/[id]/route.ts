@@ -21,7 +21,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
     }
 
-    if (user.role !== 'Admin') {
+    // Public courses are visible to everyone.
+    // Internal courses are only visible to employees of that site (or admins).
+    if (!course.is_public && user.type !== 'Employee' && user.role !== 'Admin') {
+        return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
+    }
+
+    if (user.role !== 'Admin' && user.type === 'Employee') {
         const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
         if (!enrollment) {
             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });

@@ -58,7 +58,9 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             imagePath TEXT,
             startDate TEXT,
             endDate TEXT,
-            venue TEXT
+            venue TEXT,
+            is_public BOOLEAN NOT NULL DEFAULT 0,
+            price REAL
         );
         CREATE TABLE IF NOT EXISTS modules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

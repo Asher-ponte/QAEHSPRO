@@ -64,6 +64,8 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_public: z.boolean().default(false),
+  price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
@@ -74,6 +76,14 @@ const courseSchema = z.object({
 }, {
     message: "End date must be on or after the start date.",
     path: ["endDate"],
+}).refine(data => {
+    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Price must be a positive number for public courses.",
+    path: ["price"],
 });
 
 
@@ -147,6 +157,7 @@ export async function GET(
 
         return NextResponse.json({
             ...course,
+            is_public: !!course.is_public,
             imagePath: course.imagePath ?? null,
             venue: course.venue ?? null,
             signatoryIds,
@@ -184,14 +195,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, signatoryIds } = parsedData.data;
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_public, price, signatoryIds } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
         // 1. Update the course itself
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ? WHERE id = ?',
-            [title, description, category, imagePath, venue, startDate, endDate, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_public = ?, price = ? WHERE id = ?',
+            [title, description, category, imagePath, venue, startDate, endDate, is_public, price, courseId]
         );
 
         // 2. Update signatories

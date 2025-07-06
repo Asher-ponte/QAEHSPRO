@@ -66,6 +66,8 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_public: z.boolean().default(false),
+  price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
 }).refine(data => {
@@ -76,10 +78,86 @@ const courseSchema = z.object({
 }, {
     message: "End date must be on or after the start date.",
     path: ["endDate"],
+}).refine(data => {
+    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Price must be a positive number for public courses.",
+    path: ["price"],
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>
 
+
+function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
+    const isPublic = useWatch({
+        control,
+        name: "is_public",
+    });
+
+    return (
+        <div className="space-y-8">
+            <FormField
+                control={control}
+                name="is_public"
+                render={({ field }) => (
+                    <FormItem className="space-y-3">
+                        <FormLabel>Course Audience</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={(value) => field.onChange(value === 'true')}
+                                value={String(field.value)}
+                                className="flex flex-col space-y-1"
+                            >
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="false" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        Internal (for employees only)
+                                    </FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="true" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        Public (for external users)
+                                    </FormLabel>
+                                </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormDescription>
+                           Select who can see and enroll in this course.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            
+            {isPublic && (
+                 <FormField
+                    control={control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Course Price (USD)</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="e.g., 49.99" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormDescription>
+                               Set the price for external users. Enter 0 for a free public course.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+        </div>
+    );
+}
 
 function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
     const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
@@ -455,6 +533,8 @@ export default function EditCoursePage() {
       venue: "",
       startDate: null,
       endDate: null,
+      is_public: false,
+      price: null,
       modules: [],
       signatoryIds: [],
     },
@@ -501,14 +581,8 @@ export default function EditCoursePage() {
     setIsSubmitting(true);
 
     const payload = {
-      title: values.title,
-      description: values.description,
-      category: values.category,
-      imagePath: values.imagePath,
-      venue: values.venue,
-      startDate: values.startDate,
-      endDate: values.endDate,
-      signatoryIds: values.signatoryIds,
+      ...values,
+      price: values.is_public ? values.price : null,
       modules: values.modules.map(module => ({
         id: module.id,
         title: module.title,
@@ -794,6 +868,18 @@ export default function EditCoursePage() {
                             />
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle>Audience & Pricing</CardTitle>
+                    <CardDescription>
+                        Define who can enroll in this course and set a price if applicable.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <AudienceAndPricing control={form.control} />
                 </CardContent>
             </Card>
 

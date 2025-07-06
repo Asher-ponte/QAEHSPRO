@@ -14,11 +14,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, DollarSign } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { useSession } from "@/hooks/use-session"
 
 interface Lesson {
   id: number;
@@ -42,6 +43,8 @@ interface Course {
   startDate: string | null;
   endDate: string | null;
   isCompleted: boolean;
+  is_public: boolean;
+  price: number | null;
 }
 
 type CourseStatus = 'Active' | 'Archived' | 'Scheduled';
@@ -76,6 +79,7 @@ export default function CourseDetailPage() {
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
+  const { user } = useSession();
 
   useEffect(() => {
     if (!params.id) return
@@ -128,35 +132,13 @@ export default function CourseDetailPage() {
   const firstUncompletedLesson = allLessons.find(lesson => !lesson.completed);
   const hasStarted = allLessons.some(l => l.completed);
 
-  let buttonText = "Start Course";
-  let buttonHref = "#";
-  let buttonDisabled = true;
-
   const statusInfo = course ? getCourseStatusInfo(course.startDate, course.endDate) : null;
-  const canAccessContent = course?.isCompleted || statusInfo?.status === 'Active';
+  const isPaidCourse = !!(course?.is_public && course.price && course.price > 0);
+  const isExternalUser = user?.type === 'External';
+  
+  // A user can access content if they are an employee, OR if the course is free, OR if it's a paid course they are already enrolled in.
+  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || (isPaidCourse && (hasStarted || course?.isCompleted));
 
-  if (course && allLessons.length > 0 && !course.isCompleted) {
-      if (statusInfo?.status === 'Active') {
-          if (firstUncompletedLesson) {
-              buttonText = hasStarted ? "Continue Course" : "Start Course";
-              buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
-              buttonDisabled = false;
-          } else {
-              buttonText = "Start Course";
-              buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
-              buttonDisabled = false;
-          }
-      } else if (statusInfo?.status === 'Scheduled') {
-          buttonText = "Course is Scheduled";
-          buttonDisabled = true;
-      } else if (statusInfo?.status === 'Archived') {
-          buttonText = "Course Archived";
-          buttonDisabled = true;
-      }
-  } else if (course && !course.isCompleted) {
-      buttonText = "Content Coming Soon";
-      buttonDisabled = true;
-  }
 
   if (isLoading) {
      return (
@@ -189,6 +171,10 @@ export default function CourseDetailPage() {
   }
 
   const ActionButton = () => {
+    let buttonText = "Start Course";
+    let buttonHref = "#";
+    let buttonDisabled = true;
+
     if (course.isCompleted) {
         return (
             <Button className="w-full" disabled>
@@ -197,6 +183,38 @@ export default function CourseDetailPage() {
             </Button>
         );
     }
+    
+    if (isExternalUser && isPaidCourse && !canAccessContent) {
+        // Placeholder for payment flow
+        return (
+             <Button className="w-full">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Buy Now for ${course.price?.toFixed(2)}
+            </Button>
+        );
+    }
+
+    if (statusInfo?.status === 'Scheduled') {
+        buttonText = "Course is Scheduled";
+        buttonDisabled = true;
+    } else if (statusInfo?.status === 'Archived') {
+        buttonText = "Course Archived";
+        buttonDisabled = true;
+    } else if (allLessons.length > 0) {
+        if (firstUncompletedLesson) {
+            buttonText = hasStarted ? "Continue Course" : "Start Course";
+            buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
+            buttonDisabled = false;
+        } else { // Should only happen if all lessons are done but course isn't marked completed yet
+            buttonText = "Review Course";
+            buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
+            buttonDisabled = false;
+        }
+    } else {
+         buttonText = "Content Coming Soon";
+         buttonDisabled = true;
+    }
+
     return (
         <Button asChild className="w-full" disabled={buttonDisabled}>
             <Link href={buttonHref}>{buttonText}</Link>
@@ -236,10 +254,10 @@ export default function CourseDetailPage() {
                       {module.lessons.map((lesson) => (
                         <li key={lesson.id || lesson.title}>
                            <Link
-                             href={`/courses/${course.id}/lessons/${lesson.id}`}
+                             href={canAccessContent ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
                              className={cn(
-                                "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md hover:bg-muted/50 transition-colors",
-                                !canAccessContent && "pointer-events-none opacity-50"
+                                "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md transition-colors",
+                                canAccessContent ? "hover:bg-muted/50" : "pointer-events-none opacity-50"
                              )}
                            >
                             <div className="flex items-center min-w-0">
@@ -270,6 +288,11 @@ export default function CourseDetailPage() {
                     className="object-cover"
                     data-ai-hint="course cover"
                     />
+                     {isExternalUser && isPaidCourse && (
+                         <Badge variant="default" className="absolute top-2 right-2 text-lg">
+                            ${course.price?.toFixed(2)}
+                         </Badge>
+                     )}
                 </div>
             </Card>
         </div>
