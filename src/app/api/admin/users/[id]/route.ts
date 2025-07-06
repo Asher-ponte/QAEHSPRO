@@ -3,10 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import bcrypt from 'bcrypt';
 
 const userUpdateSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
   username: z.string().min(3, "Username must be at least 3 characters long."),
+  password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   department: z.string().min(2, "Department must be at least 2 characters long."),
   position: z.string().min(2, "Position must be at least 2 characters long."),
   role: z.enum(["Employee", "Admin"]),
@@ -70,17 +72,26 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
 
-        const { username, fullName, department, position, role, type } = parsedData.data;
+        const { username, fullName, password, department, position, role, type } = parsedData.data;
         
         const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?', [username, userId]);
         if (existingUser) {
             return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
         }
 
-        await db.run(
-            'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ? WHERE id = ?',
-            [username, fullName, department, position, role, type, userId]
-        );
+        if (password) {
+            const saltRounds = 10;
+            const hashedPassword = await bcrypt.hash(password, saltRounds);
+            await db.run(
+                'UPDATE users SET username = ?, fullName = ?, password = ?, department = ?, position = ?, role = ?, type = ? WHERE id = ?',
+                [username, fullName, hashedPassword, department, position, role, type, userId]
+            );
+        } else {
+            await db.run(
+                'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ? WHERE id = ?',
+                [username, fullName, department, position, role, type, userId]
+            );
+        }
         
         const updatedUser = await db.get('SELECT id, username, fullName, department, position, role, type FROM users WHERE id = ?', userId);
         return NextResponse.json(updatedUser, { status: 200 });

@@ -6,6 +6,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs/promises';
 import { SITES } from './sites';
+import bcrypt from 'bcrypt';
 
 // Use a Map to hold a singleton promise for each site's database.
 const dbPromises = new Map<string, Promise<Database>>();
@@ -42,6 +43,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
+            password TEXT,
             fullName TEXT,
             department TEXT,
             position TEXT,
@@ -142,14 +144,18 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     
     // Seed data
     await db.run(
-        `INSERT INTO users (id, username, fullName, role, type) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           username=excluded.username,
-           fullName=excluded.fullName,
-           role=excluded.role,
-           type=excluded.type;`,
+        `INSERT OR IGNORE INTO users (id, username, fullName, role, type) VALUES (?, ?, ?, ?, ?)`,
         [1, 'Demo User', 'Demo User', 'Admin', 'Employee']
     );
+
+    const demoUser = await db.get('SELECT password FROM users WHERE id = 1');
+    if (!demoUser?.password) {
+        const saltRounds = 10;
+        const defaultPassword = 'password';
+        const hashedPassword = await bcrypt.hash(defaultPassword, saltRounds);
+        await db.run('UPDATE users SET password = ? WHERE id = 1', hashedPassword);
+    }
+    
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', site.name]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     

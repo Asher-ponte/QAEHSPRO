@@ -4,10 +4,11 @@ import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { SITES } from '@/lib/sites';
+import bcrypt from 'bcrypt';
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required."),
-  siteId: z.string().min(1, "Site is required."),
+  password: z.string().min(1, "Password is required."),
 })
 
 export async function POST(request: NextRequest) {
@@ -16,31 +17,41 @@ export async function POST(request: NextRequest) {
     const parsedData = loginSchema.safeParse(body);
 
     if (!parsedData.success) {
-      return NextResponse.json({ error: 'Username and Site are required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Username and Password are required.' }, { status: 400 });
     }
 
-    const { username, siteId } = parsedData.data;
+    const { username, password } = parsedData.data;
 
-    // Validate siteId
-    if (!SITES.some(s => s.id === siteId)) {
-        return NextResponse.json({ error: 'Invalid site specified.' }, { status: 400 });
+    let loggedInUser = null;
+    let loggedInSiteId = null;
+
+    // Iterate over all sites to find the user
+    for (const site of SITES) {
+        const db = await getDb(site.id);
+        const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
+
+        if (user && user.password) {
+            const passwordMatch = await bcrypt.compare(password, user.password);
+            if (passwordMatch) {
+                loggedInUser = user;
+                loggedInSiteId = site.id;
+                break; // Exit loop once user is found and authenticated
+            }
+        }
     }
 
-    const db = await getDb(siteId);
-    const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid username for the selected site.' }, { status: 401 });
+    if (!loggedInUser || !loggedInSiteId) {
+      return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
     }
 
     // Set session cookies
-    cookies().set('session_id', user.id.toString(), {
+    cookies().set('session_id', loggedInUser.id.toString(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/',
     });
-    cookies().set('site_id', siteId, {
+    cookies().set('site_id', loggedInSiteId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week

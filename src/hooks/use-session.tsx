@@ -19,10 +19,8 @@ interface User {
 interface SessionContextType {
   user: User | null;
   site: Site | null;
-  sites: Site[];
   isLoading: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
-  setSite: React.Dispatch<React.SetStateAction<Site | null>>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -30,7 +28,6 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [site, setSite] = useState<Site | null>(null);
-  const [sites, setSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -38,17 +35,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async function fetchSessionData() {
       setIsLoading(true);
       try {
-        const [meRes, sitesRes] = await Promise.all([
-            fetch('/api/auth/me'),
-            fetch('/api/sites')
-        ]);
+        const meRes = await fetch('/api/auth/me');
 
-        if (meRes.ok && sitesRes.ok) {
+        if (meRes.ok) {
           const sessionData = await meRes.json();
-          const sitesData = await sitesRes.json();
           setUser(sessionData.user);
           setSite(sessionData.site);
-          setSites(sitesData);
         } else {
           setUser(null);
           setSite(null);
@@ -68,7 +60,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <SessionContext.Provider value={{ user, site, sites, isLoading, setUser, setSite }}>
+    <SessionContext.Provider value={{ user, site, isLoading, setUser }}>
       {isLoading ? (
         <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
