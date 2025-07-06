@@ -25,13 +25,13 @@ export async function GET() {
 
   try {
     if (isSuperAdmin) {
-      // Super admin gets all users from all branches, excluding 'main' and 'external'
+      // Super admin gets all users from all branches, excluding 'main'
       const allSites = await getAllSites();
       let allUsers = [];
 
       for (const site of allSites) {
-        // Exclude the 'main' (super admin) and 'external' (public user) sites from this management view.
-        if (site.id === 'main' || site.id === 'external') continue;
+        // Exclude the 'main' (super admin) site from this management view.
+        if (site.id === 'main') continue;
           
         const db = await getDb(site.id);
         const siteUsers = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
