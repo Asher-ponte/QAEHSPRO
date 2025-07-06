@@ -1,20 +1,20 @@
 
 import { redirect } from 'next/navigation';
 
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 import { getDb } from '@/lib/db';
 import { DashboardClient } from '@/components/dashboard-client';
 
 async function getDashboardData() {
-  const user = await getCurrentUser();
-  if (!user) {
-    // This will be caught by the UserProvider, but as a safeguard:
+  const { user, siteId } = await getCurrentSession();
+  if (!user || !siteId) {
+    // This will be caught by the SessionProvider, but as a safeguard:
     redirect('/login');
   }
   const userId = user.id;
 
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
 
     // 1. Get all courses the user is enrolled in.
     const enrolledCourses = await db.all(`

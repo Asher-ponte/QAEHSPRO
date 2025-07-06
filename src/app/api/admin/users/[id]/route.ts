@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 const userUpdateSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -16,7 +17,12 @@ export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
+    const { user: sessionUser, siteId } = await getCurrentSession();
+    if (sessionUser?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+    
+    const db = await getDb(siteId);
     const { id: userId } = params;
 
     if (!userId) {
@@ -39,7 +45,12 @@ export async function PUT(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
+    const { user: sessionUser, siteId } = await getCurrentSession();
+    if (sessionUser?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const db = await getDb(siteId);
     const { id: userId } = params;
 
     if (!userId) {
@@ -84,7 +95,12 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
+    const { user: sessionUser, siteId } = await getCurrentSession();
+    if (sessionUser?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const db = await getDb(siteId);
     const { id: userId } = params;
 
     if (!userId) {

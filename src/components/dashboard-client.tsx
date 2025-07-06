@@ -14,7 +14,7 @@ import { Lightbulb, Target, Award, BookOpen, Ribbon } from "lucide-react"
 import Link from 'next/link'
 import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useUser } from "@/hooks/use-user"
+import { useSession } from "@/hooks/use-session"
 import { Separator } from "@/components/ui/separator"
 import {
   Tabs,
@@ -45,7 +45,7 @@ interface DashboardClientProps {
 
 
 export function DashboardClient({ stats, courses }: DashboardClientProps) {
-  const { user, isLoading: isUserLoading } = useUser()
+  const { user, isLoading: isUserLoading } = useSession()
 
   const statCards = [
     {

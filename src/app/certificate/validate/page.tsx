@@ -1,11 +1,11 @@
 
-
 import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { getDb } from '@/lib/db';
+import { SITES } from "@/lib/sites";
 
 interface CertificateData {
   id: number;
@@ -22,9 +22,9 @@ interface CertificateData {
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
 }
 
-async function fetchCertificateData(number: string): Promise<{ data: CertificateData | null; error: string | null }> {
+async function fetchCertificateData(number: string, siteId: string): Promise<{ data: CertificateData | null; error: string | null }> {
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         
         const certificate = await db.get(
             `SELECT * FROM certificates WHERE certificate_number = ?`,
@@ -83,8 +83,8 @@ async function fetchCertificateData(number: string): Promise<{ data: Certificate
 }
 
 
-async function CertificateValidator({ certificateNumber }: { certificateNumber?: string | string[] }) {
-    if (!certificateNumber || typeof certificateNumber !== 'string') {
+async function CertificateValidator({ certificateNumber, siteId }: { certificateNumber?: string | string[], siteId?: string | string[] }) {
+    if (!certificateNumber || typeof certificateNumber !== 'string' || !siteId || typeof siteId !== 'string') {
         return (
             <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
                 <CardHeader>
@@ -93,7 +93,25 @@ async function CertificateValidator({ certificateNumber }: { certificateNumber?:
                         <div>
                             <CardTitle className="text-red-800 dark:text-red-300">Validation Error</CardTitle>
                             <CardDescription className="text-red-700 dark:text-red-400">
-                                No certificate number was provided in the URL.
+                                Certificate number and Site ID must be provided in the URL.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+            </Card>
+        )
+    }
+    
+    if (!SITES.some(s => s.id === siteId)) {
+        return (
+            <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
+                <CardHeader>
+                        <div className="flex items-center gap-4">
+                        <AlertTriangle className="h-8 w-8 text-red-600" />
+                        <div>
+                            <CardTitle className="text-red-800 dark:text-red-300">Validation Error</CardTitle>
+                            <CardDescription className="text-red-700 dark:text-red-400">
+                                The specified site is invalid.
                             </CardDescription>
                         </div>
                     </div>
@@ -102,7 +120,7 @@ async function CertificateValidator({ certificateNumber }: { certificateNumber?:
         )
     }
 
-    const { data, error } = await fetchCertificateData(certificateNumber);
+    const { data, error } = await fetchCertificateData(certificateNumber, siteId);
 
     if (error) {
          return (
@@ -132,7 +150,7 @@ async function CertificateValidator({ certificateNumber }: { certificateNumber?:
                             <div>
                                 <CardTitle className="text-green-800 dark:text-green-300">Certificate Valid</CardTitle>
                                 <CardDescription className="text-green-700 dark:text-green-400">
-                                    This certificate has been successfully verified.
+                                    This certificate has been successfully verified for site: {SITES.find(s => s.id === siteId)?.name}.
                                 </CardDescription>
                             </div>
                         </div>
@@ -155,7 +173,7 @@ export default function ValidateCertificatePage({ searchParams }: { searchParams
                 <Logo />
             </div>
             <Suspense fallback={<div className="text-center p-8">Validating certificate...</div>}>
-                <CertificateValidator certificateNumber={searchParams.number} />
+                <CertificateValidator certificateNumber={searchParams.number} siteId={searchParams.siteId} />
             </Suspense>
         </div>
     )

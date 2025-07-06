@@ -1,21 +1,21 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 export async function POST(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const { id: courseId } = params;
-
-        const user = await getCurrentUser();
-        if (!user) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
         const userId = user.id;
         
         await db.run('BEGIN TRANSACTION');

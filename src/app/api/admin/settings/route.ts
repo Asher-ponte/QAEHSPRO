@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
@@ -12,19 +12,19 @@ const settingsSchema = z.object({
 });
 
 async function checkAdmin() {
-    const user = await getCurrentUser();
-    if (user?.role !== 'Admin') {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 403 }), siteId: null };
     }
-    return null;
+    return { response: null, siteId };
 }
 
 export async function GET() {
-    const isAdmin = await checkAdmin();
-    if (isAdmin) return isAdmin;
+    const { response, siteId } = await checkAdmin();
+    if (response) return response;
 
     try {
-        const db = await getDb();
+        const db = await getDb(siteId!);
         const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
         const companyName = settings.find(s => s.key === 'company_name')?.value || '';
         const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || '';
@@ -38,12 +38,12 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-    const isAdmin = await checkAdmin();
-    if (isAdmin) return isAdmin;
+    const { response, siteId } = await checkAdmin();
+    if (response) return response;
     
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId!);
         const data = await request.json();
         const parsedData = settingsSchema.safeParse(data);
 

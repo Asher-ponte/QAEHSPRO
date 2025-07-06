@@ -1,18 +1,23 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { z } from 'zod';
+import { SITES } from '@/lib/sites';
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const number = searchParams.get('number');
+    const siteId = searchParams.get('siteId');
 
-    if (!number) {
-        return NextResponse.json({ error: 'Certificate number is required.' }, { status: 400 });
+    if (!number || !siteId) {
+        return NextResponse.json({ error: 'Certificate number and site ID are required.' }, { status: 400 });
+    }
+
+    if (!SITES.some(s => s.id === siteId)) {
+        return NextResponse.json({ error: 'Invalid site specified.' }, { status: 400 });
     }
     
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         
         const certificate = await db.get(
             `SELECT * FROM certificates WHERE certificate_number = ?`,

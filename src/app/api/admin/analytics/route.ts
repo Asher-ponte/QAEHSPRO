@@ -2,10 +2,16 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { format, startOfMonth } from 'date-fns';
+import { getCurrentSession } from '@/lib/session';
 
 export async function GET() {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
 
         // Overall Stats
         const totalUsers = await db.get('SELECT COUNT(*) as count FROM users');

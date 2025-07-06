@@ -1,21 +1,22 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string; lessonId: string } }
 ) {
+  const { user, siteId } = await getCurrentSession();
+  if (!user || !siteId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
-    const db = await getDb()
+    const db = await getDb(siteId);
     const { id: courseId, lessonId: currentLessonIdStr } = params
     const currentLessonId = parseInt(currentLessonIdStr, 10);
     
-    const user = await getCurrentUser();
-    if (!user) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
     const userId = user.id;
 
     if (user.role !== 'Admin') {

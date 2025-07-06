@@ -2,10 +2,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
-    const user = await getCurrentUser();
+    const { user } = await getCurrentSession();
     if (user?.role !== 'Admin') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
@@ -41,5 +41,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
 }
-
-    

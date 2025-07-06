@@ -27,9 +27,12 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, LogIn } from "lucide-react"
 import { Logo } from "@/components/logo"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { Site } from "@/lib/sites"
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required." }),
+  siteId: z.string({ required_error: "Please select a site." }),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -39,17 +42,38 @@ export default function LoginPage() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [sites, setSites] = useState<Site[]>([]);
 
   useEffect(() => {
-    // Redirect to dashboard if already logged in
-    fetch('/api/auth/me').then(res => {
-        if (res.ok) {
-            router.push('/dashboard');
-        } else {
+    async function checkAuthAndFetchSites() {
+        try {
+            // Check if already logged in
+            const authRes = await fetch('/api/auth/me');
+            if (authRes.ok) {
+                router.push('/dashboard');
+                return; // Don't continue if redirecting
+            }
+        } catch (e) {
+            // Ignore auth check errors, proceed to login form
+        } finally {
             setIsCheckingAuth(false);
         }
-    }).catch(() => setIsCheckingAuth(false))
-  }, [router]);
+
+        // Fetch sites for the dropdown
+        try {
+            const sitesRes = await fetch('/api/sites');
+            if (sitesRes.ok) {
+                const sitesData = await sitesRes.json();
+                setSites(sitesData);
+            } else {
+                toast({ variant: "destructive", title: "Could not load sites" });
+            }
+        } catch (error) {
+            toast({ variant: "destructive", title: "Could not load sites" });
+        }
+    }
+    checkAuthAndFetchSites();
+  }, [router, toast]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -79,7 +103,7 @@ export default function LoginPage() {
         description: "Welcome back!",
       })
       router.push("/dashboard")
-      router.refresh() // Ensures user state is updated across the app
+      router.refresh() // Ensures session state is updated across the app
 
     } catch (error) {
       toast({
@@ -100,7 +124,6 @@ export default function LoginPage() {
     )
   }
 
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
@@ -116,6 +139,28 @@ export default function LoginPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="siteId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Site</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={sites.length === 0}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a site to sign in to" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sites.map(site => (
+                            <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="username"

@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 
 const profileSchema = z.object({
@@ -9,14 +9,14 @@ const profileSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-    const user = await getCurrentUser();
-    if (!user) {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const data = await request.json();
         const parsedData = profileSchema.safeParse(data);
 

@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
-import { getCurrentUser } from '@/lib/session'
+import { getCurrentSession } from '@/lib/session'
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
@@ -59,13 +59,13 @@ const courseSchema = z.object({
 });
 
 export async function GET() {
-  try {
-    const db = await getDb()
-    const user = await getCurrentUser();
+  const { user, siteId } = await getCurrentSession();
+  if (!user || !siteId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
 
-    if (!user) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+  try {
+    const db = await getDb(siteId);
 
     let courses;
     // Admins see all courses in the catalog.
@@ -90,7 +90,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const db = await getDb()
+  const { user, siteId } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+  
+  const db = await getDb(siteId);
+
   try {
     const data = await request.json()
     const parsedData = courseSchema.safeParse(data)

@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 const userSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -12,8 +13,13 @@ const userSchema = z.object({
 });
 
 export async function GET() {
+  const { user, siteId } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
     const users = await db.all('SELECT id, username, fullName, department, position, role FROM users ORDER BY username');
     return NextResponse.json(users);
   } catch (error) {
@@ -23,8 +29,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const { user, siteId } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+  
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
     const data = await request.json();
     const parsedData = userSchema.safeParse(data);
 

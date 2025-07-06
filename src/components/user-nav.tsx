@@ -15,12 +15,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CreditCard, Settings, User, LogOut } from "lucide-react"
-import { useUser } from "@/hooks/use-user"
+import { useSession } from "@/hooks/use-session"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 
 export function UserNav() {
-  const { user, isLoading } = useUser()
+  const { user, isLoading } = useSession()
   const router = useRouter()
   const { toast } = useToast()
 

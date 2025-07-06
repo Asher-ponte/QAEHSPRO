@@ -3,8 +3,8 @@
 
 import Link from "next/link"
 import React from "react"
-import { usePathname } from "next/navigation"
-import { BookOpen, Home, Menu, Shield } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { BookOpen, Home, Menu, Shield, ChevronsUpDown, Check, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
@@ -16,7 +16,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { useUser } from "@/hooks/use-user"
+import { useSession } from "@/hooks/use-session"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { useToast } from "@/hooks/use-toast"
 
 const navDefinition = [
   { href: "/dashboard", label: "Dashboard", icon: Home, adminOnly: false },
@@ -24,10 +27,102 @@ const navDefinition = [
   { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ]
 
+function SiteSwitcher() {
+    const { site, sites, setSite } = useSession();
+    const router = useRouter();
+    const [open, setOpen] = React.useState(false);
+    const [isSwitching, setIsSwitching] = React.useState(false);
+    const { toast } = useToast();
+
+    const handleSiteChange = async (newSiteId: string) => {
+        if (newSiteId === site?.id) {
+            setOpen(false);
+            return;
+        }
+
+        setIsSwitching(true);
+        try {
+            const response = await fetch('/api/auth/switch-site', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ siteId: newSiteId }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to switch site');
+            }
+
+            // Manually update context before reload for a slightly smoother UI feel
+            const newSite = sites.find(s => s.id === newSiteId);
+            if (newSite) setSite(newSite);
+            
+            toast({ title: "Site switched successfully. Reloading..." });
+            
+            // Reload the entire page to get new data from the new database context.
+            window.location.reload();
+
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Could not switch site.'
+            });
+            setIsSwitching(false);
+        }
+    };
+    
+    if (!site) return null;
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-[200px] justify-between"
+                    disabled={isSwitching}
+                >
+                    {isSwitching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : site.name}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+                <Command>
+                    <CommandInput placeholder="Search sites..." />
+                    <CommandList>
+                        <CommandEmpty>No site found.</CommandEmpty>
+                        <CommandGroup>
+                            {sites.map((s) => (
+                                <CommandItem
+                                    key={s.id}
+                                    value={s.id}
+                                    onSelect={(currentValue) => {
+                                        handleSiteChange(currentValue);
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            site.id === s.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    {s.name}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 
 export function AppHeader() {
   const pathname = usePathname()
-  const { user } = useUser()
+  const { user } = useSession()
   const [isSheetOpen, setIsSheetOpen] = React.useState(false)
 
   const links = React.useMemo(() => {
@@ -69,7 +164,8 @@ export function AppHeader() {
           ))}
         </nav>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
+        <SiteSwitcher />
         <UserNav />
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>

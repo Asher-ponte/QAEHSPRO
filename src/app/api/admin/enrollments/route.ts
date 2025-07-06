@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 const enrollmentSchema = z.object({
   userId: z.number(),
@@ -10,8 +11,13 @@ const enrollmentSchema = z.object({
 
 // Enroll a user in a course
 export async function POST(request: NextRequest) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         const data = await request.json();
         const parsedData = enrollmentSchema.safeParse(data);
 
@@ -42,8 +48,13 @@ export async function POST(request: NextRequest) {
 
 // Un-enroll a user from a course
 export async function DELETE(request: NextRequest) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         const data = await request.json();
         const parsedData = enrollmentSchema.safeParse(data);
 

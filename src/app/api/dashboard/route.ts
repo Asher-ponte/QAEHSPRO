@@ -1,17 +1,17 @@
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
+  const { user, siteId } = await getCurrentSession();
+  if (!user || !siteId) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
   const userId = user.id;
 
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
 
     // 1. Get all courses the user is enrolled in.
     const enrolledCourses = await db.all(`

@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 import { format } from 'date-fns';
 
 const recognitionCertificateSchema = z.object({
@@ -13,14 +13,14 @@ const recognitionCertificateSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-    const adminUser = await getCurrentUser();
-    if (adminUser?.role !== 'Admin') {
+    const { user: adminUser, siteId } = await getCurrentSession();
+    if (adminUser?.role !== 'Admin' || !siteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const body = await request.json();
         
         // Zod needs to parse a date object, but JSON gives a string.

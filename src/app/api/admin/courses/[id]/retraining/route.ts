@@ -1,20 +1,20 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 
 export async function POST(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     let db;
-    try {
-        const user = await getCurrentUser();
-        if (user?.role !== 'Admin') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-        }
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
-        db = await getDb();
+    try {
+        db = await getDb(siteId);
         const courseId = parseInt(params.id, 10);
 
         if (isNaN(courseId)) {

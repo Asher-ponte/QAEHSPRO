@@ -1,13 +1,19 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getCurrentSession } from '@/lib/session';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         const { id: courseId } = params;
 
         if (!courseId) {

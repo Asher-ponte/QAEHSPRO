@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 const bulkEnrollmentSchema = z.object({
   courseId: z.number(),
@@ -10,11 +11,16 @@ const bulkEnrollmentSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     let db;
     let actionForErrorMessage = 'process';
 
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const data = await request.json();
         const parsedData = bulkEnrollmentSchema.safeParse(data);
 
@@ -57,5 +63,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Failed to bulk ${actionForErrorMessage} users` }, { status: 500 });
     }
 }
-
-    

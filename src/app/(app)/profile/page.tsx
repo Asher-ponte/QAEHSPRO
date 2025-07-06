@@ -28,7 +28,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useUser } from "@/hooks/use-user"
+import { useSession } from "@/hooks/use-session"
 
 const profileFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -37,7 +37,7 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
 export default function ProfilePage() {
-    const { user, isLoading, setUser } = useUser();
+    const { user, isLoading, setUser } = useSession();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 

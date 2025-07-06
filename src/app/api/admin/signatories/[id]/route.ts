@@ -1,12 +1,18 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getCurrentSession } from '@/lib/session';
 
 export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const db = await getDb();
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+    
+    const db = await getDb(siteId);
     const { id } = params;
 
     if (!id) {

@@ -1,8 +1,7 @@
 
-
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import { format } from 'date-fns';
 
@@ -21,9 +20,14 @@ export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const { lessonId: lessonIdStr, id: courseIdStr } = params;
         const lessonId = parseInt(lessonIdStr, 10);
         const courseId = parseInt(courseIdStr, 10);
@@ -32,10 +36,6 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid course or lesson ID.' }, { status: 400 });
         }
 
-        const user = await getCurrentUser();
-        if (!user) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
         const userId = user.id;
         
         if (user.role !== 'Admin') {

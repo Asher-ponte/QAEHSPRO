@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 const signatorySchema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -10,8 +11,13 @@ const signatorySchema = z.object({
 });
 
 export async function GET() {
+  const { user, siteId } = await getCurrentSession();
+  if (!user || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
     const signatories = await db.all('SELECT * FROM signatories ORDER BY name');
     return NextResponse.json(signatories);
   } catch (error) {
@@ -21,8 +27,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const { user, siteId } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
   try {
-    const db = await getDb();
+    const db = await getDb(siteId);
     const data = await request.json();
     const parsedData = signatorySchema.safeParse(data);
 

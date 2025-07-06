@@ -1,10 +1,16 @@
 
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { getCurrentSession } from '@/lib/session';
 
 export async function GET() {
+  const { user, siteId } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !siteId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
   try {
-    const db = await getDb()
+    const db = await getDb(siteId);
     
     // 1. Get all courses
     const courses = await db.all(`SELECT id, title, category, startDate, endDate FROM courses ORDER BY title ASC`);

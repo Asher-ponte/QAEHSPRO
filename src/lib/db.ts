@@ -5,20 +5,24 @@ import { open, type Database } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs/promises';
+import { SITES } from './sites';
 
-// This is the singleton promise that will be reused across requests.
-let dbPromise: Promise<Database> | null = null;
+// Use a Map to hold a singleton promise for each site's database.
+const dbPromises = new Map<string, Promise<Database>>();
 
-// This function contains the actual database setup logic.
-// It will only be called once per server instance thanks to the singleton pattern in getDb().
-const setupDatabase = async (): Promise<Database> => {
-    console.log("Setting up new database connection...");
+const setupDatabase = async (siteId: string): Promise<Database> => {
+    console.log(`Setting up new database connection for site: ${siteId}`);
     
+    const site = SITES.find(s => s.id === siteId);
+    if (!site) {
+        throw new Error(`Invalid site ID: ${siteId}`);
+    }
+
     const dataDir = path.join(process.cwd(), 'data');
-    const dbPath = path.join(dataDir, 'db.sqlite');
+    const dbPath = path.join(dataDir, `${site.id}.sqlite`);
     const imagesDir = path.join(process.cwd(), 'public', 'images');
 
-    // Ensure directories exist. Since this function is called only once, this is safe.
+    // Ensure directories exist.
     await fs.mkdir(dataDir, { recursive: true });
     await fs.mkdir(imagesDir, { recursive: true });
     
@@ -27,13 +31,13 @@ const setupDatabase = async (): Promise<Database> => {
         driver: sqlite3.Database,
     });
 
-    // These settings are critical for stability and performance in a web server environment.
+    // Critical performance and stability settings
     await db.exec('PRAGMA journal_mode = WAL;');
     await db.exec('PRAGMA busy_timeout = 5000;');
     await db.exec('PRAGMA foreign_keys = ON;');
     await db.exec('PRAGMA synchronous = NORMAL;');
 
-    // Schema creation - using "IF NOT EXISTS" makes it safe to run on every startup.
+    // Schema creation
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,7 +139,7 @@ const setupDatabase = async (): Promise<Database> => {
         );
     `);
     
-    // Seed data - "UPSERT" logic ensures the demo user is always correct.
+    // Seed data
     await db.run(
         `INSERT INTO users (id, username, fullName, role) VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
@@ -144,21 +148,22 @@ const setupDatabase = async (): Promise<Database> => {
            role=excluded.role;`,
         [1, 'Demo User', 'Demo User', 'Admin']
     );
-    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', 'QAEHS PRO ACADEMY']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', site.name]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
-    console.log("Database connection is ready.");
+    console.log(`Database connection for site '${siteId}' is ready.`);
     return db;
 }
 
-/**
- * This is the exported function that all application code will use.
- * It ensures that setupDatabase() is only ever called once per server instance
- * by using a singleton promise. This is safe for concurrent requests.
- */
-export async function getDb(): Promise<Database> {
+export async function getDb(siteId: string): Promise<Database> {
+    if (!SITES.some(s => s.id === siteId)) {
+        throw new Error(`Attempted to access an invalid site: ${siteId}`);
+    }
+
+    let dbPromise = dbPromises.get(siteId);
     if (!dbPromise) {
-        dbPromise = setupDatabase();
+        dbPromise = setupDatabase(siteId);
+        dbPromises.set(siteId, dbPromise);
     }
     return dbPromise;
 }

@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod';
+import { getCurrentSession } from '@/lib/session';
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
@@ -80,8 +81,13 @@ export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     try {
-        const db = await getDb();
+        const db = await getDb(siteId);
         const { id: courseId } = params;
 
         if (!courseId) {
@@ -157,9 +163,14 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+    
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const { id: courseId } = params;
 
         if (!courseId) {
@@ -282,9 +293,14 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !siteId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const { id: courseId } = params;
 
         if (!courseId) {

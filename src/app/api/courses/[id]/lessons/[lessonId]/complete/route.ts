@@ -1,19 +1,23 @@
 
-
 'use server'
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { getCurrentUser } from '@/lib/session';
+import { getCurrentSession } from '@/lib/session';
 import { format } from 'date-fns';
 
 export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     let db;
     try {
-        db = await getDb();
+        db = await getDb(siteId);
         const lessonId = parseInt(params.lessonId, 10);
         const courseId = parseInt(params.id, 10);
         
@@ -22,11 +26,7 @@ export async function POST(
         if (isNaN(lessonId) || isNaN(courseId)) {
              return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
         }
-
-        const user = await getCurrentUser();
-        if (!user) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
+        
         const userId = user.id;
         
         // Check lesson type to prevent completing quizzes via this endpoint.

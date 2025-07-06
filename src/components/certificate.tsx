@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { format } from "date-fns"
 import QRCode from "qrcode"
+import { useSession } from "@/hooks/use-session"
 
 interface CertificateData {
   id: number;
@@ -23,10 +24,11 @@ interface CertificateData {
 
 export function Certificate({ data }: { data: CertificateData }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+    const { site } = useSession();
 
     useEffect(() => {
-        if (data.certificateNumber) {
-            const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}`;
+        if (data.certificateNumber && site?.id) {
+            const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}&siteId=${site.id}`;
             QRCode.toDataURL(validationUrl, {
                 errorCorrectionLevel: 'M',
                 width: 128,
@@ -39,7 +41,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                 console.error("Failed to generate QR code", err);
             });
         }
-    }, [data.certificateNumber]);
+    }, [data.certificateNumber, site?.id]);
 
     return (
         <div id="certificate-print-area" className="w-full overflow-x-auto">
