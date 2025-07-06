@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
@@ -46,6 +47,7 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_internal: z.boolean().default(true),
   is_public: z.boolean().default(false),
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -66,6 +68,11 @@ const courseSchema = z.object({
 }, {
     message: "Price must be a positive number for public courses.",
     path: ["price"],
+}).refine(data => {
+    return data.is_internal || data.is_public;
+}, {
+    message: "A course must be available to at least one audience (Internal or Public).",
+    path: ["is_public"], 
 });
 
 export async function GET() {
@@ -78,19 +85,14 @@ export async function GET() {
     const db = await getDb(siteId);
 
     let courses;
-    // Admins see all courses in their branch.
-    // Employees see internal courses they are enrolled in.
-    // External users see public courses.
-    if (user.role === 'Admin') {
-        courses = await db.all('SELECT * FROM courses ORDER BY title ASC');
-    } else if (user.type === 'Employee') {
+    // Admins and Employees see all internal courses, plus all public courses.
+    // External users see only public courses.
+    if (user.role === 'Admin' || user.type === 'Employee') {
         courses = await db.all(`
-            SELECT c.* 
-            FROM courses c
-            JOIN enrollments e ON c.id = e.course_id
-            WHERE e.user_id = ? AND c.is_public = 0
-            ORDER BY c.title ASC
-        `, [user.id]);
+            SELECT * FROM courses 
+            WHERE is_internal = 1 OR is_public = 1
+            ORDER BY title ASC
+        `);
     } else { // External user
          courses = await db.all(`
             SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
@@ -120,13 +122,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 })
     }
     
-    const { title, description, category, modules, imagePath, venue, startDate, endDate, is_public, price, signatoryIds } = parsedData.data;
+    const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
 
     await db.run('BEGIN TRANSACTION');
 
     const courseResult = await db.run(
-      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, category, imagePath, venue, startDate, endDate, is_public, price]
+      'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]
     )
     const courseId = courseResult.lastID;
     if (!courseId) {

@@ -65,6 +65,7 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_internal: z.boolean().default(true),
   is_public: z.boolean().default(false),
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -85,6 +86,11 @@ const courseSchema = z.object({
 }, {
     message: "Price must be a positive number for public courses.",
     path: ["price"],
+}).refine(data => {
+    return data.is_internal || data.is_public;
+}, {
+    message: "A course must be available to at least one audience (Internal or Public).",
+    path: ["is_public"], 
 });
 
 
@@ -98,43 +104,55 @@ function AudienceAndPricing({ control }: { control: Control<CourseFormValues> })
 
     return (
         <div className="space-y-8">
-            <FormField
-                control={control}
-                name="is_public"
-                render={({ field }) => (
-                    <FormItem className="space-y-3">
-                        <FormLabel>Course Audience</FormLabel>
-                        <FormControl>
-                            <RadioGroup
-                                onValueChange={(value) => field.onChange(value === 'true')}
-                                value={String(field.value)}
-                                className="flex flex-col space-y-1"
-                            >
-                                <FormItem className="flex items-center space-x-3 space-y-0">
-                                    <FormControl>
-                                        <RadioGroupItem value="false" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        Internal (for employees only)
-                                    </FormLabel>
-                                </FormItem>
-                                <FormItem className="flex items-center space-x-3 space-y-0">
-                                    <FormControl>
-                                        <RadioGroupItem value="true" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        Public (for external users)
-                                    </FormLabel>
-                                </FormItem>
-                            </RadioGroup>
-                        </FormControl>
-                        <FormDescription>
-                           Select who can see and enroll in this course.
-                        </FormDescription>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
+            <div className="space-y-4">
+                <Label>Course Audience</Label>
+                <FormDescription>Select who can see and enroll in this course.</FormDescription>
+                 <FormField
+                    control={control}
+                    name="is_internal"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                            <FormControl>
+                                <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                                <FormLabel>
+                                    Internal
+                                </FormLabel>
+                                <FormDescription>
+                                    Make this course available to internal employees.
+                                </FormDescription>
+                            </div>
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={control}
+                    name="is_public"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                            <FormControl>
+                                <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                                <FormLabel>
+                                    Public
+                                </FormLabel>
+                                <FormDescription>
+                                    Make this course available to external users for purchase.
+                                </FormDescription>
+                            </div>
+                        </FormItem>
+                    )}
+                />
+                 <FormMessage>{(control.getFieldState(`is_public`).error as any)?.message}</FormMessage>
+            </div>
             
             {isPublic && (
                  <FormField
@@ -507,6 +525,7 @@ export default function CreateCoursePage() {
       venue: "",
       startDate: null,
       endDate: null,
+      is_internal: true,
       is_public: false,
       price: null,
       modules: [],

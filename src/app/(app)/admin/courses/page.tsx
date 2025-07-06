@@ -72,6 +72,7 @@ interface CourseAdminView {
   completionRate: number;
   startDate: string | null;
   endDate: string | null;
+  is_internal: boolean;
   is_public: boolean;
   price: number | null;
 }
@@ -718,9 +719,10 @@ export default function ManageCoursesPage() {
                         <TableCell className="font-medium">{course.title}</TableCell>
                         <TableCell>{course.category}</TableCell>
                         <TableCell>
-                          <Badge variant={course.is_public ? 'outline' : 'secondary'}>
-                            {course.is_public ? 'Public' : 'Internal'}
-                          </Badge>
+                          <div className="flex flex-col gap-1.5 items-start">
+                            {course.is_internal && <Badge variant="secondary">Internal</Badge>}
+                            {course.is_public && <Badge variant="outline">Public</Badge>}
+                          </div>
                         </TableCell>
                          <TableCell>
                           {course.is_public ? (

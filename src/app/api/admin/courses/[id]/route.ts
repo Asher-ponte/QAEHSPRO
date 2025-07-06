@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod';
@@ -64,6 +65,7 @@ const courseSchema = z.object({
   venue: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  is_internal: z.boolean().default(true),
   is_public: z.boolean().default(false),
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
@@ -84,6 +86,11 @@ const courseSchema = z.object({
 }, {
     message: "Price must be a positive number for public courses.",
     path: ["price"],
+}).refine(data => {
+    return data.is_internal || data.is_public;
+}, {
+    message: "A course must be available to at least one audience (Internal or Public).",
+    path: ["is_public"], 
 });
 
 
@@ -157,6 +164,7 @@ export async function GET(
 
         return NextResponse.json({
             ...course,
+            is_internal: !!course.is_internal,
             is_public: !!course.is_public,
             imagePath: course.imagePath ?? null,
             venue: course.venue ?? null,
@@ -195,14 +203,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_public, price, signatoryIds } = parsedData.data;
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
 
         await db.run('BEGIN TRANSACTION');
 
         // 1. Update the course itself
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_public = ?, price = ? WHERE id = ?',
-            [title, description, category, imagePath, venue, startDate, endDate, is_public, price, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?',
+            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, courseId]
         );
 
         // 2. Update signatories

@@ -1,4 +1,5 @@
 
+
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
@@ -13,7 +14,7 @@ export async function GET() {
     const db = await getDb(siteId);
     
     // 1. Get all courses
-    const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_public, price FROM courses ORDER BY title ASC`);
+    const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
 
     // 2. Get total lessons for all courses
     const lessonsPerCourseResult = await db.all(`

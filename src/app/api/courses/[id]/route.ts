@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
@@ -21,18 +22,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
     }
 
-    // Public courses are visible to everyone.
-    // Internal courses are only visible to employees of that site (or admins).
-    if (!course.is_public && user.type !== 'Employee' && user.role !== 'Admin') {
-        return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
-    }
-
-    if (user.role !== 'Admin' && user.type === 'Employee') {
-        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-        if (!enrollment) {
-            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+    // Access control logic
+    if (user.role !== 'Admin') { // Not an admin
+        if (user.type === 'External' && !course.is_public) {
+            // External user trying to access non-public course
+            return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
+        }
+        if (user.type === 'Employee' && !course.is_internal && !course.is_public) {
+            // This case shouldn't happen if form validation is right, but as a safeguard:
+            // if a course is neither public nor internal, an employee can't see it.
+            return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
         }
     }
+
 
     // Fetch all modules and lessons in one go, including modules without lessons
     const modulesAndLessons = await db.all(

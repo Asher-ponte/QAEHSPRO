@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { open, type Database } from 'sqlite';
@@ -60,7 +61,8 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             endDate TEXT,
             venue TEXT,
             is_public BOOLEAN NOT NULL DEFAULT 0,
-            price REAL
+            price REAL,
+            is_internal BOOLEAN NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS modules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,6 +175,10 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         console.log(`Applying migration for site '${siteId}': Adding 'is_public' and 'price' columns to 'courses' table.`);
         await db.exec('ALTER TABLE courses ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT 0');
         await db.exec('ALTER TABLE courses ADD COLUMN price REAL');
+    }
+    if (!coursesTableInfo.some(col => col.name === 'is_internal')) {
+        console.log(`Applying migration for site '${siteId}': Adding 'is_internal' column to 'courses' table.`);
+        await db.exec('ALTER TABLE courses ADD COLUMN is_internal BOOLEAN NOT NULL DEFAULT 1');
     }
 
     // Seed data
