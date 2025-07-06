@@ -183,25 +183,10 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         await db.exec('ALTER TABLE courses ADD COLUMN is_internal BOOLEAN NOT NULL DEFAULT 1');
     }
 
-    // Seed data
-    await db.run(
-        `INSERT OR IGNORE INTO users (id, username, fullName, role, type) VALUES (?, ?, ?, ?, ?)`,
-        [1, 'Demo User', 'Demo User', 'Admin', 'Employee']
-    );
-
     const isValidBcryptHash = (hash: string | null | undefined): boolean => {
         if (!hash) return false;
         return /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
     };
-
-    // This block ensures the demo user always has a valid password.
-    const demoUser = await db.get('SELECT password FROM users WHERE id = 1');
-    if (!demoUser || !isValidBcryptHash(demoUser.password)) {
-        console.log(`Password for Demo User on site '${siteId}' is missing or invalid. Resetting to default.`);
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash('password', saltRounds);
-        await db.run('UPDATE users SET password = ? WHERE id = 1', hashedPassword);
-    }
     
     // Ensure 'florante' exists as a Super Admin ONLY in the 'main' database.
     if (siteId === 'main') {
