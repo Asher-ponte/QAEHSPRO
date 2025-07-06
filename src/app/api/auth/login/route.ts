@@ -24,30 +24,27 @@ export async function POST(request: NextRequest) {
 
     let loggedInUser = null;
     let loggedInSiteId = null;
-    
-    // A valid bcrypt hash starts with $2a$, $2b$, or $2y$, a cost factor, and is 60 characters long.
-    const isValidBcryptHash = (hash: string | null | undefined): boolean => {
-        if (!hash) return false;
-        return /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
-    };
 
     // Iterate over all sites to find the user
     for (const site of SITES) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
-        // This is the critical check. We only proceed if the user exists AND their password hash is valid.
-        if (user && isValidBcryptHash(user.password)) {
-            // Because of the check above, this call is now safe and will not crash.
-            const passwordMatch = await bcrypt.compare(password, user.password);
-            if (passwordMatch) {
-                loggedInUser = user;
-                loggedInSiteId = site.id;
-                break; // Exit loop once user is found and authenticated
+        // We must check if user and user.password exist before trying to compare.
+        if (user && user.password) {
+            try {
+                // This is the critical operation that can fail if the hash is malformed.
+                // Wrapping it in a try...catch makes the login process resilient.
+                const passwordMatch = await bcrypt.compare(password, user.password);
+                if (passwordMatch) {
+                    loggedInUser = user;
+                    loggedInSiteId = site.id;
+                    break; // Exit loop once user is found and authenticated
+                }
+            } catch (e) {
+                 // This will catch errors from bcrypt if the hash is malformed.
+                 console.warn(`Bcrypt error for user '${username}' on site '${site.id}'. Hash might be invalid. Skipping. Error: ${e instanceof Error ? e.message : String(e)}`);
             }
-        } else if (user && !isValidBcryptHash(user.password)) {
-            // This case handles users with invalid/corrupted passwords. We log it and skip them.
-            console.warn(`Skipping user '${username}' on site '${site.id}' due to an invalid password format in the database.`);
         }
     }
 
