@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
 
     const { fullName, username, password } = parsedData.data;
 
-    // External users are always created in the 'main' site database
-    const siteId = 'main';
+    // External users are always created in the 'external' site database
+    const siteId = 'external';
     if (!SITES.some(s => s.id === siteId)) {
-        return NextResponse.json({ error: 'The main site is not configured correctly.' }, { status: 500 });
+        return NextResponse.json({ error: 'The external user site is not configured correctly.' }, { status: 500 });
     }
 
     const db = await getDb(siteId);
