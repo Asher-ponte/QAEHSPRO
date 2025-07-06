@@ -20,6 +20,7 @@ interface SessionContextType {
   user: User | null;
   site: Site | null;
   isLoading: boolean;
+  isSuperAdmin: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
@@ -28,6 +29,7 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [site, setSite] = useState<Site | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -41,15 +43,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const sessionData = await meRes.json();
           setUser(sessionData.user);
           setSite(sessionData.site);
+          setIsSuperAdmin(sessionData.isSuperAdmin);
         } else {
           setUser(null);
           setSite(null);
+          setIsSuperAdmin(false);
           router.push('/login');
         }
       } catch (error) {
         console.error("Failed to fetch session", error);
         setUser(null);
         setSite(null);
+        setIsSuperAdmin(false);
         router.push('/login');
       } finally {
         setIsLoading(false);
@@ -60,7 +65,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <SessionContext.Provider value={{ user, site, isLoading, setUser }}>
+    <SessionContext.Provider value={{ user, site, isLoading, isSuperAdmin, setUser }}>
       {isLoading ? (
         <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
