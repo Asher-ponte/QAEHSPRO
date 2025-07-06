@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
+import { useSession } from "@/hooks/use-session"
+import type { Site } from "@/lib/sites"
 
 interface SignatoryOption {
     id: number;
@@ -71,6 +73,7 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
+  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -96,6 +99,82 @@ const courseSchema = z.object({
 
 type CourseFormValues = z.infer<typeof courseSchema>
 
+
+function BranchAvailabilityField({ control }: { control: Control<CourseFormValues> }) {
+    const [sites, setSites] = useState<Site[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAllSites = async () => {
+            setIsLoading(true);
+            try {
+                const res = await fetch('/api/sites');
+                if (!res.ok) throw new Error("Failed to load sites");
+                const allSitesData = await res.json();
+                // Filter out main and external sites, as courses are for clients
+                const clientSites = allSitesData.filter((s: Site) => !['main', 'external'].includes(s.id));
+                setSites(clientSites);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAllSites();
+    }, []);
+
+    return (
+         <FormField
+            control={control}
+            name="targetSiteIds"
+            render={() => (
+                <FormItem>
+                    {isLoading ? (
+                         <div className="space-y-2">
+                            <Skeleton className="h-6 w-1/2" />
+                            <Skeleton className="h-6 w-1/2" />
+                        </div>
+                    ) : sites.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sites.map((site) => (
+                                <FormField
+                                    key={site.id}
+                                    control={control}
+                                    name="targetSiteIds"
+                                    render={({ field }) => {
+                                        return (
+                                            <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(site.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const currentValue = field.value || [];
+                                                            return checked
+                                                                ? field.onChange([...currentValue, site.id])
+                                                                : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                    {site.name}
+                                                </FormLabel>
+                                            </FormItem>
+                                        );
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                         <p className="text-sm text-muted-foreground">
+                            No client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
+                        </p>
+                    )}
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    )
+}
 
 function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
     const isPublic = useWatch({
@@ -540,6 +619,7 @@ export default function EditCoursePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const courseId = params.id;
+  const { isSuperAdmin } = useSession();
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -556,6 +636,7 @@ export default function EditCoursePage() {
       price: null,
       modules: [],
       signatoryIds: [],
+      targetSiteIds: [],
     },
     mode: "onChange"
   });
@@ -575,7 +656,8 @@ export default function EditCoursePage() {
                 ...data,
                 is_internal: !!data.is_internal,
                 is_public: !!data.is_public,
-                signatoryIds: data.signatoryIds || []
+                signatoryIds: data.signatoryIds || [],
+                targetSiteIds: data.targetSiteIds || [], // Ensure this is initialized
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
@@ -600,6 +682,19 @@ export default function EditCoursePage() {
 
   async function onSubmit(values: CourseFormValues) {
     setIsSubmitting(true);
+    
+    // Add a check for super admin to ensure at least one branch is selected for propagation.
+    // The course is updated in the current branch regardless.
+    if (isSuperAdmin && values.targetSiteIds && values.targetSiteIds.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Branch Selection Needed",
+            description: "Please select at least one branch to push updates to, or deselect all to only update the current branch's course.",
+        });
+        // We might not want to block the update for the current branch, so we can comment this out.
+        // setIsSubmitting(false);
+        // return;
+    }
 
     const payload = {
       ...values,
@@ -891,6 +986,20 @@ export default function EditCoursePage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {isSuperAdmin && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Branch Availability</CardTitle>
+                        <CardDescription>
+                            Select which branches this course will be created in or updated to.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <BranchAvailabilityField control={form.control} />
+                    </CardContent>
+                </Card>
+            )}
 
              <Card>
                 <CardHeader>

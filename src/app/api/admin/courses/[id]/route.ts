@@ -70,6 +70,7 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
+  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -182,18 +183,16 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
+    const { user, siteId, isSuperAdmin } = await getCurrentSession();
     if (user?.role !== 'Admin' || !siteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     
     let db;
     try {
-        db = await getDb(siteId);
-        const { id: courseId } = params;
-
-        if (!courseId) {
-            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        const courseId = parseInt(params.id, 10);
+        if (isNaN(courseId)) {
+            return NextResponse.json({ error: 'Course ID must be a number' }, { status: 400 });
         }
 
         const data = await request.json();
@@ -203,99 +202,146 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
-
+        // ---- Start: Update course in the CURRENT site ----
+        db = await getDb(siteId);
         await db.run('BEGIN TRANSACTION');
 
-        // 1. Update the course itself
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
+
         await db.run(
             'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?',
             [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, courseId]
         );
-
-        // 2. Update signatories
         await db.run('DELETE FROM course_signatories WHERE course_id = ?', courseId);
         if (signatoryIds && signatoryIds.length > 0) {
             const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-            for (const signatoryId of signatoryIds) {
-                await stmt.run(courseId, signatoryId);
-            }
+            for (const signatoryId of signatoryIds) { await stmt.run(courseId, signatoryId); }
             await stmt.finalize();
         }
 
-        // 3. Get existing module IDs to manage deletions
         const existingModules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
         const existingModuleIds = new Set(existingModules.map(m => m.id));
-        
-        const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id));
-
-        // Delete modules that are not in the payload
+        const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id as number));
         for (const existingId of existingModuleIds) {
-            if (!payloadModuleIds.has(existingId)) {
-                await db.run('DELETE FROM modules WHERE id = ?', existingId);
-            }
+            if (!payloadModuleIds.has(existingId)) { await db.run('DELETE FROM modules WHERE id = ?', existingId); }
         }
 
-
-        // 4. Upsert modules and lessons
         for (const [moduleIndex, moduleData] of modules.entries()) {
             let moduleId = moduleData.id;
-
             if (moduleId && existingModuleIds.has(moduleId)) {
-                // Update existing module
-                await db.run(
-                    'UPDATE modules SET title = ?, "order" = ? WHERE id = ?',
-                    [moduleData.title, moduleIndex + 1, moduleId]
-                );
+                await db.run('UPDATE modules SET title = ?, "order" = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
             } else {
-                 // Insert new module
-                const moduleResult = await db.run(
-                    'INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)',
-                    [courseId, moduleData.title, moduleIndex + 1]
-                );
+                const moduleResult = await db.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
                 moduleId = moduleResult.lastID;
-                if (!moduleId) {
-                    throw new Error(`Failed to create module: ${moduleData.title}`);
-                }
+                if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
             }
 
-            // Manage lessons for this module
             const existingLessons = await db.all('SELECT id FROM lessons WHERE module_id = ?', moduleId);
             const existingLessonIds = new Set(existingLessons.map(l => l.id));
-            const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id));
-
-            // Delete lessons not in payload
+            const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
             for (const existingId of existingLessonIds) {
-                if (!payloadLessonIds.has(existingId)) {
-                    await db.run('DELETE FROM lessons WHERE id = ?', existingId);
-                }
+                if (!payloadLessonIds.has(existingId)) { await db.run('DELETE FROM lessons WHERE id = ?', existingId); }
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
                 let contentToStore = lessonData.content ?? null;
-                if (lessonData.type === 'quiz' && lessonData.questions) {
-                    contentToStore = transformQuestionsToDbFormat(lessonData.questions);
-                }
+                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
                 
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                    // Update existing lesson
-                     await db.run(
-                        'UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?',
-                        [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]
-                    );
+                     await db.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]);
                 } else {
-                     // Insert new lesson
-                    await db.run(
-                        'INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)',
-                        [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]
-                    );
+                    await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
                 }
             }
         }
-
         await db.run('COMMIT');
+        // ---- End: Update course in the CURRENT site ----
 
-        const updatedCourse = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+
+        // ---- Start: Propagate changes to other sites if super admin ----
+        if (isSuperAdmin && targetSiteIds && targetSiteIds.length > 0) {
+            for (const targetSiteId of targetSiteIds) {
+                if (targetSiteId === siteId) continue; // Skip the site we just updated
+
+                const targetDb = await getDb(targetSiteId);
+                await targetDb.run('BEGIN TRANSACTION');
+
+                try {
+                    // Find if a course with the same title exists. If so, we'll update it. Otherwise, create it.
+                    const existingCourse = await targetDb.get('SELECT id FROM courses WHERE title = ?', title);
+
+                    if (existingCourse) {
+                        // UPDATE existing course
+                        const targetCourseId = existingCourse.id;
+                        await targetDb.run('UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, targetCourseId]);
+                        await targetDb.run('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
+                        if (signatoryIds && signatoryIds.length > 0) {
+                            const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+                            for (const signatoryId of signatoryIds) { await stmt.run(targetCourseId, signatoryId); }
+                            await stmt.finalize();
+                        }
+                        const existingModulesTarget = await targetDb.all('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
+                        const existingModuleIdsTarget = new Set(existingModulesTarget.map(m => m.id));
+                        for (const m of modules) { if (m.id && !existingModuleIdsTarget.has(m.id)) { m.id = undefined; for(const l of m.lessons) { l.id = undefined; }}} // Unset IDs to force creation
+                        
+                        const payloadModuleIdsTarget = new Set(modules.filter(m => m.id).map(m => m.id as number));
+                        for (const existingId of existingModuleIdsTarget) { if (!payloadModuleIdsTarget.has(existingId)) { await targetDb.run('DELETE FROM modules WHERE id = ?', existingId); }}
+
+                        for (const [moduleIndex, moduleData] of modules.entries()) {
+                            let moduleId = moduleData.id;
+                            if (moduleId && existingModuleIdsTarget.has(moduleId)) {
+                                await targetDb.run('UPDATE modules SET title = ?, "order" = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
+                            } else {
+                                const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
+                                moduleId = moduleResult.lastID; if (!moduleId) throw new Error(`Failed to create module`);
+                            }
+                            const existingLessonsTarget = await targetDb.all('SELECT id FROM lessons WHERE module_id = ?', moduleId);
+                            const existingLessonIdsTarget = new Set(existingLessonsTarget.map(l => l.id));
+                            for (const l of moduleData.lessons) { if (l.id && !existingLessonIdsTarget.has(l.id)) { l.id = undefined; } }
+
+                            const payloadLessonIdsTarget = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
+                            for (const existingId of existingLessonIdsTarget) { if (!payloadLessonIdsTarget.has(existingId)) { await targetDb.run('DELETE FROM lessons WHERE id = ?', existingId); } }
+
+                            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                                let contentToStore = lessonData.content ?? null;
+                                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
+                                if (lessonData.id && existingLessonIdsTarget.has(lessonData.id)) {
+                                    await targetDb.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]);
+                                } else {
+                                    await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
+                                }
+                            }
+                        }
+                    } else {
+                        // CREATE new course from scratch
+                        const courseResult = await targetDb.run('INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]);
+                        const newCourseId = courseResult.lastID; if (!newCourseId) { throw new Error('Failed to create course'); }
+                        if (signatoryIds && signatoryIds.length > 0) {
+                            const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+                            for (const signatoryId of signatoryIds) { await stmt.run(newCourseId, signatoryId); }
+                            await stmt.finalize();
+                        }
+                        for (const [moduleIndex, moduleData] of modules.entries()) {
+                            const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [newCourseId, moduleData.title, moduleIndex + 1]);
+                            const moduleId = moduleResult.lastID; if (!moduleId) { throw new Error(`Failed to create module`); }
+                            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                                let contentToStore = lessonData.content ?? null;
+                                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
+                                await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
+                            }
+                        }
+                    }
+                    await targetDb.run('COMMIT');
+                } catch (e) {
+                    await targetDb.run('ROLLBACK');
+                    console.error(`Failed to propagate course update to site ${targetSiteId}:`, e);
+                    // Decide if we should continue or stop. For now, let's just log and continue.
+                }
+            }
+        }
+        // ---- End: Propagate changes ----
+
+        const updatedCourse = await getDb(siteId).then(d => d.get('SELECT * FROM courses WHERE id = ?', courseId));
         return NextResponse.json(updatedCourse, { status: 200 });
 
     } catch (error) {
