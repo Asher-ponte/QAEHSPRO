@@ -193,7 +193,7 @@ function SignUpForm() {
                 </div>
                 <CardTitle className="text-2xl font-bold font-headline">Create an Account</CardTitle>
                 <CardDescription>
-                    Register to access our public course catalog.
+                    Create a new public account to purchase and enroll in courses.
                 </CardDescription>
             </CardHeader>
             <CardContent>
