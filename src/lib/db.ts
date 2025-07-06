@@ -151,26 +151,15 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     // This block ensures the demo user always has a valid password.
     const demoUser = await db.get('SELECT password FROM users WHERE id = 1');
     const defaultPassword = 'password';
-    let needsPasswordUpdate = true;
 
-    if (demoUser && demoUser.password) {
-        try {
-            // Check if the current password is valid by comparing it.
-            // This will fail if the hash is invalid or just plain text.
-            const isMatch = await bcrypt.compare(defaultPassword, demoUser.password);
-            if (isMatch) {
-                needsPasswordUpdate = false;
-            }
-        } catch {
-            // Error during comparison means the hash is invalid.
-            // We will proceed to update it.
-            console.warn(`Invalid password hash for Demo User on site '${siteId}'. Forcing update.`);
-        }
-    }
-    
-    // If password does not exist, is empty, or is invalid, create a new valid one.
-    if (needsPasswordUpdate) {
-        console.log(`Setting default password for Demo User on site '${siteId}'.`);
+    // A valid bcrypt hash starts with $2a$, $2b$, or $2y$, a cost factor, and is 60 characters long.
+    const isValidBcryptHash = (hash: string | null | undefined): boolean => {
+        if (!hash) return false;
+        return /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
+    };
+
+    if (!demoUser || !isValidBcryptHash(demoUser.password)) {
+        console.log(`Password for Demo User on site '${siteId}' is missing or invalid. Resetting to default.`);
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(defaultPassword, saltRounds);
         await db.run('UPDATE users SET password = ? WHERE id = 1', hashedPassword);
