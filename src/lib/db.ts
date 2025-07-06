@@ -142,6 +142,18 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             FOREIGN KEY (lesson_id) REFERENCES lessons (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            course_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('completed', 'pending', 'failed')),
+            transaction_date TEXT NOT NULL,
+            gateway TEXT NOT NULL,
+            gateway_transaction_id TEXT,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+        );
     `);
     
     // Seed data

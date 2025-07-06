@@ -54,8 +54,8 @@ const adminActions = [
     title: "Payment Management",
     description: "View transactions and manage gateways.",
     icon: <CreditCard className="h-8 w-8 text-primary" />,
-    href: "#",
-    disabled: true,
+    href: "/admin/payments",
+    disabled: false,
   },
 ]
 

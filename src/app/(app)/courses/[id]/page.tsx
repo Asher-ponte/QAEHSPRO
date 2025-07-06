@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock, DollarSign } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, DollarSign, Loader2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -78,8 +78,10 @@ export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const { toast } = useToast()
   const { user } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     if (!params.id) return
@@ -117,7 +119,36 @@ export default function CourseDetailPage() {
       }
     }
     fetchCourse()
-  }, [params.id, toast])
+  }, [params.id, toast, router])
+  
+  const handlePurchase = async () => {
+      if (!course || isPurchasing) return;
+      setIsPurchasing(true);
+
+      try {
+          const response = await fetch(`/api/courses/${course.id}/purchase`, {
+              method: 'POST'
+          });
+          const data = await response.json();
+          if (!response.ok) {
+              throw new Error(data.error || 'Failed to process purchase.');
+          }
+          toast({
+              title: "Purchase Successful",
+              description: "You are now enrolled in the course!"
+          });
+          // Refresh the page data to reflect new enrollment status
+          router.refresh();
+      } catch (error) {
+          toast({
+              variant: "destructive",
+              title: "Purchase Failed",
+              description: error instanceof Error ? error.message : "An unknown error occurred."
+          });
+      } finally {
+          setIsPurchasing(false);
+      }
+  };
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -185,10 +216,9 @@ export default function CourseDetailPage() {
     }
     
     if (isExternalUser && isPaidCourse && !canAccessContent) {
-        // Placeholder for payment flow
         return (
-             <Button className="w-full">
-                <DollarSign className="mr-2 h-4 w-4" />
+             <Button className="w-full" onClick={handlePurchase} disabled={isPurchasing}>
+                {isPurchasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                 Buy Now for ${course.price?.toFixed(2)}
             </Button>
         );
