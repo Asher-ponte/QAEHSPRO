@@ -53,6 +53,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -80,28 +81,41 @@ interface User {
   type: 'Employee' | 'External';
 }
 
-const userFormSchema = z.object({
+const createUserFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
   username: z.string().min(3, { message: "Username must be at least 3 characters." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters."}),
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
   role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
   type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
 })
 
-type UserFormValues = z.infer<typeof userFormSchema>
+type CreateUserFormValues = z.infer<typeof createUserFormSchema>
+
+const updateUserFormSchema = z.object({
+  fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
+  username: z.string().min(3, { message: "Username must be at least 3 characters." }),
+  password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
+  department: z.string().min(2, { message: "Department must be at least 2 characters." }),
+  position: z.string().min(2, { message: "Position must be at least 2 characters." }),
+  role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
+  type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
+})
+
+type UpdateUserFormValues = z.infer<typeof updateUserFormSchema>
 
 function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, children: ReactNode }) {
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
-    const form = useForm<UserFormValues>({
-        resolver: zodResolver(userFormSchema),
-        defaultValues: { username: "", fullName: "", department: "", position: "", role: "Employee", type: "Employee" },
+    const form = useForm<CreateUserFormValues>({
+        resolver: zodResolver(createUserFormSchema),
+        defaultValues: { username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee" },
     });
 
-    async function onSubmit(values: UserFormValues) {
+    async function onSubmit(values: CreateUserFormValues) {
         setIsSubmitting(true);
         try {
             const response = await fetch('/api/admin/users', {
@@ -164,6 +178,19 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                     <FormLabel>Username (for login)</FormLabel>
                                     <FormControl>
                                         <Input placeholder="e.g., janesmith" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••••••" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -259,20 +286,21 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
-    const form = useForm<UserFormValues>({
-        resolver: zodResolver(userFormSchema),
+    const form = useForm<UpdateUserFormValues>({
+        resolver: zodResolver(updateUserFormSchema),
     });
 
     useEffect(() => {
         if (user) {
             form.reset({
                 ...user,
+                password: "",
                 fullName: user.fullName || user.username
             });
         }
     }, [user, open, form]);
 
-    async function onSubmit(values: UserFormValues) {
+    async function onSubmit(values: UpdateUserFormValues) {
         if (!user) return;
         setIsSubmitting(true);
         try {
@@ -335,6 +363,22 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                     <FormControl>
                                         <Input placeholder="e.g., janesmith" {...field} />
                                     </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New Password</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" {...field} />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Leave blank to keep the current password.
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -642,3 +686,5 @@ export default function ManageUsersPage() {
     </div>
   )
 }
+
+    

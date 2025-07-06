@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
-        if (user && user.password) {
+        // Check if user exists and has a non-empty password
+        if (user && user.password && typeof user.password === 'string' && user.password.length > 0) {
             const passwordMatch = await bcrypt.compare(password, user.password);
             if (passwordMatch) {
                 loggedInUser = user;
@@ -65,3 +66,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
+
+    
