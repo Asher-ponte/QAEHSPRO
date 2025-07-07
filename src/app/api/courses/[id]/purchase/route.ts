@@ -57,8 +57,8 @@ export async function POST(
         }
 
         await db.run(
-            `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path, gateway)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
                 user.id,
                 courseId,
@@ -66,6 +66,7 @@ export async function POST(
                 'pending',
                 new Date().toISOString(),
                 proofImagePath,
+                'manual_upload'
             ]
         );
 

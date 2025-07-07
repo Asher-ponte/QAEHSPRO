@@ -17,6 +17,7 @@ export async function GET() {
                 t.id,
                 t.amount,
                 t.status,
+                t.gateway,
                 t.transaction_date,
                 t.proof_image_path,
                 t.reference_number,
