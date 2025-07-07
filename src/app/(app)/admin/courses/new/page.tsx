@@ -102,6 +102,7 @@ type CourseFormValues = z.infer<typeof courseSchema>
 function BranchAvailabilityField({ control }: { control: Control<CourseFormValues> }) {
     const [sites, setSites] = useState<Site[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [mainSite, setMainSite] = useState<Site | null>(null);
 
     useEffect(() => {
         const fetchAllSites = async () => {
@@ -110,9 +111,13 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
                 const res = await fetch('/api/sites');
                 if (!res.ok) throw new Error("Failed to load sites");
                 const allSitesData = await res.json();
-                // Filter out main site, as courses are implicitly created there for super admins
-                const publishableSites = allSitesData.filter((s: Site) => s.id !== 'main');
-                setSites(publishableSites);
+                
+                const main = allSitesData.find((s: Site) => s.id === 'main');
+                const otherSites = allSitesData.filter((s: Site) => s.id !== 'main');
+
+                setMainSite(main || null);
+                setSites(otherSites);
+                
             } catch (error) {
                 console.error(error);
             } finally {
@@ -122,54 +127,67 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
         fetchAllSites();
     }, []);
 
+    if (isLoading) {
+        return (
+            <div className="space-y-4">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-8 w-full" />
+            </div>
+        )
+    }
+
     return (
-        <FormField
-            control={control}
-            name="targetSiteIds"
-            render={({ field }) => (
-                <FormItem>
-                    {isLoading ? (
-                        <div className="space-y-2">
-                            <Skeleton className="h-6 w-1/2" />
-                            <Skeleton className="h-6 w-1/2" />
-                        </div>
-                    ) : sites.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {sites.map((site) => (
-                                <FormField
-                                    key={site.id}
-                                    control={control}
-                                    name="targetSiteIds"
-                                    render={({ field }) => (
-                                        <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                            <FormControl>
-                                                <Checkbox
-                                                    checked={field.value?.includes(site.id)}
-                                                    onCheckedChange={(checked) => {
-                                                        const currentValue = field.value || [];
-                                                        return checked
-                                                            ? field.onChange([...currentValue, site.id])
-                                                            : field.onChange(currentValue.filter((value) => value !== site.id));
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">
-                                                {site.name}
-                                            </FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            No client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
-                        </p>
-                    )}
-                    <FormMessage />
+        <div className="space-y-4">
+             {mainSite && (
+                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-muted/50">
+                    <FormControl>
+                        <Checkbox checked={true} disabled={true} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                        <FormLabel>{mainSite.name} (Master Copy)</FormLabel>
+                        <FormDescription>
+                           This master copy is always created. Select other branches below to publish copies to.
+                        </FormDescription>
+                    </div>
                 </FormItem>
             )}
-        />
+            
+            <FormField
+                control={control}
+                name="targetSiteIds"
+                render={({ field }) => (
+                    <FormItem>
+                        {sites.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                                {sites.map((site) => (
+                                    <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                        <FormControl>
+                                            <Checkbox
+                                                checked={field.value?.includes(site.id)}
+                                                onCheckedChange={(checked) => {
+                                                    const currentValue = field.value || [];
+                                                    return checked
+                                                        ? field.onChange([...currentValue, site.id])
+                                                        : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                }}
+                                            />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                            {site.name}
+                                        </FormLabel>
+                                    </FormItem>
+                                ))}
+                            </div>
+                        ) : (
+                             <p className="text-sm text-muted-foreground pt-2">
+                                No other client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
+                            </p>
+                        )}
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
     )
 }
 
@@ -921,7 +939,7 @@ export default function CreateCoursePage() {
                     <CardHeader>
                         <CardTitle>Branch Availability</CardTitle>
                         <CardDescription>
-                            Select which additional branches this course will be published to. It will always be created in the Main branch to serve as a master copy.
+                            Confirm the master copy creation and select which additional branches this course will be published to.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
