@@ -3,6 +3,7 @@
 
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
+import { unstable_noStore as noStore } from 'next/cache';
 import { getAllSites } from './sites';
 
 interface User {
@@ -25,8 +26,10 @@ export interface SessionData {
  * Gets the current user and their active site from the session cookies.
  */
 export async function getCurrentSession(): Promise<SessionData> {
-  const cookieStore = cookies();
+  noStore();
+  
   try {
+    const cookieStore = cookies();
     const sessionId = cookieStore.get('session_id')?.value;
     let siteId = cookieStore.get('site_id')?.value; // This can be the context for a super admin
 
