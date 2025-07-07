@@ -83,13 +83,11 @@ export async function GET() {
   }
 
   try {
-    // Each user type (external or internal) fetches courses from their own sandboxed database.
-    // This enforces strict data separation between branches.
     const db = await getDb(siteId);
 
     let courses;
     if (user.type === 'External') {
-        // External users see only public courses from the 'external' database.
+        // External users see only public courses from their branch database.
          courses = await db.all(`
             SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
         `);
@@ -128,10 +126,21 @@ export async function POST(request: NextRequest) {
     
     const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
 
-    // Use selected sites for super admin, or session site for client admin
-    const sitesToCreateIn = isSuperAdmin ? (targetSiteIds || []) : [sessionSiteId];
+    // Determine the sites for course creation
+    let sitesToCreateIn: string[];
+    if (isSuperAdmin) {
+        // For a super admin, create in all selected target branches and always in 'main'.
+        const siteSet = new Set(targetSiteIds || []);
+        siteSet.add('main');
+        sitesToCreateIn = Array.from(siteSet);
+    } else {
+        // For a client admin, the course is only created in their own branch.
+        sitesToCreateIn = [sessionSiteId];
+    }
+
     if (sitesToCreateIn.length === 0) {
-        return NextResponse.json({ error: 'Super admins must select at least one branch.' }, { status: 400 });
+        // This case should not be reachable for a logged-in admin, but as a safeguard.
+        return NextResponse.json({ error: 'No target branches specified for course creation.' }, { status: 400 });
     }
 
     // This block will execute the creation logic for each selected branch.

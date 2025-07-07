@@ -635,15 +635,6 @@ export default function CreateCoursePage() {
 
 
   async function onSubmit(values: CourseFormValues) {
-    if (isSuperAdmin && (!values.targetSiteIds || values.targetSiteIds.length === 0)) {
-        toast({
-            variant: "destructive",
-            title: "Validation Error",
-            description: "As a super admin, you must select at least one branch to create the course in.",
-        });
-        return;
-    }
-
     setIsLoading(true)
 
     const payload = {
@@ -920,7 +911,7 @@ export default function CreateCoursePage() {
                     <CardHeader>
                         <CardTitle>Branch Availability</CardTitle>
                         <CardDescription>
-                            Select which branches this course will be created in.
+                            Select which additional branches this course will be published to. It will always be created in the Main branch to serve as a master copy.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
