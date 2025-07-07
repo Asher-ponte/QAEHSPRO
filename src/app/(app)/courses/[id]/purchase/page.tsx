@@ -103,12 +103,12 @@ export default function PurchasePage() {
         if (!course) return;
         setIsSubmitting(true);
         try {
-            const formData = new FormData();
-            formData.append('proofImagePath', values.proofImagePath);
-
             const response = await fetch(`/api/courses/${course.id}/purchase`, {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(values),
             });
             const data = await response.json();
             if (!response.ok) {
