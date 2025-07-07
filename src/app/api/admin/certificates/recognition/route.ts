@@ -4,23 +4,24 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { format } from 'date-fns';
+import { getAllSites } from '@/lib/sites';
 
 const recognitionCertificateSchema = z.object({
   userId: z.coerce.number({ invalid_type_error: "Please select a user." }),
   reason: z.string().min(10, { message: "Reason must be at least 10 characters." }),
   date: z.date(),
   signatoryIds: z.array(z.number()).min(1, { message: "At least one signatory is required." }),
+  siteId: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
-    const { user: adminUser, siteId } = await getCurrentSession();
-    if (adminUser?.role !== 'Admin' || !siteId) {
+    const { user: adminUser, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (adminUser?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     let db;
     try {
-        db = await getDb(siteId);
         const body = await request.json();
         
         // Zod needs to parse a date object, but JSON gives a string.
@@ -35,7 +36,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { userId, reason, date, signatoryIds } = parsedData.data;
+        const { userId, reason, date, signatoryIds, siteId: targetSiteId } = parsedData.data;
+
+        let effectiveSiteId = sessionSiteId;
+        if (targetSiteId) {
+             if (!isSuperAdmin) {
+                return NextResponse.json({ error: 'Forbidden: Only Super Admins can specify a branch.' }, { status: 403 });
+            }
+            const allSites = await getAllSites();
+            if (!allSites.some(s => s.id === targetSiteId)) {
+                return NextResponse.json({ error: 'Invalid target site ID.' }, { status: 400 });
+            }
+            effectiveSiteId = targetSiteId;
+        }
+
+        db = await getDb(effectiveSiteId);
 
         await db.run('BEGIN TRANSACTION');
         
@@ -75,3 +90,5 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create certificate', details }, { status: 500 });
     }
 }
+
+    

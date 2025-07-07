@@ -17,15 +17,25 @@ const userSchema = z.object({
   siteId: z.string(),
 });
 
-export async function GET() {
-  const { user, siteId, isSuperAdmin } = await getCurrentSession();
-  if (user?.role !== 'Admin' || !siteId) {
+export async function GET(request: NextRequest) {
+  const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+  if (user?.role !== 'Admin' || !sessionSiteId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const requestedSiteId = searchParams.get('siteId');
+
   try {
     if (isSuperAdmin) {
-      // Super admin gets all users from all branches, excluding 'main'
+      // If a specific site is requested by a super admin, fetch users for that site.
+      if (requestedSiteId) {
+        const db = await getDb(requestedSiteId);
+        const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+        return NextResponse.json(users);
+      }
+
+      // Otherwise, super admin gets all users from all branches, excluding 'main'
       const allSites = await getAllSites();
       let allUsers = [];
 
@@ -44,8 +54,8 @@ export async function GET() {
       }
       return NextResponse.json(allUsers);
     } else {
-      // Client admin gets users from their own branch
-      const db = await getDb(siteId);
+      // Client admin gets users from their own branch, ignoring any requestedSiteId param
+      const db = await getDb(sessionSiteId);
       const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
       return NextResponse.json(users);
     }
@@ -112,4 +122,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-  
+    

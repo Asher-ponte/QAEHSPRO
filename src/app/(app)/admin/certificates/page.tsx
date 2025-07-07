@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
-import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Check } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Building } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -72,6 +72,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSession } from "@/hooks/use-session"
+import type { Site } from "@/lib/sites"
 
 interface Signatory {
   id: number;
@@ -98,7 +99,8 @@ const recognitionCertificateFormSchema = z.object({
     userId: z.coerce.number({ invalid_type_error: "Please select a user." }),
     reason: z.string().min(10, { message: "Reason must be at least 10 characters." }),
     date: z.date(),
-    signatoryIds: z.array(z.number()).min(1, { message: "Please select at least one signatory." })
+    signatoryIds: z.array(z.number()).min(1, { message: "Please select at least one signatory." }),
+    siteId: z.string().optional(),
 });
 
 type RecognitionCertificateFormValues = z.infer<typeof recognitionCertificateFormSchema>;
@@ -281,8 +283,9 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
 }
 
 
-function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }: { signatories: Signatory[], onFormSubmit: () => void, isLoadingData: boolean}) {
+function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData, selectedSiteId }: { signatories: Signatory[], onFormSubmit: () => void, isLoadingData: boolean, selectedSiteId: string}) {
     const [users, setUsers] = useState<User[]>([]);
+    const [isUsersLoading, setIsUsersLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
@@ -291,16 +294,24 @@ function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }
         defaultValues: {
             reason: "",
             date: new Date(),
-            signatoryIds: []
+            signatoryIds: [],
         }
     });
+    
+    // Reset the selected user when the site changes
+    useEffect(() => {
+        form.resetField("userId");
+    }, [selectedSiteId, form]);
 
     useEffect(() => {
         async function fetchUsers() {
+            if (!selectedSiteId) return;
+
+            setIsUsersLoading(true);
             try {
-                const usersRes = await fetch('/api/admin/users');
+                const usersRes = await fetch(`/api/admin/users?siteId=${selectedSiteId}`);
                 if (!usersRes.ok) {
-                    throw new Error("Failed to load users.");
+                    throw new Error("Failed to load users for the selected branch.");
                 }
                 setUsers(await usersRes.json());
             } catch (error) {
@@ -309,18 +320,26 @@ function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }
                     title: "Error",
                     description: error instanceof Error ? error.message : "Could not load data for form.",
                 });
+                setUsers([]);
+            } finally {
+                setIsUsersLoading(false);
             }
         }
         fetchUsers();
-    }, [toast]);
+    }, [selectedSiteId, toast]);
 
     async function onSubmit(values: RecognitionCertificateFormValues) {
         setIsSubmitting(true);
         try {
+            const payload = {
+                ...values,
+                siteId: selectedSiteId
+            };
+
             const response = await fetch('/api/admin/certificates/recognition', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values),
+                body: JSON.stringify(payload),
             });
             const data = await response.json();
             if (!response.ok) {
@@ -333,7 +352,8 @@ function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }
             form.reset({
                 reason: "",
                 date: new Date(),
-                signatoryIds: []
+                signatoryIds: [],
+                userId: undefined,
             });
             onFormSubmit();
         } catch (error) {
@@ -371,10 +391,10 @@ function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Recipient</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                                        <Select onValueChange={field.onChange} value={field.value?.toString()}>
                                             <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select a user to award" />
+                                                <SelectTrigger disabled={isUsersLoading}>
+                                                    <SelectValue placeholder={isUsersLoading ? "Loading users..." : "Select a user to award"} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -525,17 +545,42 @@ export default function ManageCertificatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(isDeleting);
   const { toast } = useToast();
-  const { isSuperAdmin, isLoading: isSessionLoading } = useSession();
+  const { user, isSuperAdmin, isLoading: isSessionLoading, site: currentSite } = useSession();
   const router = useRouter();
+  
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
 
   useEffect(() => {
-    if (!isSessionLoading && !isSuperAdmin) {
-      toast({ variant: 'destructive', title: 'Access Denied', description: 'This page is available for Super Admins only.' });
-      router.push('/admin');
+    if (!isSessionLoading && !user) {
+        router.push('/login');
     }
-  }, [isSessionLoading, isSuperAdmin, router, toast]);
+  }, [isSessionLoading, user, router]);
+
+  // Update selectedSiteId when session context changes via the main SiteSwitcher
+  useEffect(() => {
+    setSelectedSiteId(currentSite?.id);
+  }, [currentSite]);
+
+  // Effect to fetch sites for the dropdown (super admin only)
+  useEffect(() => {
+    if (isSuperAdmin) {
+        const fetchSites = async () => {
+            try {
+                const res = await fetch('/api/sites');
+                if (!res.ok) throw new Error("Failed to fetch sites");
+                setSites(await res.json());
+            } catch (error) {
+                console.error(error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches for filtering.' });
+            }
+        };
+        fetchSites();
+    }
+  }, [isSuperAdmin, toast]);
+
 
   const fetchSignatories = async () => {
     setIsLoading(true);
@@ -556,10 +601,10 @@ export default function ManageCertificatesPage() {
   };
 
   useEffect(() => {
-    if (isSuperAdmin) {
+    if (user) {
         fetchSignatories();
     }
-  }, [isSuperAdmin]);
+  }, [user]);
 
   const handleDelete = async () => {
     if (!signatoryToDelete) return;
@@ -596,13 +641,15 @@ export default function ManageCertificatesPage() {
     setShowDeleteDialog(true);
   };
   
-  if (isSessionLoading || !isSuperAdmin) {
+  if (isSessionLoading || !user) {
       return <PageSkeleton />;
   }
 
+  const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" asChild>
                 <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
@@ -610,22 +657,57 @@ export default function ManageCertificatesPage() {
             <div>
                 <h1 className="text-3xl font-bold font-headline">Manage Certificates</h1>
                 <p className="text-muted-foreground">
-                    Manage global signatories and issue special recognition certificates.
+                    {isSuperAdmin && selectedSiteName
+                        ? `Managing certificates for branch: ${selectedSiteName}`
+                        : "Manage signatories and issue recognition certificates."}
                 </p>
             </div>
         </div>
+         {isSuperAdmin && (
+            <div className="w-full sm:w-auto">
+                <Select
+                    value={selectedSiteId}
+                    onValueChange={setSelectedSiteId}
+                >
+                    <SelectTrigger className="w-full sm:w-[280px]">
+                        <SelectValue placeholder="Select a branch to manage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {sites.map(site => (
+                            <SelectItem key={site.id} value={site.id}>
+                                <div className="flex items-center gap-2">
+                                  <Building className="h-4 w-4" />
+                                  <span>{site.name}</span>
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        )}
       </div>
       
       <Tabs defaultValue="signatories" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signatories">Signatories</TabsTrigger>
+            {isSuperAdmin && <TabsTrigger value="signatories">Global Signatories</TabsTrigger>}
             <TabsTrigger value="recognition">Certificate of Recognition</TabsTrigger>
         </TabsList>
-        <TabsContent value="signatories" className="mt-4">
-            <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} onSignatoryChange={fetchSignatories} />
-        </TabsContent>
+        {isSuperAdmin && (
+            <TabsContent value="signatories" className="mt-4">
+                <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} onSignatoryChange={fetchSignatories} />
+            </TabsContent>
+        )}
         <TabsContent value="recognition" className="mt-4">
-             <RecognitionCertificateForm signatories={signatories} onFormSubmit={() => {}} isLoadingData={isLoading} />
+             {selectedSiteId ? (
+                <RecognitionCertificateForm 
+                    signatories={signatories} 
+                    onFormSubmit={() => {}} 
+                    isLoadingData={isLoading}
+                    selectedSiteId={selectedSiteId} 
+                />
+             ) : (
+                <Card><CardContent className="p-8 text-center text-muted-foreground">Please select a branch to issue a certificate.</CardContent></Card>
+             )}
         </TabsContent>
       </Tabs>
       
@@ -649,3 +731,5 @@ export default function ManageCertificatesPage() {
     </div>
   )
 }
+
+    
