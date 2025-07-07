@@ -36,7 +36,6 @@ interface QrCode {
 }
 
 const purchaseFormSchema = z.object({
-  referenceNumber: z.string().min(1, { message: "Reference number is required." }),
   proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
 })
 
@@ -55,7 +54,7 @@ export default function PurchasePage() {
 
     const form = useForm<PurchaseFormValues>({
         resolver: zodResolver(purchaseFormSchema),
-        defaultValues: { referenceNumber: "", proofImagePath: "" },
+        defaultValues: { proofImagePath: "" },
     })
 
     useEffect(() => {
@@ -105,7 +104,6 @@ export default function PurchasePage() {
         setIsSubmitting(true);
         try {
             const formData = new FormData();
-            formData.append('referenceNumber', values.referenceNumber);
             formData.append('proofImagePath', values.proofImagePath);
 
             const response = await fetch(`/api/courses/${course.id}/purchase`, {
@@ -202,25 +200,12 @@ export default function PurchasePage() {
                     <CardHeader>
                         <CardTitle>Step 2: Submit Proof</CardTitle>
                         <CardDescription>
-                            Upload your payment screenshot and enter the transaction reference number.
+                            Upload your payment screenshot to complete the process.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                                <FormField
-                                    control={form.control}
-                                    name="referenceNumber"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Reference Number</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Enter the transaction reference" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
                                 <FormField
                                     control={form.control}
                                     name="proofImagePath"

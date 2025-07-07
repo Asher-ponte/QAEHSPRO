@@ -5,7 +5,6 @@ import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 
 const purchaseSchema = z.object({
-  referenceNumber: z.string().min(1, { message: "Reference number is required." }),
   proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
 });
 
@@ -40,7 +39,6 @@ export async function POST(
 
         const formData = await request.formData();
         const data = {
-            referenceNumber: formData.get('referenceNumber'),
             proofImagePath: formData.get('proofImagePath')
         };
         
@@ -48,7 +46,7 @@ export async function POST(
         if (!parsedData.success) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
-        const { referenceNumber, proofImagePath } = parsedData.data;
+        const { proofImagePath } = parsedData.data;
 
         // Before creating a new pending transaction, check if there's an existing one.
         const existingPending = await db.get(
@@ -60,8 +58,8 @@ export async function POST(
         }
 
         await db.run(
-            `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path, reference_number)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path)
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 user.id,
                 courseId,
@@ -69,7 +67,6 @@ export async function POST(
                 'pending',
                 new Date().toISOString(),
                 proofImagePath,
-                referenceNumber
             ]
         );
 
