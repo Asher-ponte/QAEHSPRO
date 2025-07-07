@@ -209,7 +209,7 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
     );
 }
 
-function SignatoriesList({ signatories, isLoading, openDeleteDialog }: { signatories: Signatory[], isLoading: boolean, openDeleteDialog: (s: Signatory) => void }) {
+function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatoryChange }: { signatories: Signatory[], isLoading: boolean, openDeleteDialog: (s: Signatory) => void, onSignatoryChange: () => void }) {
     return (
         <Card>
             <CardHeader>
@@ -220,7 +220,7 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog }: { signato
                             Manage the global pool of signatories.
                         </CardDescription>
                     </div>
-                     <SignatoryForm onFormSubmit={() => {}}>
+                     <SignatoryForm onFormSubmit={onSignatoryChange}>
                         <Button>
                             <UserPlus className="mr-2 h-4 w-4" />
                             Add Signatory
@@ -279,10 +279,8 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog }: { signato
 }
 
 
-function RecognitionCertificateForm() {
+function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }: { signatories: Signatory[], onFormSubmit: () => void, isLoadingData: boolean}) {
     const [users, setUsers] = useState<User[]>([]);
-    const [signatories, setSignatories] = useState<Signatory[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
@@ -296,29 +294,22 @@ function RecognitionCertificateForm() {
     });
 
     useEffect(() => {
-        async function fetchData() {
-            setIsLoading(true);
+        async function fetchUsers() {
             try {
-                const [usersRes, signatoriesRes] = await Promise.all([
-                    fetch('/api/admin/users'),
-                    fetch('/api/admin/signatories')
-                ]);
-                if (!usersRes.ok || !signatoriesRes.ok) {
-                    throw new Error("Failed to load required data.");
+                const usersRes = await fetch('/api/admin/users');
+                if (!usersRes.ok) {
+                    throw new Error("Failed to load users.");
                 }
                 setUsers(await usersRes.json());
-                setSignatories(await signatoriesRes.json());
             } catch (error) {
                 toast({
                     variant: "destructive",
                     title: "Error",
                     description: error instanceof Error ? error.message : "Could not load data for form.",
                 });
-            } finally {
-                setIsLoading(false);
             }
         }
-        fetchData();
+        fetchUsers();
     }, [toast]);
 
     async function onSubmit(values: RecognitionCertificateFormValues) {
@@ -342,6 +333,7 @@ function RecognitionCertificateForm() {
                 date: new Date(),
                 signatoryIds: []
             });
+            onFormSubmit();
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -362,7 +354,7 @@ function RecognitionCertificateForm() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                {isLoadingData ? (
                     <div className="space-y-4">
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-20 w-full" />
@@ -452,46 +444,38 @@ function RecognitionCertificateForm() {
                             <FormField
                                 control={form.control}
                                 name="signatoryIds"
-                                render={() => (
-                                <FormItem>
-                                    <div className="mb-4">
-                                        <FormLabel className="text-base">Signatories</FormLabel>
-                                        <FormDescription>Select who will sign this certificate.</FormDescription>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {signatories.map((signatory) => (
-                                            <FormField
-                                                key={signatory.id}
-                                                control={form.control}
-                                                name="signatoryIds"
-                                                render={({ field }) => {
-                                                    return (
-                                                        <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                                            <FormControl>
-                                                                <Checkbox
-                                                                    checked={field.value?.includes(signatory.id)}
-                                                                    onCheckedChange={(checked) => {
-                                                                        return checked
-                                                                            ? field.onChange([...field.value, signatory.id])
-                                                                            : field.onChange(field.value?.filter((value) => value !== signatory.id));
-                                                                    }}
-                                                                />
-                                                            </FormControl>
-                                                            <FormLabel className="font-normal">
-                                                                {signatory.name}
-                                                                {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
-                                                            </FormLabel>
-                                                        </FormItem>
-                                                    );
-                                                }}
-                                            />
-                                        ))}
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className="mb-4">
+                                            <FormLabel className="text-base">Signatories</FormLabel>
+                                            <FormDescription>Select who will sign this certificate.</FormDescription>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {signatories.map((signatory) => (
+                                                <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value?.includes(signatory.id)}
+                                                            onCheckedChange={(checked) => {
+                                                                const currentValue = field.value || [];
+                                                                return checked
+                                                                    ? field.onChange([...currentValue, signatory.id])
+                                                                    : field.onChange(currentValue.filter((value) => value !== signatory.id));
+                                                            }}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className="font-normal">
+                                                        {signatory.name}
+                                                        {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                                    </FormLabel>
+                                                </FormItem>
+                                            ))}
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
                                 )}
                             />
-                            
+
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 <Award className="mr-2 h-4 w-4" />
@@ -592,10 +576,10 @@ export default function ManageCertificatesPage() {
             <TabsTrigger value="recognition">Certificate of Recognition</TabsTrigger>
         </TabsList>
         <TabsContent value="signatories" className="mt-4">
-            <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} />
+            <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} onSignatoryChange={fetchSignatories} />
         </TabsContent>
         <TabsContent value="recognition" className="mt-4">
-             <RecognitionCertificateForm />
+             <RecognitionCertificateForm signatories={signatories} onFormSubmit={() => {}} isLoadingData={isLoading} />
         </TabsContent>
       </Tabs>
       

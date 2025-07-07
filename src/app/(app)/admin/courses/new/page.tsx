@@ -123,48 +123,39 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
     }, []);
 
     return (
-         <FormField
+        <FormField
             control={control}
             name="targetSiteIds"
-            render={() => (
+            render={({ field }) => (
                 <FormItem>
                     {isLoading ? (
-                         <div className="space-y-2">
+                        <div className="space-y-2">
                             <Skeleton className="h-6 w-1/2" />
                             <Skeleton className="h-6 w-1/2" />
                         </div>
                     ) : sites.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {sites.map((site) => (
-                                <FormField
-                                    key={site.id}
-                                    control={control}
-                                    name="targetSiteIds"
-                                    render={({ field }) => {
-                                        return (
-                                            <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value?.includes(site.id)}
-                                                        onCheckedChange={(checked) => {
-                                                            const currentValue = field.value || [];
-                                                            return checked
-                                                                ? field.onChange([...currentValue, site.id])
-                                                                : field.onChange(currentValue.filter((value) => value !== site.id));
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal">
-                                                    {site.name}
-                                                </FormLabel>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
+                                <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(site.id)}
+                                            onCheckedChange={(checked) => {
+                                                const currentValue = field.value || [];
+                                                return checked
+                                                    ? field.onChange([...currentValue, site.id])
+                                                    : field.onChange(currentValue.filter((value) => value !== site.id));
+                                            }}
+                                        />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        {site.name}
+                                    </FormLabel>
+                                </FormItem>
                             ))}
                         </div>
                     ) : (
-                         <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                             No client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
                         </p>
                     )}
@@ -277,13 +268,13 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
     }, []);
 
     return (
-         <FormField
+        <FormField
             control={control}
             name="signatoryIds"
-            render={() => (
+            render={({ field }) => (
                 <FormItem>
                     {isLoading ? (
-                         <div className="space-y-2">
+                        <div className="space-y-2">
                             <Skeleton className="h-5 w-1/4" />
                             <Skeleton className="h-6 w-1/2" />
                             <Skeleton className="h-6 w-1/2" />
@@ -291,35 +282,27 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
                     ) : signatories.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {signatories.map((signatory) => (
-                                <FormField
-                                    key={signatory.id}
-                                    control={control}
-                                    name="signatoryIds"
-                                    render={({ field }) => {
-                                        return (
-                                            <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value?.includes(signatory.id)}
-                                                        onCheckedChange={(checked) => {
-                                                            return checked
-                                                                ? field.onChange([...(field.value || []), signatory.id])
-                                                                : field.onChange(field.value?.filter((value) => value !== signatory.id));
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal">
-                                                    {signatory.name}
-                                                    {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
-                                                </FormLabel>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
+                                <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(signatory.id)}
+                                            onCheckedChange={(checked) => {
+                                                const currentValue = field.value || [];
+                                                return checked
+                                                    ? field.onChange([...currentValue, signatory.id])
+                                                    : field.onChange(currentValue.filter((value) => value !== signatory.id));
+                                            }}
+                                        />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        {signatory.name}
+                                        {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                    </FormLabel>
+                                </FormItem>
                             ))}
                         </div>
                     ) : (
-                         <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                             No signatories found. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
                         </p>
                     )}
