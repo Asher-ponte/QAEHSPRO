@@ -2,7 +2,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { ChevronsUpDown, Check, Building } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -15,11 +14,11 @@ import type { Site } from "@/lib/sites"
 import { Skeleton } from "./ui/skeleton"
 
 export function SiteSwitcher() {
-    const { site: currentSite, isLoading: isSessionLoading, refreshSession } = useSession();
+    const { site: currentSite, isLoading: isSessionLoading } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
     const [open, setOpen] = useState(false)
+    const [isSwitching, setIsSwitching] = useState(false);
     const { toast } = useToast();
-    const router = useRouter();
 
     useEffect(() => {
         async function fetchSites() {
@@ -35,10 +34,11 @@ export function SiteSwitcher() {
     }, []);
 
     const handleSwitchSite = async (siteId: string) => {
-        if (siteId === currentSite?.id) {
+        if (siteId === currentSite?.id || isSwitching) {
             setOpen(false);
             return;
         }
+        setIsSwitching(true);
         try {
             const switchResponse = await fetch('/api/auth/switch-site', {
                 method: 'POST',
@@ -50,15 +50,10 @@ export function SiteSwitcher() {
                 const errorData = await switchResponse.json();
                 throw new Error(errorData.error || "Failed to switch branches.");
             }
-
-            // Manually refresh client and server state
-            router.refresh(); // Refreshes Server Components
-            await refreshSession(); // Re-fetches client-side session context
-
-            toast({
-                title: "Branch Switched",
-                description: `You are now managing ${sites.find(s => s.id === siteId)?.name}.`,
-            });
+            
+            // On success, force a full page reload.
+            // This is the most reliable way to ensure all state is re-evaluated with the new cookie.
+            window.location.reload();
 
         } catch (error) {
             toast({
@@ -66,8 +61,7 @@ export function SiteSwitcher() {
                 title: "Error",
                 description: error instanceof Error ? error.message : "Could not switch branches.",
             });
-        } finally {
-            setOpen(false);
+            setIsSwitching(false);
         }
     };
     
@@ -83,6 +77,7 @@ export function SiteSwitcher() {
                     role="combobox"
                     aria-expanded={open}
                     className="w-full sm:w-auto sm:min-w-[280px] justify-between"
+                    disabled={isSwitching}
                 >
                     <div className="flex items-center gap-2">
                         <Building className="h-4 w-4" />
@@ -104,6 +99,7 @@ export function SiteSwitcher() {
                                     onSelect={(currentValue) => {
                                         handleSwitchSite(currentValue)
                                     }}
+                                    disabled={isSwitching}
                                 >
                                     <Check
                                         className={cn(

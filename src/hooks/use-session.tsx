@@ -22,7 +22,6 @@ interface SessionContextType {
   isLoading: boolean;
   isSuperAdmin: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
-  refreshSession: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -70,9 +69,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       site, 
       isLoading, 
       isSuperAdmin, 
-      setUser, 
-      refreshSession: fetchSessionData 
-  }), [user, site, isLoading, isSuperAdmin, setUser, fetchSessionData]);
+      setUser,
+  }), [user, site, isLoading, isSuperAdmin, setUser]);
 
   return (
     <SessionContext.Provider value={value}>
