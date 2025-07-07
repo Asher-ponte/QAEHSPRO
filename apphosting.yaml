@@ -5,3 +5,11 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+env:
+  - variable: PAYMONGO_PUBLIC_KEY
+    secret: PAYMONGO_PUBLIC_KEY
+  - variable: PAYMONGO_SECRET_KEY
+    secret: PAYMONGO_SECRET_KEY
+  - variable: NEXT_PUBLIC_APP_URL
+    secret: NEXT_PUBLIC_APP_URL

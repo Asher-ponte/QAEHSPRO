@@ -1,3 +1,4 @@
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -15,17 +16,20 @@ export async function POST(
         return NextResponse.json({ error: 'This action is for external users only.' }, { status: 403 });
     }
     
-    const { PAYMONGO_SECRET_KEY } = process.env;
+    const { PAYMONGO_SECRET_KEY, NEXT_PUBLIC_APP_URL } = process.env;
     if (!PAYMONGO_SECRET_KEY) {
-        console.error("Payment gateway environment variables are not set.");
-        return NextResponse.json({ error: 'Payment gateway is not configured. Please set PAYMONGO_SECRET_KEY in your environment.' }, { status: 500 });
+        console.error("Payment gateway secret key is not set.");
+        return NextResponse.json({ error: 'Payment gateway is not configured on the server.' }, { status: 500 });
     }
+    
+    // Use an explicit, required environment variable for the public URL.
+    // This is more reliable than dynamic detection.
+    const appUrl = NEXT_PUBLIC_APP_URL;
 
-    // Dynamically determine the application's base URL from the request headers.
-    // This is more reliable than nextUrl.origin which can resolve to 0.0.0.0 on the server.
-    const host = request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
-    const appUrl = `${protocol}://${host}`;
+    if (!appUrl || !appUrl.startsWith('https')) {
+        console.error("Payment gateway configuration error: NEXT_PUBLIC_APP_URL must be a public HTTPS URL.");
+        return NextResponse.json({ error: 'Payment gateway is not configured correctly on the server. A public URL is required.' }, { status: 500 });
+    }
     
     const db = await getDb(siteId);
     
