@@ -26,9 +26,18 @@ export async function POST(request: NextRequest) {
     let loggedInSiteId = null;
 
     const allSites = await getAllSites();
+    
+    // Create a specific search order. Non-main sites first, then 'main' is checked last.
+    // This prevents a branch user with the same credentials as a super admin from
+    // incorrectly getting super admin privileges.
+    const sortedSites = allSites.sort((a, b) => {
+        if (a.id === 'main') return 1;
+        if (b.id === 'main') return -1;
+        return 0;
+    });
 
     // Iterate over all sites to find the user
-    for (const site of allSites) {
+    for (const site of sortedSites) {
         const db = await getDb(site.id);
         const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
 
