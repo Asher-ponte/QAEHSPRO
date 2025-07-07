@@ -12,7 +12,6 @@ import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
 import { getAllSites, getSiteById } from "@/lib/sites"
-import { SiteSwitcher } from "@/components/site-switcher"
 
 
 export default async function AdminPage() {
@@ -110,7 +109,6 @@ export default async function AdminPage() {
             {isSuperAdmin ? "Manage the entire platform and all client branches." : "Manage your organization's learning and development platform."}
           </p>
         </div>
-        {isSuperAdmin && <SiteSwitcher />}
       </div>
 
        <div>
