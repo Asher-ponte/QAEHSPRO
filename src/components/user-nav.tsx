@@ -18,10 +18,9 @@ import { CreditCard, Settings, User, LogOut } from "lucide-react"
 import { useSession } from "@/hooks/use-session"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
-import { SiteSwitcher } from "./site-switcher"
 
 export function UserNav() {
-  const { user, isLoading, isSuperAdmin } = useSession()
+  const { user, isLoading } = useSession()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -68,16 +67,6 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {isSuperAdmin && (
-          <>
-             <DropdownMenuGroup>
-                <div className="px-2 py-1.5">
-                  <SiteSwitcher />
-                </div>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-          </>
-        )}
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link href="/profile">
