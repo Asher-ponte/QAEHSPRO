@@ -25,8 +25,8 @@ export interface SessionData {
  * Gets the current user and their active site from the session cookies.
  */
 export async function getCurrentSession(): Promise<SessionData> {
+  const cookieStore = cookies();
   try {
-    const cookieStore = cookies();
     const sessionId = cookieStore.get('session_id')?.value;
     let siteId = cookieStore.get('site_id')?.value; // This can be the context for a super admin
 
