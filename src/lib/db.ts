@@ -140,6 +140,41 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         );
     `);
     
+    // Define SQL for branch tables (no FK to main signatories)
+    const branchCourseSignatoriesSql = `
+    CREATE TABLE IF NOT EXISTS course_signatories (
+        course_id INTEGER NOT NULL,
+        signatory_id INTEGER NOT NULL,
+        PRIMARY KEY (course_id, signatory_id),
+        FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+    );`;
+    const branchCertSignatoriesSql = `
+    CREATE TABLE IF NOT EXISTS certificate_signatories (
+        certificate_id INTEGER NOT NULL,
+        signatory_id INTEGER NOT NULL,
+        PRIMARY KEY (certificate_id, signatory_id),
+        FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE
+    );`;
+
+    // Define SQL for main tables (WITH FK to main signatories)
+    const mainCourseSignatoriesSql = `
+    CREATE TABLE IF NOT EXISTS course_signatories (
+        course_id INTEGER NOT NULL,
+        signatory_id INTEGER NOT NULL,
+        PRIMARY KEY (course_id, signatory_id),
+        FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+        FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+    );`;
+    const mainCertSignatoriesSql = `
+    CREATE TABLE IF NOT EXISTS certificate_signatories (
+        certificate_id INTEGER NOT NULL,
+        signatory_id INTEGER NOT NULL,
+        PRIMARY KEY (certificate_id, signatory_id),
+        FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
+        FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+    );`;
+
+
     // Handle signatories tables based on siteId
     if (siteId === 'main') {
         await db.exec(`
@@ -150,25 +185,12 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
                 signatureImagePath TEXT NOT NULL
             );
         `);
+        await db.exec(mainCourseSignatoriesSql);
+        await db.exec(mainCertSignatoriesSql);
+    } else {
+        await db.exec(branchCourseSignatoriesSql);
+        await db.exec(branchCertSignatoriesSql);
     }
-
-    // These tables exist in all databases, but with different constraints.
-     await db.exec(`
-        CREATE TABLE IF NOT EXISTS course_signatories (
-            course_id INTEGER NOT NULL,
-            signatory_id INTEGER NOT NULL,
-            PRIMARY KEY (course_id, signatory_id),
-            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
-            ${siteId === 'main' ? ', FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE' : ''}
-        );
-        CREATE TABLE IF NOT EXISTS certificate_signatories (
-            certificate_id INTEGER NOT NULL,
-            signatory_id INTEGER NOT NULL,
-            PRIMARY KEY (certificate_id, signatory_id),
-            FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE
-            ${siteId === 'main' ? ', FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE' : ''}
-        );
-    `);
     
     // Add columns if they don't exist (for backward compatibility / migrations)
     const usersTableInfo = await db.all("PRAGMA table_info(users)");
@@ -237,12 +259,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             await db.exec('BEGIN TRANSACTION;');
             try {
                 await db.exec('ALTER TABLE course_signatories RENAME TO _course_signatories_old;');
-                await db.exec(`CREATE TABLE course_signatories (
-                    course_id INTEGER NOT NULL,
-                    signatory_id INTEGER NOT NULL,
-                    PRIMARY KEY (course_id, signatory_id),
-                    FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
-                );`);
+                await db.exec(branchCourseSignatoriesSql);
                 await db.exec('INSERT INTO course_signatories (course_id, signatory_id) SELECT course_id, signatory_id FROM _course_signatories_old;');
                 await db.exec('DROP TABLE _course_signatories_old;');
                 await db.exec('COMMIT;');
@@ -259,12 +276,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             await db.exec('BEGIN TRANSACTION;');
             try {
                 await db.exec('ALTER TABLE certificate_signatories RENAME TO _certificate_signatories_old;');
-                await db.exec(`CREATE TABLE certificate_signatories (
-                    certificate_id INTEGER NOT NULL,
-                    signatory_id INTEGER NOT NULL,
-                    PRIMARY KEY (certificate_id, signatory_id),
-                    FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE
-                );`);
+                await db.exec(branchCertSignatoriesSql);
                 await db.exec('INSERT INTO certificate_signatories (certificate_id, signatory_id) SELECT certificate_id, signatory_id FROM _certificate_signatories_old;');
                 await db.exec('DROP TABLE _certificate_signatories_old;');
                 await db.exec('COMMIT;');

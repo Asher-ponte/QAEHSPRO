@@ -667,15 +667,24 @@ export default function CreateCoursePage() {
 
       const data = await response.json();
       if (!response.ok) {
-        const message = data.details ? JSON.stringify(data.details, null, 2) : (data.error || "Failed to create course");
+        const message = data.details ? `Details: ${data.details}` : (data.error || "Failed to create course");
         throw new Error(message);
       }
 
-      toast({
-        variant: "default",
-        title: "Course Created!",
-        description: `The course "${values.title}" has been successfully created.`,
-      })
+      if (response.status === 207) { // Partial success
+        toast({
+            variant: "default",
+            title: "Partial Success: Course Created",
+            description: `${data.message}\n${data.details}`,
+            duration: 8000
+        });
+      } else {
+        toast({
+            variant: "default",
+            title: "Course Created!",
+            description: data.message || `The course "${values.title}" has been successfully created.`,
+        });
+      }
 
       form.reset()
       router.push('/admin/courses')
@@ -686,6 +695,7 @@ export default function CreateCoursePage() {
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
             description: errorMessage,
+            duration: 8000,
         })
     } finally {
         setIsLoading(false)
