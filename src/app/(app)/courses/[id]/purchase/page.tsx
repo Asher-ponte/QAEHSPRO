@@ -22,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { ImageUpload } from "@/components/image-upload"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
 
 interface Course {
   id: string;
@@ -55,7 +54,10 @@ export default function PurchasePage() {
     const form = useForm<PurchaseFormValues>({
         resolver: zodResolver(purchaseFormSchema),
         defaultValues: { proofImagePath: "" },
+        mode: 'onChange', // Validate form on change to enable/disable submit button
     })
+
+    const { formState: { isValid } } = form;
 
     useEffect(() => {
         async function fetchPurchaseData() {
@@ -223,7 +225,7 @@ export default function PurchasePage() {
                                         </FormItem>
                                     )}
                                 />
-                                <Button type="submit" disabled={isSubmitting || qrCodes.length === 0} className="w-full">
+                                <Button type="submit" disabled={!isValid || isSubmitting || qrCodes.length === 0} className="w-full">
                                     {isSubmitting ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : (

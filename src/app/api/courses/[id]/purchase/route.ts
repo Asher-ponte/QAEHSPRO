@@ -17,7 +17,6 @@ export async function POST(
         return NextResponse.json({ error: 'This action is for external users only.' }, { status: 403 });
     }
     
-    // Manual payments only happen in the 'external' database context.
     if (siteId !== 'external') {
         return NextResponse.json({ error: 'Invalid operation for this site.' }, { status: 400 });
     }
@@ -31,21 +30,24 @@ export async function POST(
         
         db = await getDb('external');
 
-        // Fetch the course from the DB to get the price, ensuring it's a valid paid course
         const course = await db.get('SELECT price FROM courses WHERE id = ? AND is_public = 1', courseId);
         if (!course || !course.price || course.price <= 0) {
             return NextResponse.json({ error: 'This is not a paid course or the course was not found.' }, { status: 400 });
         }
 
-        const body = await request.json();
+        let body;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return NextResponse.json({ error: 'Invalid request body. Could not parse JSON.' }, { status: 400 });
+        }
         
         const parsedData = purchaseSchema.safeParse(body);
         if (!parsedData.success) {
-            return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
+            return NextResponse.json({ error: 'Invalid input. Proof of payment is required.', details: parsedData.error.flatten() }, { status: 400 });
         }
         const { proofImagePath } = parsedData.data;
 
-        // Before creating a new pending transaction, check if there's an existing one.
         const existingPending = await db.get(
             `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status = 'pending'`,
             [user.id, courseId]
@@ -60,7 +62,7 @@ export async function POST(
             [
                 user.id,
                 courseId,
-                course.price, // Use price from the database for security and reliability
+                course.price,
                 'pending',
                 new Date().toISOString(),
                 proofImagePath,
