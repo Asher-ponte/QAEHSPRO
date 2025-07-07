@@ -85,6 +85,143 @@ interface User {
   department: string | null;
 }
 
+function SyncDialog({ course, allCourses, open, onOpenChange, onSyncSuccess }: { course: CourseAdminView | null; allCourses: CourseAdminView[]; open: boolean; onOpenChange: (open: boolean) => void; onSyncSuccess: () => void; }) {
+    const [selectedBranchIds, setSelectedBranchIds] = useState<Set<string>>(new Set());
+    const [isSyncing, setIsSyncing] = useState(false);
+    const { toast } = useToast();
+
+    const publishedBranches = useMemo(() => {
+        if (!course || !allCourses) return [];
+        return allCourses.filter(c => c.title === course.title && c.siteId !== 'main');
+    }, [course, allCourses]);
+
+    useEffect(() => {
+        if (open) {
+            setIsSyncing(false);
+            setSelectedBranchIds(new Set());
+        }
+    }, [open]);
+
+    const handleSync = async () => {
+        if (!course || selectedBranchIds.size === 0 || isSyncing) return;
+        setIsSyncing(true);
+
+        try {
+            const res = await fetch(`/api/admin/courses/${course.id}/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetSiteIds: Array.from(selectedBranchIds) }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                const message = data.details ? `${data.error} Details: ${JSON.stringify(data.details, null, 2)}` : data.error;
+                throw new Error(message || "Sync operation failed.");
+            }
+            
+            toast({
+                title: res.status === 207 ? "Partial Sync Success" : "Sync Successful",
+                description: data.message,
+                duration: 8000,
+            });
+            onSyncSuccess();
+            onOpenChange(false);
+        } catch (error) {
+           toast({
+                variant: "destructive",
+                title: "Error During Sync",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+                duration: 8000,
+            });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const toggleBranchSelection = (branchId: string) => {
+        setSelectedBranchIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(branchId)) {
+                newSet.delete(branchId);
+            } else {
+                newSet.add(branchId);
+            }
+            return newSet;
+        });
+    };
+
+    const toggleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedBranchIds(new Set(publishedBranches.map(b => b.siteId!)));
+        } else {
+            setSelectedBranchIds(new Set());
+        }
+    };
+
+    const allAreSelected = publishedBranches.length > 0 && selectedBranchIds.size === publishedBranches.length;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Sync Course Content</DialogTitle>
+                    <DialogDescription>
+                        Push the latest content from the master course <strong className="font-semibold text-foreground">"{course?.title}"</strong> to its copies in other branches. This will overwrite the modules and lessons in the selected branches.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    {publishedBranches.length > 0 ? (
+                        <>
+                            <div className="flex items-center space-x-3 rounded-md border p-3">
+                                <Checkbox
+                                    id="select-all-branches"
+                                    checked={allAreSelected}
+                                    onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedBranchIds(new Set(publishedBranches.map(b => b.siteId!)));
+                                        } else {
+                                            setSelectedBranchIds(new Set());
+                                        }
+                                    }}
+                                />
+                                <Label htmlFor="select-all-branches" className="text-sm font-medium leading-none">
+                                    Select All Branches ({selectedBranchIds.size}/{publishedBranches.length})
+                                </Label>
+                            </div>
+                            <ScrollArea className="h-48">
+                                <div className="space-y-2 pr-4">
+                                {publishedBranches.map(branch => (
+                                    <div key={branch.siteId} className="flex items-center space-x-3">
+                                        <Checkbox
+                                            id={`branch-${branch.siteId}`}
+                                            checked={selectedBranchIds.has(branch.siteId!)}
+                                            onCheckedChange={() => toggleBranchSelection(branch.siteId!)}
+                                        />
+                                        <Label htmlFor={`branch-${branch.siteId}`} className="flex-grow font-normal cursor-pointer">
+                                            {branch.siteName}
+                                        </Label>
+                                    </div>
+                                ))}
+                                </div>
+                            </ScrollArea>
+                        </>
+                    ) : (
+                        <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                            <p>This course has not been published to any other branches.</p>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSync} disabled={isSyncing || selectedBranchIds.size === 0}>
+                        {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Sync to {selectedBranchIds.size} {selectedBranchIds.size === 1 ? 'Branch' : 'Branches'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [enrolledUserIds, setEnrolledUserIds] = useState<Set<number>>(new Set());
@@ -609,6 +746,7 @@ export default function ManageCoursesPage() {
   const [courseToDelete, setCourseToDelete] = useState<CourseAdminView | null>(null)
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
+  const [courseToSync, setCourseToSync] = useState<CourseAdminView | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast()
   const { isSuperAdmin, site } = useSession();
@@ -734,8 +872,22 @@ export default function ManageCoursesPage() {
   const openProgressDialog = (course: CourseAdminView) => {
     setCourseForProgress(course);
   };
+  
+  const openSyncDialog = (course: CourseAdminView) => {
+    setCourseToSync(course);
+  };
 
   const filtersAreActive = filters.title !== '' || filters.category !== 'all' || (isSuperAdmin && filters.siteId !== 'all');
+  const publishedTo = (course: CourseAdminView) => {
+    if (!isSuperAdmin || course.siteId !== 'main') return null;
+    const copies = courses.filter(c => c.title === course.title && c.siteId !== 'main');
+    if (copies.length === 0) return <span className="text-muted-foreground">-</span>
+    return (
+        <div className="flex flex-col gap-1">
+            {copies.map(c => <Badge key={c.siteId} variant="outline" className="font-normal">{c.siteName}</Badge>)}
+        </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -810,6 +962,7 @@ export default function ManageCoursesPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 {isSuperAdmin && <TableHead>Branch</TableHead>}
+                {isSuperAdmin && <TableHead>Published To</TableHead>}
                 <TableHead>Category</TableHead>
                 <TableHead>Audience</TableHead>
                 <TableHead>Price</TableHead>
@@ -824,6 +977,7 @@ export default function ManageCoursesPage() {
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     {isSuperAdmin && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
+                    {isSuperAdmin && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
@@ -837,7 +991,8 @@ export default function ManageCoursesPage() {
                   return (
                     <TableRow key={`${course.id}-${course.siteId || ''}`}>
                         <TableCell className="font-medium">{course.title}</TableCell>
-                        {isSuperAdmin && <TableCell><Badge variant="outline" className="font-normal">{course.siteName}</Badge></TableCell>}
+                        {isSuperAdmin && <TableCell><Badge variant={course.siteId === 'main' ? 'default' : 'outline'} className="font-normal">{course.siteName}</Badge></TableCell>}
+                        {isSuperAdmin && <TableCell>{publishedTo(course)}</TableCell>}
                         <TableCell>{course.category}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1.5 items-start">
@@ -890,6 +1045,12 @@ export default function ManageCoursesPage() {
                                     <BarChart className="mr-2 h-4 w-4" />
                                     <span>View Progress</span>
                                 </DropdownMenuItem>
+                                {isSuperAdmin && course.siteId === 'main' && (
+                                     <DropdownMenuItem onSelect={() => openSyncDialog(course)}>
+                                        <RefreshCcw className="mr-2 h-4 w-4" />
+                                        <span>Sync Content</span>
+                                    </DropdownMenuItem>
+                                )}
                             <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 <span>Delete</span>
@@ -902,7 +1063,7 @@ export default function ManageCoursesPage() {
                 )
               ) : (
                 <TableRow>
-                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={isSuperAdmin ? 9 : 7} className="h-24 text-center">
                     No courses found{filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
@@ -950,6 +1111,16 @@ export default function ManageCoursesPage() {
             }
         }}
        />
+       
+       {isSuperAdmin && (
+          <SyncDialog
+            course={courseToSync}
+            allCourses={courses}
+            open={!!courseToSync}
+            onOpenChange={() => setCourseToSync(null)}
+            onSyncSuccess={fetchCoursesAndSites}
+           />
+       )}
     </div>
   )
 }
