@@ -5,9 +5,8 @@ import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 
 const purchaseSchema = z.object({
-    referenceNumber: z.string().min(1),
-    proofImagePath: z.string().min(1),
-    amount: z.number().positive(),
+  referenceNumber: z.string().min(1, { message: "Reference number is required." }),
+  proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
 });
 
 export async function POST(
@@ -31,15 +30,21 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid course ID' }, { status: 400 });
         }
         
+        db = await getDb('external');
+
+        // Fetch the course from the DB to get the price, ensuring it's a valid paid course
+        const course = await db.get('SELECT price FROM courses WHERE id = ? AND is_public = 1', courseId);
+        if (!course || !course.price || course.price <= 0) {
+            return NextResponse.json({ error: 'This is not a paid course or the course was not found.' }, { status: 400 });
+        }
+
         const body = await request.json();
         const parsedData = purchaseSchema.safeParse(body);
         if (!parsedData.success) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
-        const { referenceNumber, proofImagePath, amount } = parsedData.data;
+        const { referenceNumber, proofImagePath } = parsedData.data;
 
-        db = await getDb('external');
-        
         // Before creating a new pending transaction, check if there's an existing one.
         const existingPending = await db.get(
             `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status = 'pending'`,
@@ -55,7 +60,7 @@ export async function POST(
             [
                 user.id,
                 courseId,
-                amount,
+                course.price, // Use price from the database for security and reliability
                 'pending',
                 new Date().toISOString(),
                 proofImagePath,

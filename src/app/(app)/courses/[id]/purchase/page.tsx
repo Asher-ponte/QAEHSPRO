@@ -101,10 +101,7 @@ export default function PurchasePage() {
             const response = await fetch(`/api/courses/${course.id}/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...values,
-                    amount: course.price,
-                }),
+                body: JSON.stringify(values),
             });
              const data = await response.json();
             if (!response.ok) {
