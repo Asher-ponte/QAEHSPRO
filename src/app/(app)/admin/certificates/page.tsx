@@ -545,7 +545,7 @@ export default function ManageCertificatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
-  const [isDeleting, setIsDeleting] = useState(isDeleting);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const { user, isSuperAdmin, isLoading: isSessionLoading, site: currentSite } = useSession();
   const router = useRouter();
@@ -731,5 +731,3 @@ export default function ManageCertificatesPage() {
     </div>
   )
 }
-
-    
