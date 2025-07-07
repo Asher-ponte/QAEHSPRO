@@ -27,11 +27,23 @@ export default async function AdminPage() {
     const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM users');
     const totalCoursesResult = await db.get('SELECT COUNT(*) as count FROM courses');
     
+    // Revenue Calculation for Super Admin
+    let totalRevenue = 0;
+    if (isSuperAdmin) {
+        try {
+            const externalDb = await getDb('external');
+            const revenueResult = await externalDb.get("SELECT SUM(amount) as total FROM transactions WHERE status = 'completed'");
+            totalRevenue = revenueResult?.total ?? 0;
+        } catch(e) {
+            console.error("Could not calculate revenue:", e);
+        }
+    }
+
     const statsData = {
         totalUsers: totalUsersResult?.count ?? 0,
         totalCourses: totalCoursesResult?.count ?? 0,
         totalBranches: allSites.length,
-        totalRevenue: 0, // Placeholder
+        totalRevenue: totalRevenue,
     };
     
     const statCards = [

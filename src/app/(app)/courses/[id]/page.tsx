@@ -126,32 +126,30 @@ export default function CourseDetailPage() {
   }, [params.id, toast, router])
   
   const handlePurchase = async () => {
-      if (!course || isPurchasing) return;
-      setIsPurchasing(true);
-
-      try {
-          const response = await fetch(`/api/courses/${course.id}/purchase`, {
-              method: 'POST'
-          });
-          const data = await response.json();
-          if (!response.ok) {
-              throw new Error(data.error || 'Failed to process purchase.');
-          }
-          toast({
-              title: "Purchase Successful",
-              description: "You are now enrolled in the course!"
-          });
-          // Refresh the page data to reflect new enrollment status
-          router.refresh();
-      } catch (error) {
-          toast({
-              variant: "destructive",
-              title: "Purchase Failed",
-              description: error instanceof Error ? error.message : "An unknown error occurred."
-          });
-      } finally {
-          setIsPurchasing(false);
+    if (!course || isPurchasing) return;
+    setIsPurchasing(true);
+    try {
+      const response = await fetch(`/api/courses/${course.id}/purchase`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to initialize payment.');
       }
+      if (data.checkoutUrl) {
+        // Redirect to PayMongo checkout page
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error('Could not retrieve payment link.');
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Payment Error',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+      setIsPurchasing(false);
+    }
   };
 
   const getIcon = (type: string) => {
