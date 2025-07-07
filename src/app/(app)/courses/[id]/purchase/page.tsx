@@ -1,11 +1,14 @@
 
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft, Loader2, Send } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +21,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { ImageUpload } from "@/components/image-upload"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+
 
 interface Course {
   id: string;
@@ -30,6 +35,13 @@ interface QrCode {
     path: string;
 }
 
+const purchaseFormSchema = z.object({
+  proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
+});
+
+type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
+
+
 export default function PurchasePage() {
     const params = useParams<{ id: string }>()
     const courseId = params.id;
@@ -38,9 +50,16 @@ export default function PurchasePage() {
     const [course, setCourse] = useState<Course | null>(null);
     const [qrCodes, setQrCodes] = useState<QrCode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedQr, setSelectedQr] = useState<QrCode | null>(null);
-    const [proofImagePath, setProofImagePath] = useState<string | null>(null);
+
+    const form = useForm<PurchaseFormValues>({
+        resolver: zodResolver(purchaseFormSchema),
+        defaultValues: {
+            proofImagePath: "",
+        },
+    });
+
+    const { handleSubmit, formState: { isSubmitting } } = form;
 
     useEffect(() => {
         async function fetchPurchaseData() {
@@ -84,18 +103,16 @@ export default function PurchasePage() {
         fetchPurchaseData();
     }, [courseId, router, toast]);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!course || !proofImagePath) return;
+    async function onSubmit(values: PurchaseFormValues) {
+        if (!course) return;
         
-        setIsSubmitting(true);
         try {
             const response = await fetch(`/api/courses/${course.id}/purchase`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ proofImagePath }),
+                body: JSON.stringify({ proofImagePath: values.proofImagePath }),
             });
             const data = await response.json();
             if (!response.ok) {
@@ -114,8 +131,6 @@ export default function PurchasePage() {
                 title: "Submission Failed",
                 description: error instanceof Error ? error.message : "An unknown error occurred.",
             });
-        } finally {
-            setIsSubmitting(false);
         }
     }
     
@@ -191,31 +206,36 @@ export default function PurchasePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div>
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 mb-2 block">
-                                    Proof of Payment
-                                </label>
-                                <ImageUpload
-                                    onUploadComplete={(path) => setProofImagePath(path)}
-                                    initialPath={proofImagePath}
-                                    onRemove={() => setProofImagePath(null)}
+                        <Form {...form}>
+                            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                                <FormField
+                                    control={form.control}
+                                    name="proofImagePath"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Proof of Payment</FormLabel>
+                                            <FormControl>
+                                                <ImageUpload
+                                                    onUploadComplete={(path) => field.onChange(path)}
+                                                    initialPath={field.value}
+                                                    onRemove={() => field.onChange("")}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
                                 />
-                                {!proofImagePath && (
-                                    <p className="text-sm font-medium text-destructive mt-2"
-                                    >Proof of payment is required.</p>
-                                )}
-                            </div>
-                            
-                            <Button type="submit" disabled={!proofImagePath || isSubmitting || qrCodes.length === 0} className="w-full">
-                                {isSubmitting ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Send className="mr-2 h-4 w-4" />
-                                )}
-                                Submit for Validation
-                            </Button>
-                        </form>
+                                
+                                <Button type="submit" disabled={isSubmitting || qrCodes.length === 0} className="w-full">
+                                    {isSubmitting ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Send className="mr-2 h-4 w-4" />
+                                    )}
+                                    Submit for Validation
+                                </Button>
+                            </form>
+                        </Form>
                     </CardContent>
                 </Card>
             </div>
