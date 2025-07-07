@@ -1,4 +1,5 @@
 
+
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
@@ -77,33 +78,39 @@ export async function GET() {
   }
 
   try {
-    const db = await getDb(siteId);
-    let courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
-
-    if (isSuperAdmin && siteId === 'main') {
+    // If super admin, fetch from all sites.
+    if (isSuperAdmin) {
         const allSites = await getAllSites();
-        const otherSites = allSites.filter(s => s.id !== 'main');
-        
-        const coursesWithPublishedData = await Promise.all(courses.map(async (course) => {
-            const publishedTo = [];
-            for (const otherSite of otherSites) {
-                try {
-                    const otherDb = await getDb(otherSite.id);
-                    const foundCourse = await otherDb.get('SELECT id FROM courses WHERE title = ?', course.title);
-                    if (foundCourse) {
-                        publishedTo.push(otherSite.name);
-                    }
-                } catch (e) {
-                    console.error(`Error checking for course '${course.title}' in site '${otherSite.id}':`, e);
+        let allCoursesWithStats = [];
+
+        for (const site of allSites) {
+            try {
+                const db = await getDb(site.id);
+                const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
+                if (courses.length > 0) {
+                    const coursesWithStats = await getCourseStats(db, courses);
+                    const coursesWithSiteInfo = coursesWithStats.map(c => ({
+                        ...c,
+                        siteId: site.id,
+                        siteName: site.name,
+                    }));
+                    allCoursesWithStats.push(...coursesWithSiteInfo);
                 }
+            } catch (e) {
+                console.error(`Could not fetch courses for site ${site.id}:`, e);
+                // Continue to next site if one fails
             }
-            return { ...course, publishedTo };
-        }));
-        courses = coursesWithPublishedData;
-    }
+        }
+        return NextResponse.json(allCoursesWithStats);
+    } 
     
-    const coursesWithCompletion = await getCourseStats(db, courses);
-    return NextResponse.json(coursesWithCompletion)
+    // If not a super admin, fetch from their own site.
+    else {
+        const db = await getDb(siteId);
+        const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
+        const coursesWithCompletion = await getCourseStats(db, courses);
+        return NextResponse.json(coursesWithCompletion);
+    }
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Failed to fetch courses for admin' }, { status: 500 })

@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library, Building } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -75,7 +75,8 @@ interface CourseAdminView {
   is_internal: boolean;
   is_public: boolean;
   price: number | null;
-  publishedTo?: string[];
+  siteId?: string;
+  siteName?: string;
 }
 
 interface User {
@@ -355,7 +356,7 @@ function RetrainingDialog({ course, siteId, siteName, open, onOpenChange, onInit
 function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { isSuperAdmin, site: currentSite } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
-    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
+    const [selectedSiteId, setSelectedSiteId] = useState(course?.siteId || currentSite?.id);
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState('');
@@ -366,14 +367,14 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     // Reset local state when dialog closes or course changes
     useEffect(() => {
         if (open) {
-            setSelectedSiteId(currentSite?.id);
+            setSelectedSiteId(course?.siteId || currentSite?.id);
         } else {
             setFilter('');
             setProgressData([]);
             setShowNotCompleted(false);
             setIsLoading(true);
         }
-    }, [open, currentSite]);
+    }, [open, course, currentSite]);
 
     // Fetch sites for super admin dropdown
     useEffect(() => {
@@ -397,7 +398,6 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         setIsLoading(true);
         try {
             const url = new URL(`/api/admin/courses/${course.id}/progress`, window.location.origin);
-            // The API needs the course's master ID from 'main' but the title and target site to find it in the other DB
             url.searchParams.append('targetSiteId', selectedSiteId);
             url.searchParams.append('courseTitle', course.title);
             
@@ -454,7 +454,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         );
     }, [progressData, filter, showNotCompleted]);
 
-    const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name || '';
+    const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || course?.siteName || currentSite?.name || '';
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -602,6 +602,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
 
 export default function ManageCoursesPage() {
   const [courses, setCourses] = useState<CourseAdminView[]>([])
+  const [allSites, setAllSites] = useState<Site[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -613,7 +614,7 @@ export default function ManageCoursesPage() {
   const { isSuperAdmin, site } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
   
-  const [filters, setFilters] = useState({ title: '', category: 'all' });
+  const [filters, setFilters] = useState({ title: '', category: 'all', siteId: 'all' });
 
   useEffect(() => {
     try {
@@ -623,7 +624,7 @@ export default function ManageCoursesPage() {
         }
     } catch (error) {
         console.error("Failed to parse filters from localStorage", error);
-        setFilters({ title: '', category: 'all' });
+        setFilters({ title: '', category: 'all', siteId: 'all' });
     }
   }, []);
 
@@ -631,13 +632,17 @@ export default function ManageCoursesPage() {
     localStorage.setItem('courseAdminFilters', JSON.stringify(filters));
   }, [filters]);
 
-  const fetchCourses = async () => {
+  const fetchCoursesAndSites = async () => {
     setIsLoading(true);
     try {
-      const [coursesRes, categoriesRes] = await Promise.all([
+      const fetchPromises = [
         fetch("/api/admin/courses"),
-        fetch("/api/admin/categories")
-      ]);
+        fetch("/api/admin/categories"),
+      ];
+      if (isSuperAdmin) {
+        fetchPromises.push(fetch('/api/sites'));
+      }
+      const [coursesRes, categoriesRes, sitesRes] = await Promise.all(fetchPromises);
 
       if (!coursesRes.ok) throw new Error("Failed to fetch courses");
       setCourses(await coursesRes.json());
@@ -645,6 +650,11 @@ export default function ManageCoursesPage() {
       if (categoriesRes.ok) {
         setCategories(await categoriesRes.json());
       }
+      
+      if (isSuperAdmin && sitesRes?.ok) {
+        setAllSites(await sitesRes.json());
+      }
+
     } catch (error) {
       toast({
         variant: "destructive",
@@ -657,8 +667,8 @@ export default function ManageCoursesPage() {
   };
 
   useEffect(() => {
-    fetchCourses();
-  }, [site]);
+    fetchCoursesAndSites();
+  }, [site, isSuperAdmin]); // Refetch when site context (for regular admins) or super admin status changes
 
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
@@ -680,7 +690,7 @@ export default function ManageCoursesPage() {
         title: "Success",
         description: `Course "${courseToDelete.title}" deleted successfully.`,
       });
-      await fetchCourses();
+      await fetchCoursesAndSites();
       setShowDeleteDialog(false);
       setCourseToDelete(null);
     } catch (error) {
@@ -695,21 +705,22 @@ export default function ManageCoursesPage() {
     }
   };
   
-  const handleFilterChange = (key: 'title' | 'category', value: string) => {
+  const handleFilterChange = (key: 'title' | 'category' | 'siteId', value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const clearFilters = () => {
-    setFilters({ title: '', category: 'all' });
+    setFilters({ title: '', category: 'all', siteId: 'all' });
   };
   
   const filteredCourses = useMemo(() => {
     return courses.filter(course => {
       const titleMatch = course.title.toLowerCase().includes(filters.title.toLowerCase());
       const categoryMatch = filters.category === 'all' || course.category === filters.category;
-      return titleMatch && categoryMatch;
+      const siteMatch = !isSuperAdmin || filters.siteId === 'all' || course.siteId === filters.siteId;
+      return titleMatch && categoryMatch && siteMatch;
     });
-  }, [courses, filters]);
+  }, [courses, filters, isSuperAdmin]);
 
   const openDeleteDialog = (course: CourseAdminView) => {
     setCourseToDelete(course);
@@ -724,8 +735,7 @@ export default function ManageCoursesPage() {
     setCourseForProgress(course);
   };
 
-  const filtersAreActive = filters.title !== '' || filters.category !== 'all';
-  const showPublishedToColumn = isSuperAdmin && site?.id === 'main';
+  const filtersAreActive = filters.title !== '' || filters.category !== 'all' || (isSuperAdmin && filters.siteId !== 'all');
 
   return (
     <div className="flex flex-col gap-6">
@@ -775,6 +785,22 @@ export default function ManageCoursesPage() {
                       ))}
                   </SelectContent>
               </Select>
+               {isSuperAdmin && (
+                <Select
+                    value={filters.siteId}
+                    onValueChange={(value) => handleFilterChange('siteId', value)}
+                >
+                    <SelectTrigger className="w-full sm:w-[240px]">
+                        <SelectValue placeholder="Filter by branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Branches</SelectItem>
+                        {allSites.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+              )}
               <Button variant="outline" onClick={clearFilters} disabled={!filtersAreActive}>Clear Filters</Button>
           </div>
         </CardHeader>
@@ -783,12 +809,12 @@ export default function ManageCoursesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
+                {isSuperAdmin && <TableHead>Branch</TableHead>}
                 <TableHead>Category</TableHead>
                 <TableHead>Audience</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead className="text-center">Enrolled</TableHead>
                 <TableHead className="w-[180px]">Completion Rate</TableHead>
-                {showPublishedToColumn && <TableHead>Published To</TableHead>}
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -797,20 +823,21 @@ export default function ManageCoursesPage() {
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    {isSuperAdmin && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    {showPublishedToColumn && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredCourses.length > 0 ? (
                 filteredCourses.map((course) => {
                   return (
-                    <TableRow key={course.id}>
+                    <TableRow key={`${course.id}-${course.siteId || ''}`}>
                         <TableCell className="font-medium">{course.title}</TableCell>
+                        {isSuperAdmin && <TableCell><Badge variant="outline" className="font-normal">{course.siteName}</Badge></TableCell>}
                         <TableCell>{course.category}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1.5 items-start">
@@ -834,21 +861,6 @@ export default function ManageCoursesPage() {
                                 <span className="text-xs font-medium text-muted-foreground">{course.completionRate}%</span>
                             </div>
                         </TableCell>
-                        {showPublishedToColumn && (
-                            <TableCell>
-                                {course.publishedTo && course.publishedTo.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                        {course.publishedTo.map(branchName => (
-                                            <Badge key={branchName} variant="secondary" className="font-normal">
-                                                {branchName}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">Main Only</span>
-                                )}
-                            </TableCell>
-                        )}
                         <TableCell>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -890,7 +902,7 @@ export default function ManageCoursesPage() {
                 )
               ) : (
                 <TableRow>
-                  <TableCell colSpan={showPublishedToColumn ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-24 text-center">
                     No courses found{filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
@@ -924,7 +936,7 @@ export default function ManageCoursesPage() {
         onOpenChange={(open) => {
             if (!open) {
                 setCourseToEnroll(null)
-                fetchCourses()
+                fetchCoursesAndSites()
             }
         }}
        />
@@ -941,5 +953,3 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
-
-    
