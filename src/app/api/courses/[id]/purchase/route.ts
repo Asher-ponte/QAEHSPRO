@@ -15,11 +15,14 @@ export async function POST(
         return NextResponse.json({ error: 'This action is for external users only.' }, { status: 403 });
     }
     
-    const { PAYMONGO_SECRET_KEY, NEXT_PUBLIC_APP_URL } = process.env;
-    if (!PAYMONGO_SECRET_KEY || !NEXT_PUBLIC_APP_URL) {
+    const { PAYMONGO_SECRET_KEY } = process.env;
+    if (!PAYMONGO_SECRET_KEY) {
         console.error("Payment gateway environment variables are not set.");
-        return NextResponse.json({ error: 'Payment gateway is not configured. Please set PAYMONGO_SECRET_KEY and NEXT_PUBLIC_APP_URL in your environment.' }, { status: 500 });
+        return NextResponse.json({ error: 'Payment gateway is not configured. Please set PAYMONGO_SECRET_KEY in your environment.' }, { status: 500 });
     }
+
+    // Dynamically determine the application's base URL from the request.
+    const appUrl = request.nextUrl.origin;
     
     const db = await getDb(siteId);
     
@@ -64,8 +67,8 @@ export async function POST(
                             }
                         ],
                         payment_method_types: ['card', 'gcash', 'paymaya', 'grab_pay'],
-                        success_url: `${NEXT_PUBLIC_APP_URL}/courses/${courseId}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-                        cancel_url: `${NEXT_PUBLIC_APP_URL}/courses/${courseId}`,
+                        success_url: `${appUrl}/courses/${courseId}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+                        cancel_url: `${appUrl}/courses/${courseId}`,
                         description: `Payment for course: ${course.title}`,
                         metadata: {
                             userId: user.id,
