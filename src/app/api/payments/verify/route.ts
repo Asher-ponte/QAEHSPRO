@@ -66,9 +66,12 @@ export async function POST(request: NextRequest) {
             throw new Error("Payment session metadata is missing.");
         }
 
-        const { userId, courseId, siteId } = metadata;
+        const userId = metadata.userId;
+        const courseId = metadata.courseId;
+        const siteId = metadata.siteId;
+
         if (!userId || !courseId || siteId !== 'external') {
-            throw new Error("Payment session metadata is invalid.");
+            throw new Error("Payment session metadata is invalid or incomplete.");
         }
         
         // 3. Connect to DB and enroll user (already connected)
