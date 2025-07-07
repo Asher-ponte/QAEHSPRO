@@ -43,13 +43,21 @@ export async function POST(request: NextRequest) {
 
         const session = await response.json();
 
+        // Check for PayMongo's own error structure
         if (session.errors) {
-            console.error("PayMongo Error in session response:", session.errors);
+            console.error("PayMongo API Error in session response:", session.errors);
             throw new Error('Could not retrieve payment session details due to API error.');
         }
 
-        // Safely access payment information
-        const payments = session?.data?.attributes?.payments;
+        // Add extra defensive checks for the response structure
+        if (!session?.data?.attributes) {
+            console.error("Invalid session structure received from PayMongo:", session);
+            throw new Error('Invalid session structure received from payment gateway.');
+        }
+
+        const { attributes } = session.data;
+        const payments = attributes.payments;
+
         const paymentIntent = Array.isArray(payments)
             ? payments.find((p: any) => p?.attributes?.status === 'paid')
             : undefined;
@@ -61,7 +69,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Extract metadata and verify
-        const metadata = session?.data?.attributes?.metadata;
+        const metadata = attributes.metadata;
         if (!metadata) {
             throw new Error("Payment session metadata is missing.");
         }
