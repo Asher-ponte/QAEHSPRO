@@ -110,6 +110,46 @@ export async function GET() {
   }
 }
 
+// Helper function to contain the course creation logic for a single DB.
+const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForPricing: string) => {
+    await db.run('BEGIN TRANSACTION');
+    try {
+        const coursePriceForThisBranch = siteIdForPricing === 'external' ? payload.price : null;
+        const courseResult = await db.run(
+            'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch]
+        );
+        const courseId = courseResult.lastID;
+        if (!courseId) throw new Error('Failed to create course');
+
+        if (payload.signatoryIds && payload.signatoryIds.length > 0) {
+            const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
+            for (const signatoryId of payload.signatoryIds) {
+                await stmt.run(courseId, signatoryId);
+            }
+            await stmt.finalize();
+        }
+
+        for (const [moduleIndex, moduleData] of payload.modules.entries()) {
+            const moduleResult = await db.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const moduleId = moduleResult.lastID;
+            if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
+
+            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                let contentToStore = lessonData.content ?? null;
+                if (lessonData.type === 'quiz' && lessonData.questions) {
+                    contentToStore = transformQuestionsToDbFormat(lessonData.questions);
+                }
+                await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
+            }
+        }
+        await db.run('COMMIT');
+    } catch (e) {
+        await db.run('ROLLBACK');
+        throw e; // rethrow
+    }
+};
+
 export async function POST(request: NextRequest) {
     const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
     if (user?.role !== 'Admin' || !sessionSiteId) {
@@ -125,49 +165,11 @@ export async function POST(request: NextRequest) {
 
     const coursePayload = parsedData.data;
 
-    const createCourseInDb = async (db: any, siteIdForPricing: string) => {
-        await db.run('BEGIN TRANSACTION');
-        try {
-            const coursePriceForThisBranch = siteIdForPricing === 'external' ? coursePayload.price : null;
-            const courseResult = await db.run(
-                'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [coursePayload.title, coursePayload.description, coursePayload.category, coursePayload.imagePath, coursePayload.venue, coursePayload.startDate, coursePayload.endDate, coursePayload.is_internal, coursePayload.is_public, coursePriceForThisBranch]
-            );
-            const courseId = courseResult.lastID;
-            if (!courseId) throw new Error('Failed to create course');
-
-            if (coursePayload.signatoryIds && coursePayload.signatoryIds.length > 0) {
-                const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-                for (const signatoryId of coursePayload.signatoryIds) {
-                    await stmt.run(courseId, signatoryId);
-                }
-                await stmt.finalize();
-            }
-
-            for (const [moduleIndex, moduleData] of coursePayload.modules.entries()) {
-                const moduleResult = await db.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
-                const moduleId = moduleResult.lastID;
-                if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
-
-                for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                    let contentToStore = lessonData.content ?? null;
-                    if (lessonData.type === 'quiz' && lessonData.questions) {
-                        contentToStore = transformQuestionsToDbFormat(lessonData.questions);
-                    }
-                    await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
-                }
-            }
-            await db.run('COMMIT');
-        } catch (e) {
-            await db.run('ROLLBACK');
-            throw e; // rethrow
-        }
-    };
-
+    // --- Client Admin Logic ---
     if (!isSuperAdmin) {
         try {
             const db = await getDb(sessionSiteId);
-            await createCourseInDb(db, sessionSiteId);
+            await createCourseInDb(db, coursePayload, sessionSiteId);
             return NextResponse.json({ success: true, message: 'Course created.' }, { status: 201 });
         } catch (error) {
             console.error(`Course creation failed for client admin in site '${sessionSiteId}':`, error);
@@ -175,38 +177,41 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // Super Admin logic
+    // --- Super Admin Logic ---
+    
+    // Step 1: Create in Main Branch. This is the critical master copy.
     try {
         const mainDb = await getDb('main');
-        await createCourseInDb(mainDb, 'main');
-
-        const targetSiteIds = coursePayload.targetSiteIds || [];
-        const replicationErrors = [];
-
-        for (const targetSiteId of targetSiteIds) {
-            if (targetSiteId === 'main') continue;
-            try {
-                const targetDb = await getDb(targetSiteId);
-                await createCourseInDb(targetDb, targetSiteId);
-            } catch (error) {
-                const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
-                console.error(errorMessage);
-                replicationErrors.push(errorMessage);
-            }
-        }
-
-        if (replicationErrors.length > 0) {
-            return NextResponse.json({
-                success: false,
-                message: 'Master course created in Main branch, but failed to publish to some other branches.',
-                details: replicationErrors.join('\n')
-            }, { status: 207 });
-        }
-
-        return NextResponse.json({ success: true, message: `Course created in main branch and published to ${targetSiteIds.length} other branch(es).` }, { status: 201 });
-
+        await createCourseInDb(mainDb, coursePayload, 'main');
     } catch (error) {
-        console.error("Super admin course creation process failed:", error);
+        console.error("CRITICAL: Failed to create master course in 'main' branch:", error);
         return NextResponse.json({ error: 'Failed to create the master course.', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
+
+    // Step 2: Replicate to other selected branches.
+    const targetSiteIds = coursePayload.targetSiteIds || [];
+    const replicationErrors = [];
+
+    for (const targetSiteId of targetSiteIds) {
+        if (targetSiteId === 'main') continue; // Should not be in the list, but double check.
+        try {
+            const targetDb = await getDb(targetSiteId);
+            await createCourseInDb(targetDb, coursePayload, targetSiteId);
+        } catch (error) {
+            const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
+            console.error(errorMessage);
+            replicationErrors.push(errorMessage);
+        }
+    }
+    
+    // Step 3: Respond to the client with the outcome.
+    if (replicationErrors.length > 0) {
+        return NextResponse.json({
+            success: true, // Master course was created, so overall action is a partial success.
+            message: 'Master course created, but failed to publish to some other branches.',
+            details: replicationErrors.join('\n')
+        }, { status: 207 }); // 207 Multi-Status
+    }
+
+    return NextResponse.json({ success: true, message: `Course created in main branch and published to ${targetSiteIds.length} other branch(es).` }, { status: 201 });
 }
