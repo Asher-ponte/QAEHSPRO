@@ -110,9 +110,9 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
                 const res = await fetch('/api/sites');
                 if (!res.ok) throw new Error("Failed to load sites");
                 const allSitesData = await res.json();
-                // Filter out main and external sites, as courses are for clients
-                const clientSites = allSitesData.filter((s: Site) => !['main', 'external'].includes(s.id));
-                setSites(clientSites);
+                // Filter out main site, as courses are implicitly created there for super admins
+                const publishableSites = allSitesData.filter((s: Site) => s.id !== 'main');
+                setSites(publishableSites);
             } catch (error) {
                 console.error(error);
             } finally {
