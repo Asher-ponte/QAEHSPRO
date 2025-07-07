@@ -43,6 +43,34 @@ const settingsFormSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>
 
+function AppBrandingCard() {
+    const { toast } = useToast();
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>App Branding</CardTitle>
+                <CardDescription>
+                    Manage the main application logo displayed in the header.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <ImageUpload
+                    uploadUrl="/api/admin/app-logo"
+                    initialPath="/uploads/logo.png"
+                    onUploadComplete={() => {
+                        toast({
+                            title: "Logo Updated",
+                            description: "The main application logo has been changed. Please refresh the page to see the changes.",
+                            duration: 8000
+                        });
+                    }}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function PlatformSettingsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,6 +172,7 @@ export default function PlatformSettingsPage() {
     }
     
     const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
+    const isManagingMainSite = isSuperAdmin && selectedSiteId === 'main';
 
     return (
         <div className="flex flex-col gap-6">
@@ -187,9 +216,12 @@ export default function PlatformSettingsPage() {
                     </div>
                 )}
             </div>
+
+            {isManagingMainSite && <AppBrandingCard />}
+
             <Card>
                 <CardHeader>
-                <CardTitle>Company Branding</CardTitle>
+                <CardTitle>Branch Branding</CardTitle>
                 <CardDescription>
                     {isSuperAdmin && currentSite
                         ? `These settings apply only to the "${selectedSiteName}" branch and will appear on its certificates.`

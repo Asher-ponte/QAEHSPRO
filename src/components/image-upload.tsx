@@ -12,16 +12,19 @@ interface ImageUploadProps {
     onUploadComplete: (path: string) => void;
     initialPath?: string | null;
     onRemove?: () => void;
+    uploadUrl?: string;
 }
 
-export function ImageUpload({ onUploadComplete, initialPath, onRemove }: ImageUploadProps) {
+export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadUrl = '/api/upload' }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     
     useEffect(() => {
-        setImagePreview(initialPath || null);
+        // Use a key with the path to force React to re-render the image if the path changes
+        // This is useful for the main logo uploader which always shows the same path
+        setImagePreview(initialPath ? `${initialPath}?${new Date().getTime()}` : null);
     }, [initialPath]);
     
     const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -34,7 +37,7 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove }: ImageUp
         formData.append("file", file);
 
         try {
-            const response = await fetch('/api/upload', {
+            const response = await fetch(uploadUrl, {
                 method: 'POST',
                 body: formData,
             });
@@ -46,7 +49,7 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove }: ImageUp
             }
             
             onUploadComplete(result.path);
-            setImagePreview(result.path);
+            setImagePreview(`${result.path}?${new Date().getTime()}`);
 
             toast({
                 title: "Upload Successful",
@@ -89,17 +92,20 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove }: ImageUp
                             alt="Image preview"
                             fill
                             className="object-contain"
+                            unoptimized // Important for seeing changes to the same file path
                         />
-                         <Button 
-                            type="button" 
-                            variant="destructive" 
-                            size="icon" 
-                            onClick={handleRemoveImage}
-                            className="absolute top-2 right-2 z-10"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Remove Image</span>
-                        </Button>
+                         {onRemove && (
+                            <Button 
+                                type="button" 
+                                variant="destructive" 
+                                size="icon" 
+                                onClick={handleRemoveImage}
+                                className="absolute top-2 right-2 z-10"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Remove Image</span>
+                            </Button>
+                         )}
                     </>
                 ) : (
                     <div className="text-center text-muted-foreground p-4">
@@ -124,5 +130,3 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove }: ImageUp
         </div>
     );
 }
-
-    
