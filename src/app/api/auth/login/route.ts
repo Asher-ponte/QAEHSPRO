@@ -27,12 +27,10 @@ export async function POST(request: NextRequest) {
 
     const allSites = await getAllSites();
     
-    // Create a specific search order. Non-main sites first, then 'main' is checked last.
-    // This prevents a branch user with the same credentials as a super admin from
-    // incorrectly getting super admin privileges.
+    // Create a specific search order. 'main' is checked first to correctly establish super admin status.
     const sortedSites = allSites.sort((a, b) => {
-        if (a.id === 'main') return 1;
-        if (b.id === 'main') return -1;
+        if (a.id === 'main') return -1;
+        if (b.id === 'main') return 1;
         return 0;
     });
 
