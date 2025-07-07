@@ -3,21 +3,44 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import { getAllSites } from '@/lib/sites';
 
 const signatorySchema = z.object({
   name: z.string().min(1, "Name is required."),
   position: z.string().min(1, "Position is required."),
   signatureImagePath: z.string().min(1, "Signature image path is required."),
+  siteId: z.string()
 });
 
-export async function GET() {
-  const { user } = await getCurrentSession();
-  if (!user) { // Any logged in user can view signatories
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+async function checkPermissions(siteId: string | null) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (!user || user.role !== 'Admin') {
+        return { authorized: false, error: 'Unauthorized', status: 403, effectiveSiteId: null };
+    }
+    
+    if (isSuperAdmin) {
+        if (!siteId) return { authorized: false, error: 'siteId is required for super admin', status: 400, effectiveSiteId: null };
+        const allSites = await getAllSites();
+        if (!allSites.some(s => s.id === siteId)) {
+            return { authorized: false, error: 'Invalid site specified', status: 400, effectiveSiteId: null };
+        }
+        return { authorized: true, effectiveSiteId: siteId };
+    } else {
+        // Client admin can only operate on their own site
+        return { authorized: true, effectiveSiteId: sessionSiteId };
+    }
+}
+
+export async function GET(request: NextRequest) {
+  const siteId = request.nextUrl.searchParams.get('siteId');
+  const permCheck = await checkPermissions(siteId);
+
+  if (!permCheck.authorized) {
+    return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
   }
 
   try {
-    const db = await getDb('main'); // Always get from main
+    const db = await getDb(permCheck.effectiveSiteId!);
     const signatories = await db.all('SELECT * FROM signatories ORDER BY name');
     return NextResponse.json(signatories);
   } catch (error) {
@@ -27,14 +50,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { isSuperAdmin } = await getCurrentSession();
-  if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Super Admin access required.' }, { status: 403 });
+  const data = await request.json();
+  const permCheck = await checkPermissions(data.siteId);
+  if (!permCheck.authorized) {
+    return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
   }
 
   try {
-    const db = await getDb('main');
-    const data = await request.json();
+    const db = await getDb(permCheck.effectiveSiteId!);
     const parsedData = signatorySchema.safeParse(data);
 
     if (!parsedData.success) {
@@ -52,3 +75,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create signatory' }, { status: 500 });
   }
 }
+
+    

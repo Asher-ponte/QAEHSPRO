@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 
@@ -133,7 +133,7 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
         fetchAllSites();
     }, []);
 
-    const allSelectedSites = mainSite ? [mainSite, ...sites.filter(s => targetSiteIds?.includes(s.id))] : sites.filter(s => targetSiteIds?.includes(s.id));
+    const allSelectedSiteObjects = mainSite ? [mainSite, ...sites.filter(s => targetSiteIds?.includes(s.id))] : sites.filter(s => targetSiteIds?.includes(s.id));
 
     if (isLoading) {
         return (
@@ -204,12 +204,13 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
                  <FormDescription>
                     Choose which signatories will appear on the certificate for each branch.
                  </FormDescription>
-                {allSelectedSites.map(site => (
+                {allSelectedSiteObjects.map(site => (
                     <div key={site.id} className="p-4 border rounded-md">
                         <h4 className="font-semibold mb-4">{site.name}</h4>
                         <SignatoriesField
                             control={control}
                             name={`branchSignatories.${site.id}`}
+                            siteId={site.id}
                         />
                     </div>
                 ))}
@@ -299,16 +300,17 @@ function AudienceAndPricing({ control }: { control: Control<CourseFormValues> })
     );
 }
 
-function SignatoriesField({ control, name }: { control: Control<CourseFormValues>, name: `branchSignatories.${string}` }) {
+function SignatoriesField({ control, name, siteId }: { control: Control<CourseFormValues>, name: `branchSignatories.${string}`, siteId: string }) {
     const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchAllSignatories = async () => {
+        const fetchSignatoriesForSite = async () => {
+            if (!siteId) return;
             setIsLoading(true);
             try {
-                const res = await fetch('/api/admin/signatories');
-                if (!res.ok) throw new Error("Failed to load signatories");
+                const res = await fetch(`/api/admin/signatories?siteId=${siteId}`);
+                if (!res.ok) throw new Error(`Failed to load signatories for site ${siteId}`);
                 setSignatories(await res.json());
             } catch (error) {
                 console.error(error);
@@ -316,14 +318,14 @@ function SignatoriesField({ control, name }: { control: Control<CourseFormValues
                 setIsLoading(false);
             }
         };
-        fetchAllSignatories();
-    }, []);
+        fetchSignatoriesForSite();
+    }, [siteId]);
 
     return (
         <FormField
             control={control}
             name={name}
-            render={() => (
+            render={({ field }) => (
                 <FormItem>
                     {isLoading ? (
                         <div className="space-y-2">
@@ -334,37 +336,28 @@ function SignatoriesField({ control, name }: { control: Control<CourseFormValues
                     ) : signatories.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {signatories.map((signatory) => (
-                                <FormField
-                                    key={signatory.id}
-                                    control={control}
-                                    name={name}
-                                    render={({ field }) => {
-                                        return (
-                                            <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value?.includes(signatory.id)}
-                                                        onCheckedChange={(checked) => {
-                                                            const currentValue = field.value || [];
-                                                            return checked
-                                                                ? field.onChange([...currentValue, signatory.id])
-                                                                : field.onChange(currentValue.filter((value) => value !== signatory.id));
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal">
-                                                    {signatory.name}
-                                                    {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
-                                                </FormLabel>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
+                                <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(signatory.id)}
+                                            onCheckedChange={(checked) => {
+                                                const currentValue = field.value || [];
+                                                return checked
+                                                    ? field.onChange([...currentValue, signatory.id])
+                                                    : field.onChange(currentValue.filter((value) => value !== signatory.id));
+                                            }}
+                                        />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        {signatory.name}
+                                        {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                    </FormLabel>
+                                </FormItem>
                             ))}
                         </div>
                     ) : (
                         <p className="text-sm text-muted-foreground">
-                            No signatories found. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
+                            No signatories found for this branch. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
                         </p>
                     )}
                     <FormMessage />
@@ -638,7 +631,7 @@ export default function CreateCoursePage() {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
-  const { isSuperAdmin } = useSession();
+  const { isSuperAdmin, site } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -669,7 +662,7 @@ export default function CreateCoursePage() {
       is_public: false,
       price: null,
       modules: [],
-      branchSignatories: { 'main': [] },
+      branchSignatories: site ? { [site.id]: [] } : {},
       targetSiteIds: [],
     },
     mode: "onChange"
@@ -989,7 +982,7 @@ export default function CreateCoursePage() {
                 </CardContent>
             </Card>
 
-            {!isSuperAdmin && (
+            {!isSuperAdmin && site && (
                  <Card>
                     <CardHeader>
                         <CardTitle>Certificate Signatories</CardTitle>
@@ -998,7 +991,7 @@ export default function CreateCoursePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <SignatoriesField control={form.control} name="branchSignatories.default" />
+                        <SignatoriesField control={form.control} name={`branchSignatories.${site.id}`} siteId={site.id} />
                     </CardContent>
                 </Card>
             )}
@@ -1074,3 +1067,5 @@ export default function CreateCoursePage() {
     </div>
   )
 }
+
+    

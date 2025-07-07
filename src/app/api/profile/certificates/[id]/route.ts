@@ -32,13 +32,13 @@ export async function GET(
             course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         }
 
-        const mainDb = await getDb('main');
         const signatoryIdsResult = await db.all('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
         const signatoryIds = signatoryIdsResult.map(s => s.signatory_id);
         let signatories = [];
         if (signatoryIds.length > 0) {
             const placeholders = signatoryIds.map(() => '?').join(',');
-            signatories = await mainDb.all(`
+            // Get signatories from the same branch DB where the certificate exists
+            signatories = await db.all(`
                 SELECT s.name, s.position, s.signatureImagePath
                 FROM signatories s
                 WHERE s.id IN (${placeholders})
@@ -80,3 +80,5 @@ export async function GET(
         return NextResponse.json({ error: 'Failed to fetch certificate data' }, { status: 500 });
     }
 }
+
+    

@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
-import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Building } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Building, Edit } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -73,6 +73,9 @@ import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MoreHorizontal } from "lucide-react"
+
 
 interface Signatory {
   id: number;
@@ -106,35 +109,45 @@ const recognitionCertificateFormSchema = z.object({
 type RecognitionCertificateFormValues = z.infer<typeof recognitionCertificateFormSchema>;
 
 
-function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, children: ReactNode }) {
+function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { onFormSubmit: () => void, children: ReactNode, siteId: string, existingSignatory?: Signatory | null }) {
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
     const form = useForm<SignatoryFormValues>({
         resolver: zodResolver(signatoryFormSchema),
-        defaultValues: { name: "", position: "", signatureImagePath: "" },
+        defaultValues: existingSignatory || { name: "", position: "", signatureImagePath: "" },
     });
+    
+    useEffect(() => {
+        if (open) {
+            form.reset(existingSignatory || { name: "", position: "", signatureImagePath: "" });
+        }
+    }, [open, existingSignatory, form]);
 
     async function onSubmit(values: SignatoryFormValues) {
         setIsSubmitting(true);
         try {
-            const response = await fetch('/api/admin/signatories', {
-                method: 'POST',
+            const isEditing = !!existingSignatory;
+            const url = isEditing ? `/api/admin/signatories/${existingSignatory.id}` : '/api/admin/signatories';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values),
+                body: JSON.stringify({ ...values, siteId }),
             });
+
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || "Failed to create signatory.");
+                throw new Error(data.error || `Failed to ${isEditing ? 'update' : 'create'} signatory.`);
             }
             toast({
-                title: "Signatory Created",
-                description: `Signatory "${values.name}" has been created successfully.`,
+                title: isEditing ? "Signatory Updated" : "Signatory Created",
+                description: `Signatory "${values.name}" has been saved successfully.`,
             });
             onFormSubmit();
             setOpen(false);
-            form.reset();
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -151,9 +164,9 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Add New Signatory</DialogTitle>
+                    <DialogTitle>{existingSignatory ? 'Edit Signatory' : 'Add New Signatory'}</DialogTitle>
                     <DialogDescription>
-                        This signatory will be available to add to any course certificate.
+                        This signatory will be available for certificates in this branch.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -203,7 +216,7 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
                             </DialogClose>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Add Signatory
+                                {existingSignatory ? 'Save Changes' : 'Add Signatory'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -213,7 +226,48 @@ function SignatoryForm({ onFormSubmit, children }: { onFormSubmit: () => void, c
     );
 }
 
-function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatoryChange }: { signatories: Signatory[], isLoading: boolean, openDeleteDialog: (s: Signatory) => void, onSignatoryChange: () => void }) {
+function SignatoriesList({ signatories, isLoading, onSignatoryChange, siteId }: { signatories: Signatory[], isLoading: boolean, onSignatoryChange: () => void, siteId: string }) {
+    const [signatoryToEdit, setSignatoryToEdit] = useState<Signatory | null>(null);
+    const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const { toast } = useToast();
+
+    const openDeleteDialog = (signatory: Signatory) => {
+        setSignatoryToDelete(signatory);
+        setShowDeleteDialog(true);
+    };
+
+    const handleDelete = async () => {
+        if (!signatoryToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`/api/admin/signatories/${signatoryToDelete.id}?siteId=${siteId}`, {
+                method: "DELETE",
+            });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || "Failed to delete signatory");
+            }
+            toast({
+                title: "Success",
+                description: `Signatory "${signatoryToDelete.name}" deleted successfully.`,
+            });
+            onSignatoryChange(); // Refresh the list
+            setShowDeleteDialog(false);
+            setSignatoryToDelete(null);
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "Could not delete signatory.",
+            });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+    
     return (
         <Card>
             <CardHeader>
@@ -221,10 +275,10 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
                     <div>
                         <CardTitle>Certificate Signatories</CardTitle>
                         <CardDescription>
-                            Manage the global pool of signatories for the entire platform.
+                           Manage the signatories for this branch.
                         </CardDescription>
                     </div>
-                     <SignatoryForm onFormSubmit={onSignatoryChange}>
+                     <SignatoryForm onFormSubmit={onSignatoryChange} siteId={siteId}>
                         <Button>
                             <UserPlus className="mr-2 h-4 w-4" />
                             Add Signatory
@@ -239,7 +293,7 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
                     <TableHead>Name</TableHead>
                     <TableHead>Position</TableHead>
                     <TableHead>Signature</TableHead>
-                    <TableHead><span className="sr-only">Actions</span></TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,10 +315,24 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
                             <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
                         </TableCell>
                         <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(signatory)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                            <span className="sr-only">Delete</span>
-                        </Button>
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect={() => setSignatoryToEdit(signatory)}>
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        <span>Edit</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => openDeleteDialog(signatory)} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        <span>Delete</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </TableCell>
                     </TableRow>
                     ))
@@ -278,6 +346,34 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
                 </TableBody>
             </Table>
             </CardContent>
+            
+            {/* Edit Dialog */}
+            <SignatoryForm 
+                onFormSubmit={onSignatoryChange} 
+                siteId={siteId} 
+                existingSignatory={signatoryToEdit}
+            >
+               {/* This dialog is controlled by the Edit menu item */}
+            </SignatoryForm>
+            
+            {/* Delete Dialog */}
+             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the signatory "{signatoryToDelete?.name}".
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }
@@ -542,10 +638,7 @@ function PageSkeleton() {
 
 export default function ManageCertificatesPage() {
   const [signatories, setSignatories] = useState<Signatory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoadingSignatories, setIsLoadingSignatories] = useState(true);
   const { toast } = useToast();
   const { user, isSuperAdmin, isLoading: isSessionLoading, site: currentSite } = useSession();
   const router = useRouter();
@@ -582,10 +675,11 @@ export default function ManageCertificatesPage() {
   }, [isSuperAdmin, toast]);
 
 
-  const fetchSignatories = async () => {
-    setIsLoading(true);
+  const fetchSignatories = useCallback(async () => {
+    if (!selectedSiteId) return;
+    setIsLoadingSignatories(true);
     try {
-      const res = await fetch("/api/admin/signatories");
+      const res = await fetch(`/api/admin/signatories?siteId=${selectedSiteId}`);
       if (!res.ok) throw new Error("Failed to fetch signatories");
       const data = await res.json();
       setSignatories(data);
@@ -593,59 +687,26 @@ export default function ManageCertificatesPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "Could not load signatories.",
+        description: error instanceof Error ? error.message : "Could not load signatories for this branch.",
       });
+      setSignatories([]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingSignatories(false);
     }
-  };
+  }, [selectedSiteId, toast]);
 
   useEffect(() => {
-    if (user) {
+    if (user && selectedSiteId) {
         fetchSignatories();
     }
-  }, [user]);
-
-  const handleDelete = async () => {
-    if (!signatoryToDelete) return;
-
-    setIsDeleting(true);
-    try {
-      const res = await fetch(`/api/admin/signatories/${signatoryToDelete.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to delete signatory");
-      }
-      toast({
-        title: "Success",
-        description: `Signatory "${signatoryToDelete.name}" deleted successfully.`,
-      });
-      await fetchSignatories(); // Refresh the list
-      setShowDeleteDialog(false);
-      setSignatoryToDelete(null);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Could not delete signatory.",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const openDeleteDialog = (signatory: Signatory) => {
-    setSignatoryToDelete(signatory);
-    setShowDeleteDialog(true);
-  };
+  }, [user, selectedSiteId, fetchSignatories]);
   
   if (isSessionLoading || !user) {
       return <PageSkeleton />;
   }
 
   const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
+  const isDataLoading = isLoadingSignatories || (isSuperAdmin && sites.length === 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -687,22 +748,29 @@ export default function ManageCertificatesPage() {
         )}
       </div>
       
-      <Tabs defaultValue="signatories" className="w-full">
+      <Tabs defaultValue="recognition" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-            {isSuperAdmin && <TabsTrigger value="signatories">Global Signatories</TabsTrigger>}
+            <TabsTrigger value="signatories">Signatories</TabsTrigger>
             <TabsTrigger value="recognition">Certificate of Recognition</TabsTrigger>
         </TabsList>
-        {isSuperAdmin && (
-            <TabsContent value="signatories" className="mt-4">
-                <SignatoriesList signatories={signatories} isLoading={isLoading} openDeleteDialog={openDeleteDialog} onSignatoryChange={fetchSignatories} />
-            </TabsContent>
-        )}
+        <TabsContent value="signatories" className="mt-4">
+             {selectedSiteId ? (
+                <SignatoriesList 
+                    signatories={signatories} 
+                    isLoading={isLoadingSignatories} 
+                    onSignatoryChange={fetchSignatories} 
+                    siteId={selectedSiteId}
+                />
+             ) : (
+                <Card><CardContent className="p-8 text-center text-muted-foreground">Please select a branch to manage signatories.</CardContent></Card>
+             )}
+        </TabsContent>
         <TabsContent value="recognition" className="mt-4">
              {selectedSiteId ? (
                 <RecognitionCertificateForm 
                     signatories={signatories} 
                     onFormSubmit={() => {}} 
-                    isLoadingData={isLoading}
+                    isLoadingData={isDataLoading}
                     selectedSiteId={selectedSiteId} 
                 />
              ) : (
@@ -711,23 +779,8 @@ export default function ManageCertificatesPage() {
         </TabsContent>
       </Tabs>
       
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the signatory "{signatoryToDelete?.name}".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
+
+    

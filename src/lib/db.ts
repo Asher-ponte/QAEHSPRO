@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { open, type Database } from 'sqlite';
@@ -40,19 +39,16 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
                 name TEXT NOT NULL UNIQUE
             );
         `);
-        // The signatories table must be created before tables that reference it.
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS signatories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                position TEXT,
-                signatureImagePath TEXT NOT NULL
-            );
-        `);
     }
 
     // Schema creation
     await db.exec(`
+        CREATE TABLE IF NOT EXISTS signatories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            position TEXT,
+            signatureImagePath TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -148,51 +144,21 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS course_signatories (
+            course_id INTEGER NOT NULL,
+            signatory_id INTEGER NOT NULL,
+            PRIMARY KEY (course_id, signatory_id),
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+            FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS certificate_signatories (
+            certificate_id INTEGER NOT NULL,
+            signatory_id INTEGER NOT NULL,
+            PRIMARY KEY (certificate_id, signatory_id),
+            FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
+            FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+        );
     `);
-    
-    // Define SQL for branch tables (no FK to main signatories)
-    const branchCourseSignatoriesSql = `
-    CREATE TABLE IF NOT EXISTS course_signatories (
-        course_id INTEGER NOT NULL,
-        signatory_id INTEGER NOT NULL,
-        PRIMARY KEY (course_id, signatory_id),
-        FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
-    );`;
-    const branchCertSignatoriesSql = `
-    CREATE TABLE IF NOT EXISTS certificate_signatories (
-        certificate_id INTEGER NOT NULL,
-        signatory_id INTEGER NOT NULL,
-        PRIMARY KEY (certificate_id, signatory_id),
-        FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE
-    );`;
-
-    // Define SQL for main tables (WITH FK to main signatories)
-    const mainCourseSignatoriesSql = `
-    CREATE TABLE IF NOT EXISTS course_signatories (
-        course_id INTEGER NOT NULL,
-        signatory_id INTEGER NOT NULL,
-        PRIMARY KEY (course_id, signatory_id),
-        FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
-        FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
-    );`;
-    const mainCertSignatoriesSql = `
-    CREATE TABLE IF NOT EXISTS certificate_signatories (
-        certificate_id INTEGER NOT NULL,
-        signatory_id INTEGER NOT NULL,
-        PRIMARY KEY (certificate_id, signatory_id),
-        FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
-        FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
-    );`;
-
-
-    // Handle signatories tables based on siteId
-    if (siteId === 'main') {
-        await db.exec(mainCourseSignatoriesSql);
-        await db.exec(mainCertSignatoriesSql);
-    } else {
-        await db.exec(branchCourseSignatoriesSql);
-        await db.exec(branchCertSignatoriesSql);
-    }
     
     // Add columns if they don't exist (for backward compatibility / migrations)
     const usersTableInfo = await db.all("PRAGMA table_info(users)");
@@ -251,75 +217,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     // Seed default settings if they don't exist.
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', `Company ${siteId}`]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
-    
-    // MIGRATION: Fix foreign key constraints on signatory tables.
-    if (siteId === 'main') {
-        // For main, ensure the FK to signatories EXISTS.
-        const courseSigPragma = await db.all(`PRAGMA foreign_key_list('course_signatories');`);
-        if (!courseSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site 'main': Rebuilding 'course_signatories' to ADD FK to signatories.`);
-            await db.exec('BEGIN TRANSACTION;');
-            try {
-                await db.exec('ALTER TABLE course_signatories RENAME TO _course_signatories_old;');
-                await db.exec(mainCourseSignatoriesSql);
-                await db.exec('INSERT INTO course_signatories (course_id, signatory_id) SELECT course_id, signatory_id FROM _course_signatories_old;');
-                await db.exec('DROP TABLE _course_signatories_old;');
-                await db.exec('COMMIT;');
-            } catch (e) {
-                await db.exec('ROLLBACK;');
-                throw e; 
-            }
-        }
-
-        const certSigPragma = await db.all(`PRAGMA foreign_key_list('certificate_signatories');`);
-         if (!certSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site 'main': Rebuilding 'certificate_signatories' to ADD FK to signatories.`);
-            await db.exec('BEGIN TRANSACTION;');
-            try {
-                await db.exec('ALTER TABLE certificate_signatories RENAME TO _certificate_signatories_old;');
-                await db.exec(mainCertSignatoriesSql);
-                await db.exec('INSERT INTO certificate_signatories (certificate_id, signatory_id) SELECT certificate_id, signatory_id FROM _certificate_signatories_old;');
-                await db.exec('DROP TABLE _certificate_signatories_old;');
-                await db.exec('COMMIT;');
-            } catch (e) {
-                await db.exec('ROLLBACK;');
-                throw e;
-            }
-        }
-    } else {
-        // For branches, ensure the FK to signatories DOES NOT exist.
-        const courseSigPragma = await db.all(`PRAGMA foreign_key_list('course_signatories');`);
-        if (courseSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site '${siteId}': Rebuilding 'course_signatories' to REMOVE FK to signatories.`);
-            await db.exec('BEGIN TRANSACTION;');
-            try {
-                await db.exec('ALTER TABLE course_signatories RENAME TO _course_signatories_old;');
-                await db.exec(branchCourseSignatoriesSql);
-                await db.exec('INSERT INTO course_signatories (course_id, signatory_id) SELECT course_id, signatory_id FROM _course_signatories_old;');
-                await db.exec('DROP TABLE _course_signatories_old;');
-                await db.exec('COMMIT;');
-            } catch (e) {
-                await db.exec('ROLLBACK;');
-                throw e; 
-            }
-        }
-
-        const certSigPragma = await db.all(`PRAGMA foreign_key_list('certificate_signatories');`);
-        if (certSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site '${siteId}': Rebuilding 'certificate_signatories' to REMOVE FK to signatories.`);
-            await db.exec('BEGIN TRANSACTION;');
-            try {
-                await db.exec('ALTER TABLE certificate_signatories RENAME TO _certificate_signatories_old;');
-                await db.exec(branchCertSignatoriesSql);
-                await db.exec('INSERT INTO certificate_signatories (certificate_id, signatory_id) SELECT certificate_id, signatory_id FROM _certificate_signatories_old;');
-                await db.exec('DROP TABLE _certificate_signatories_old;');
-                await db.exec('COMMIT;');
-            } catch (e) {
-                await db.exec('ROLLBACK;');
-                throw e;
-            }
-        }
-    }
 
     console.log(`Database connection for site '${siteId}' is ready.`);
     return db;
@@ -333,3 +230,5 @@ export async function getDb(siteId: string): Promise<Database> {
     }
     return dbPromise;
 }
+
+    
