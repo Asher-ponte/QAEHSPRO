@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
         }
         const { checkoutSessionId } = parsedBody.data;
 
+        // All transactions and external users are in the 'external' database.
+        db = await getDb('external');
+
         // 1. Get session from PayMongo
         const options = {
             method: 'GET',
@@ -38,11 +41,14 @@ export async function POST(request: NextRequest) {
             console.error("PayMongo Error fetching session:", session.errors);
             throw new Error('Could not retrieve payment session details.');
         }
+        
+        // Find the corresponding payment intent. There should only be one for this type of checkout.
+        const paymentIntent = session.data.attributes.payments.find(
+            (p: any) => p.attributes.status === 'paid'
+        );
 
-        const paymentIntent = session.data.attributes.payments[0];
-        if (!paymentIntent || paymentIntent.attributes.status !== 'paid') {
-            // Update transaction to failed if it's not paid
-             db = await getDb('external');
+        if (!paymentIntent) {
+            // Update transaction to failed if no paid payment intent is found.
              await db.run("UPDATE transactions SET status = 'failed' WHERE gateway_transaction_id = ?", checkoutSessionId);
             return NextResponse.json({ error: 'Payment was not successful.' }, { status: 402 });
         }
@@ -54,9 +60,7 @@ export async function POST(request: NextRequest) {
             throw new Error("Payment session metadata is invalid or missing.");
         }
         
-        // 3. Connect to DB and enroll user
-        db = await getDb(siteId);
-
+        // 3. Connect to DB and enroll user (already connected)
         // Idempotency check: see if user is already enrolled.
         const existingEnrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
         if (existingEnrollment) {
