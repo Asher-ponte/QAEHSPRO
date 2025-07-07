@@ -57,9 +57,10 @@ export default function PurchasePage() {
         defaultValues: {
             proofImagePath: "",
         },
+        mode: "onChange",
     });
 
-    const { handleSubmit, formState: { isSubmitting } } = form;
+    const { handleSubmit, formState: { isSubmitting, isValid } } = form;
 
     useEffect(() => {
         async function fetchPurchaseData() {
@@ -116,7 +117,10 @@ export default function PurchasePage() {
             });
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || "Failed to submit payment proof.");
+                const errorMessage = data.details
+                    ? `${data.error || 'Request failed'}: ${data.details}`
+                    : data.error || "Failed to submit payment proof.";
+                throw new Error(errorMessage);
             }
             toast({
                 title: "Payment Submitted",
@@ -130,6 +134,7 @@ export default function PurchasePage() {
                 variant: "destructive",
                 title: "Submission Failed",
                 description: error instanceof Error ? error.message : "An unknown error occurred.",
+                duration: 8000,
             });
         }
     }
@@ -226,7 +231,7 @@ export default function PurchasePage() {
                                     )}
                                 />
                                 
-                                <Button type="submit" disabled={isSubmitting || qrCodes.length === 0} className="w-full">
+                                <Button type="submit" disabled={isSubmitting || !isValid} className="w-full">
                                     {isSubmitting ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : (
