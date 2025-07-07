@@ -1,3 +1,4 @@
+
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -40,30 +41,27 @@ export async function getCurrentSession(): Promise<SessionData> {
   }
 
   try {
-    const db = await getDb(siteId);
+    // A super admin is defined as an 'Admin' role user in the 'main' database.
+    // We must always check this first to correctly identify the user.
+    const mainDb = await getDb('main');
+    const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
+
+    if (potentialSuperAdmin) {
+        // The user IS a super admin. Return their identity, but respect the siteId they are currently viewing.
+        return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
+    }
     
-    // Attempt to find the user in the context of their current site.
-    const userInContext = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
+    // If not a super admin, they must be a user within their own branch context.
+    // Branch users cannot switch contexts, so siteId will be their home branch.
+    const siteDb = await getDb(siteId);
+    const userInContext = await siteDb.get<User>('SELECT * FROM users WHERE id = ?', userId);
 
     if (userInContext) {
-      // User found in the current site. Check if this context makes them a super admin.
-      const isSuperAdmin = siteId === 'main' && userInContext.role === 'Admin';
-      return { user: userInContext, siteId: siteId, isSuperAdmin: isSuperAdmin };
+        // This is a branch user or branch admin.
+        return { user: userInContext, siteId: siteId, isSuperAdmin: false };
     }
 
-    // If the user isn't found in the current site's context,
-    // check if they are a super admin from the 'main' site viewing another branch.
-    if (siteId !== 'main') {
-      const mainDb = await getDb('main');
-      const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
-
-      if (potentialSuperAdmin) {
-        // Confirmed super admin. Return their identity but keep the current site context.
-        return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
-      }
-    }
-
-    // If we reach here, the session is invalid for the current context.
+    // If user is not found as a super admin or a user in the current context, the session is invalid.
     return { user: null, siteId: null, isSuperAdmin: false };
     
   } catch (error) {
