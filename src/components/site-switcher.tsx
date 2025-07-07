@@ -88,10 +88,10 @@ export function SiteSwitcher() {
                             {sites.map((site) => (
                                 <CommandItem
                                     key={site.id}
-                                    value={site.name}
-                                    onSelect={() => {
+                                    value={site.id}
+                                    onSelect={(currentValue) => {
                                         setOpen(false)
-                                        handleSwitchSite(site.id)
+                                        handleSwitchSite(currentValue)
                                     }}
                                 >
                                     <Check
