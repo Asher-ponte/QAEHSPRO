@@ -46,10 +46,6 @@ function PurchaseSuccessContent() {
                     description: "You are now enrolled in the course.",
                 })
 
-                setTimeout(() => {
-                    router.push(`/courses/${courseId}`)
-                }, 3000)
-
             } catch (error) {
                 const msg = error instanceof Error ? error.message : "An unknown error occurred."
                 setStatus('failed')
@@ -63,7 +59,21 @@ function PurchaseSuccessContent() {
         }
 
         verifyPayment()
-    }, [searchParams, toast, router, courseId])
+    }, [searchParams, toast])
+
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (status === 'success') {
+            timer = setTimeout(() => {
+                router.push(`/courses/${courseId}`)
+            }, 3000)
+        } else if (status === 'failed') {
+            timer = setTimeout(() => {
+                router.push(`/courses/${courseId}`)
+            }, 5000)
+        }
+        return () => clearTimeout(timer);
+    }, [status, router, courseId])
 
     return (
         <Card className="w-full max-w-md">
@@ -76,7 +86,7 @@ function PurchaseSuccessContent() {
                 <CardDescription>
                     {status === 'verifying' && 'Please wait while we confirm your transaction.'}
                     {status === 'success' && 'You have been enrolled in the course. Redirecting...'}
-                    {status === 'failed' && 'There was an issue with your payment.'}
+                    {status === 'failed' && 'There was an issue with your payment. Redirecting you back to the course page...'}
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-4 py-8">
@@ -87,7 +97,7 @@ function PurchaseSuccessContent() {
                         <XCircle className="h-16 w-16 text-destructive mx-auto" />
                         <p className="text-destructive">{errorMessage}</p>
                         <Button asChild>
-                            <Link href={`/courses/${courseId}`}>Return to Course</Link>
+                            <Link href={`/courses/${courseId}`}>Return to Course Now</Link>
                         </Button>
                     </div>
                 )}

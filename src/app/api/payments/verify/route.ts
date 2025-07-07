@@ -35,30 +35,40 @@ export async function POST(request: NextRequest) {
         };
 
         const response = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${checkoutSessionId}`, options);
+        
+        if (!response.ok) {
+            console.error("PayMongo Error fetching session, status:", response.status);
+            throw new Error(`Could not retrieve payment session details. Status: ${response.status}`);
+        }
+
         const session = await response.json();
 
-        if (!response.ok || session.errors) {
-            console.error("PayMongo Error fetching session:", session.errors);
-            throw new Error('Could not retrieve payment session details.');
+        if (session.errors) {
+            console.error("PayMongo Error in session response:", session.errors);
+            throw new Error('Could not retrieve payment session details due to API error.');
         }
-        
-        // Find the corresponding payment intent. There should only be one for this type of checkout.
-        const payments = session.data.attributes.payments;
+
+        // Safely access payment information
+        const payments = session?.data?.attributes?.payments;
         const paymentIntent = Array.isArray(payments)
-            ? payments.find((p: any) => p.attributes.status === 'paid')
+            ? payments.find((p: any) => p?.attributes?.status === 'paid')
             : undefined;
 
         if (!paymentIntent) {
             // Update transaction to failed if no paid payment intent is found.
              await db.run("UPDATE transactions SET status = 'failed' WHERE gateway_transaction_id = ?", checkoutSessionId);
-            return NextResponse.json({ error: 'Payment was not successful.' }, { status: 402 });
+            return NextResponse.json({ error: 'Payment was not successful or is still pending.' }, { status: 402 });
         }
 
         // 2. Extract metadata and verify
-        const metadata = session.data.attributes.metadata || {};
+        const metadata = session?.data?.attributes?.metadata;
+        if (!metadata) {
+            throw new Error("Payment session metadata is missing.");
+        }
+
         const { userId, courseId, siteId } = metadata;
         if (!userId || !courseId || siteId !== 'external') {
-            throw new Error("Payment session metadata is invalid or missing.");
+            throw new Error("Payment session metadata is invalid.");
         }
         
         // 3. Connect to DB and enroll user (already connected)
