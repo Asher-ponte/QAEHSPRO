@@ -8,11 +8,12 @@ const bulkEnrollmentSchema = z.object({
   courseId: z.number(),
   userIds: z.array(z.number()),
   action: z.enum(['enroll', 'unenroll']),
+  siteId: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -20,7 +21,6 @@ export async function POST(request: NextRequest) {
     let actionForErrorMessage = 'process';
 
     try {
-        db = await getDb(siteId);
         const data = await request.json();
         const parsedData = bulkEnrollmentSchema.safeParse(data);
 
@@ -28,8 +28,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
 
-        const { courseId, userIds, action } = parsedData.data;
+        const { courseId, userIds, action, siteId: targetSiteId } = parsedData.data;
         actionForErrorMessage = action;
+
+        let effectiveSiteId = sessionSiteId;
+        if (isSuperAdmin && targetSiteId) {
+            effectiveSiteId = targetSiteId;
+        } else if (targetSiteId && !isSuperAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+        
+        db = await getDb(effectiveSiteId);
 
         if (userIds.length === 0) {
             return NextResponse.json({ success: true, message: 'No users to update.' });

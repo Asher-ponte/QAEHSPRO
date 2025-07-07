@@ -7,17 +7,16 @@ import { getCurrentSession } from '@/lib/session';
 const enrollmentSchema = z.object({
   userId: z.number(),
   courseId: z.number(),
+  siteId: z.string().optional(),
 });
 
-// Enroll a user in a course
-export async function POST(request: NextRequest) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+async function processEnrollment(request: NextRequest, isEnrolling: boolean) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     try {
-        const db = await getDb(siteId);
         const data = await request.json();
         const parsedData = enrollmentSchema.safeParse(data);
 
@@ -25,56 +24,50 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
         }
 
-        const { userId, courseId } = parsedData.data;
-        
-        // Ensure the course exists before enrolling
-        const course = await db.get('SELECT id FROM courses WHERE id = ?', courseId);
-        if (!course) {
-            return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
-        }
+        const { userId, courseId, siteId: targetSiteId } = parsedData.data;
 
-        await db.run(
-            'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
-            [userId, courseId]
-        );
+        let effectiveSiteId = sessionSiteId;
+        if (isSuperAdmin && targetSiteId) {
+            effectiveSiteId = targetSiteId;
+        } else if (targetSiteId && !isSuperAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
         
-        return NextResponse.json({ success: true, message: 'User enrolled successfully.' }, { status: 200 });
+        const db = await getDb(effectiveSiteId);
+
+        if (isEnrolling) {
+            const course = await db.get('SELECT id FROM courses WHERE id = ?', courseId);
+            if (!course) {
+                return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
+            }
+            await db.run(
+                'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
+                [userId, courseId]
+            );
+        } else {
+            await db.run(
+                'DELETE FROM enrollments WHERE user_id = ? AND course_id = ?',
+                [userId, courseId]
+            );
+        }
+        
+        const message = isEnrolling ? 'User enrolled successfully.' : 'User un-enrolled successfully.';
+        return NextResponse.json({ success: true, message }, { status: 200 });
 
     } catch (error) {
-        console.error("Failed to enroll user:", error);
-        return NextResponse.json({ error: 'Failed to enroll user' }, { status: 500 });
+        const action = isEnrolling ? 'enroll' : 'un-enroll';
+        console.error(`Failed to ${action} user:`, error);
+        return NextResponse.json({ error: `Failed to ${action} user` }, { status: 500 });
     }
+}
+
+
+// Enroll a user in a course
+export async function POST(request: NextRequest) {
+    return processEnrollment(request, true);
 }
 
 // Un-enroll a user from a course
 export async function DELETE(request: NextRequest) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    try {
-        const db = await getDb(siteId);
-        const data = await request.json();
-        const parsedData = enrollmentSchema.safeParse(data);
-
-        if (!parsedData.success) {
-            return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
-        }
-        
-        const { userId, courseId } = parsedData.data;
-
-        // This action only removes the enrollment record.
-        // It does NOT delete the user's progress, so if they re-enroll, their progress is maintained.
-        await db.run(
-            'DELETE FROM enrollments WHERE user_id = ? AND course_id = ?',
-            [userId, courseId]
-        );
-        
-        return NextResponse.json({ success: true, message: 'User un-enrolled successfully.' }, { status: 200 });
-
-    } catch (error) {
-        console.error("Failed to un-enroll user:", error);
-        return NextResponse.json({ error: 'Failed to un-enroll user' }, { status: 500 });
-    }
+    return processEnrollment(request, false);
 }

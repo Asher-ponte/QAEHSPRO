@@ -229,15 +229,21 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
     const [isUpdating, setIsUpdating] = useState<number | null>(null);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const { toast } = useToast();
+    const { site: currentSite } = useSession();
 
     useEffect(() => {
         if (open && course) {
             const fetchData = async () => {
                 setIsLoading(true);
                 try {
+                    const targetSiteId = course.siteId || currentSite?.id;
+                    if (!targetSiteId) {
+                        throw new Error("Could not determine the branch for fetching users.");
+                    }
+                    
                     const [usersRes, enrollmentsRes] = await Promise.all([
-                        fetch('/api/admin/users'),
-                        fetch(`/api/admin/courses/${course.id}/enrollments`)
+                        fetch(`/api/admin/users?siteId=${targetSiteId}`),
+                        fetch(`/api/admin/courses/${course.id}/enrollments?siteId=${targetSiteId}`)
                     ]);
 
                     if (!usersRes.ok || !enrollmentsRes.ok) {
@@ -262,7 +268,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
             };
             fetchData();
         }
-    }, [open, course, toast]);
+    }, [open, course, toast, currentSite]);
 
     const handleEnrollmentChange = async (userId: number, enroll: boolean) => {
         if (!course) return;
@@ -270,12 +276,17 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
         
         const url = '/api/admin/enrollments';
         const method = enroll ? 'POST' : 'DELETE';
+        const targetSiteId = course.siteId || currentSite?.id;
         
         try {
             const response = await fetch(url, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: userId, courseId: course.id })
+                body: JSON.stringify({ 
+                    userId: userId, 
+                    courseId: course.id,
+                    siteId: targetSiteId,
+                })
             });
 
             const data = await response.json();
@@ -313,6 +324,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
     const handleBulkEnrollment = async (enrollAll: boolean) => {
         if (!course || isBulkUpdating || allUsers.length === 0) return;
         setIsBulkUpdating(true);
+        const targetSiteId = course.siteId || currentSite?.id;
 
         const allUserIds = allUsers.map(u => u.id);
 
@@ -323,7 +335,8 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
                 body: JSON.stringify({
                     courseId: course.id,
                     userIds: allUserIds,
-                    action: enrollAll ? 'enroll' : 'unenroll'
+                    action: enrollAll ? 'enroll' : 'unenroll',
+                    siteId: targetSiteId,
                 })
             });
 
