@@ -28,6 +28,7 @@ import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
+import { PdfUpload } from "@/components/pdf-upload"
 
 interface SignatoryOption {
     id: number;
@@ -51,6 +52,7 @@ const lessonSchema = z.object({
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
+  documentPath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -490,6 +492,26 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                                 </FormItem>
                                             )}
                                         />
+                                        <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.documentPath`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Attach PDF</FormLabel>
+                                                    <FormControl>
+                                                        <PdfUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Optional PDF file for this lesson.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -507,7 +529,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: null, imagePath: null })}
+                onClick={() => append({ title: "", type: "video", content: null, imagePath: null, documentPath: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -632,6 +654,7 @@ export default function EditCoursePage() {
           type: lesson.type,
           content: lesson.content,
           imagePath: lesson.imagePath,
+          documentPath: lesson.documentPath,
           questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
             text: q.text,
             options: q.options.map(o => ({ text: o.text })),
@@ -977,7 +1000,7 @@ export default function EditCoursePage() {
                         type="button"
                         variant="outline"
                         className="mt-6"
-                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null }] })}
+                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null, documentPath: null }] })}
                     >
                         <Plus className="mr-2 h-4 w-4" /> Add Module
                     </Button>

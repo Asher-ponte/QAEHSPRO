@@ -14,12 +14,13 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     console.log(`Setting up new database connection for site: ${siteId}`);
     
     const dataDir = path.join(process.cwd(), 'data');
-    const dbPath = path.join(dataDir, `${siteId}.sqlite`);
-    const imagesDir = path.join(process.cwd(), 'public', 'images');
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
 
     // Ensure directories exist.
     await fs.mkdir(dataDir, { recursive: true });
-    await fs.mkdir(imagesDir, { recursive: true });
+    await fs.mkdir(uploadsDir, { recursive: true });
+    
+    const dbPath = path.join(dataDir, `${siteId}.sqlite`);
     
     const db = await open({
         filename: dbPath,
@@ -87,6 +88,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             content TEXT,
             "order" INTEGER NOT NULL,
             imagePath TEXT,
+            documentPath TEXT,
             FOREIGN KEY (module_id) REFERENCES modules (id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS user_progress (
@@ -182,6 +184,13 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         console.log(`Applying migration for site '${siteId}': Adding 'is_internal' column to 'courses' table.`);
         await db.exec('ALTER TABLE courses ADD COLUMN is_internal BOOLEAN NOT NULL DEFAULT 1');
     }
+    
+    const lessonsTableInfo = await db.all("PRAGMA table_info(lessons)");
+    if (!lessonsTableInfo.some(col => col.name === 'documentPath')) {
+         console.log(`Applying migration for site '${siteId}': Adding 'documentPath' column to 'lessons' table.`);
+        await db.exec('ALTER TABLE lessons ADD COLUMN documentPath TEXT');
+    }
+
 
     const isValidBcryptHash = (hash: string | null | undefined): boolean => {
         if (!hash) return false;
@@ -216,7 +225,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     
     // Seed default settings if they don't exist.
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', `Company ${siteId}`]);
-    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/uploads/logo.png']);
 
     console.log(`Database connection for site '${siteId}' is ready.`);
     return db;
@@ -230,5 +239,3 @@ export async function getDb(siteId: string): Promise<Database> {
     }
     return dbPromise;
 }
-
-    

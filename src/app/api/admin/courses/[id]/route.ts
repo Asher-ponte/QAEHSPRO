@@ -48,6 +48,7 @@ const lessonSchema = z.object({
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
+  documentPath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -124,7 +125,8 @@ export async function GET(
                 l.title as lesson_title,
                 l.type as lesson_type,
                 l.content as lesson_content,
-                l.imagePath as lesson_imagePath
+                l.imagePath as lesson_imagePath,
+                l.documentPath as lesson_documentPath
             FROM modules m
             LEFT JOIN lessons l ON m.id = l.module_id
             WHERE m.course_id = ?
@@ -146,6 +148,7 @@ export async function GET(
                     title: row.lesson_title,
                     type: row.lesson_type,
                     imagePath: row.lesson_imagePath ?? null,
+                    documentPath: row.lesson_documentPath ?? null,
                 };
 
                 if (row.lesson_type === 'quiz') {
@@ -248,9 +251,9 @@ export async function PUT(
                 if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
                 
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.id]);
+                     await db.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
                 } else {
-                    await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
+                    await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
                 }
             }
         }

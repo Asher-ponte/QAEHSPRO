@@ -37,7 +37,7 @@ export async function GET(
     // Get current lesson data
     const lesson = await db.get(
         `SELECT 
-            l.id, l.title, l.type, l.content, l.imagePath,
+            l.id, l.title, l.type, l.content, l.imagePath, l.documentPath,
             c.id as course_id, c.title as course_title,
             CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
          FROM lessons l

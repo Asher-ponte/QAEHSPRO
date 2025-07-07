@@ -1,12 +1,12 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getCurrentSession } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
     const { user } = await getCurrentSession();
-    if (user?.role !== 'Admin') {
+    if (!user) { // Allow any authenticated user to upload, not just admins
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -27,14 +27,17 @@ export async function POST(request: NextRequest) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const filename = `${path.basename(originalFilename, fileExtension)}-${uniqueSuffix}${fileExtension}`;
 
-        const uploadDir = path.join(process.cwd(), 'public', 'images');
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        // Ensure the upload directory exists
+        await mkdir(uploadDir, { recursive: true });
+        
         const fullPath = path.join(uploadDir, filename);
 
         await writeFile(fullPath, buffer);
 
         console.log(`File uploaded to ${fullPath}`);
 
-        return NextResponse.json({ success: true, path: `/images/${filename}` });
+        return NextResponse.json({ success: true, path: `/uploads/${filename}` });
 
     } catch (error) {
         console.error("Upload error:", error);

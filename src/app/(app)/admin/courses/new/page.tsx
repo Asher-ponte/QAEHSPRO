@@ -29,6 +29,7 @@ import { RichTextEditor } from "@/components/rich-text-editor"
 import { Separator } from "@/components/ui/separator"
 import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
+import { PdfUpload } from "@/components/pdf-upload"
 
 interface SignatoryOption {
     id: number;
@@ -51,6 +52,7 @@ const lessonSchema = z.object({
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
+  documentPath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -582,26 +584,48 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={control}
-                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Lesson Image</FormLabel>
-                                                <FormControl>
-                                                    <ImageUpload
-                                                        onUploadComplete={(path) => field.onChange(path)}
-                                                        initialPath={field.value}
-                                                        onRemove={() => field.onChange("")}
-                                                    />
-                                                </FormControl>
-                                                <FormDescription>
-                                                    Optional image to display with the lesson content.
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <div className="space-y-4">
+                                        <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Lesson Image</FormLabel>
+                                                    <FormControl>
+                                                        <ImageUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Optional image to display with the lesson content.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={control}
+                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.documentPath`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Attach PDF</FormLabel>
+                                                    <FormControl>
+                                                        <PdfUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Optional PDF file for this lesson.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
                             )}
                              {lessonType === 'quiz' && (
@@ -618,7 +642,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: null, imagePath: null })}
+                onClick={() => append({ title: "", type: "video", content: null, imagePath: null, documentPath: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -687,6 +711,7 @@ export default function CreateCoursePage() {
           type: lesson.type,
           content: lesson.content,
           imagePath: lesson.imagePath,
+          documentPath: lesson.documentPath,
           questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
             text: q.text,
             options: q.options.map(o => ({ text: o.text })),
@@ -1041,7 +1066,7 @@ export default function CreateCoursePage() {
                         type="button"
                         variant="outline"
                         className="mt-6"
-                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null }] })}
+                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null, documentPath: null }] })}
                     >
                         <Plus className="mr-2 h-4 w-4" /> Add Module
                     </Button>
@@ -1067,5 +1092,3 @@ export default function CreateCoursePage() {
     </div>
   )
 }
-
-    

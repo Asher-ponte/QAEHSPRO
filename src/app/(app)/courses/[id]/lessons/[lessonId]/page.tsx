@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight, ChevronsLeft, ChevronsRight, FileText as FileTextIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { SidebarProvider, Sidebar, SidebarInset, useSidebar } from "@/components/ui/sidebar"
 import { CourseOutlineSidebar } from "@/components/course-outline-sidebar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 // Types
 interface Lesson {
@@ -25,6 +26,7 @@ interface Lesson {
   type: 'video' | 'document' | 'quiz';
   content: string | null;
   imagePath: string | null;
+  documentPath: string | null;
   course_id: number;
   course_title: string;
   completed: boolean;
@@ -258,31 +260,45 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
                 </div>
             );
         case 'document':
-            const hasImage = !!lesson.imagePath;
-            if (hasImage) {
-                return (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg">
+            return (
+                <div className="space-y-6">
+                    {lesson.documentPath && (
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline">
+                                    <FileTextIcon className="mr-2 h-4 w-4" />
+                                    View Attached PDF
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
+                                <DialogHeader className="p-4 border-b">
+                                    <DialogTitle>PDF Viewer</DialogTitle>
+                                </DialogHeader>
+                                <div className="flex-1">
+                                    <iframe 
+                                        src={lesson.documentPath} 
+                                        className="w-full h-full"
+                                        title={`PDF Viewer for ${lesson.title}`}
+                                    />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                    {lesson.imagePath && (
+                        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                             <Image
-                                src={lesson.imagePath!}
+                                src={lesson.imagePath}
                                 alt={lesson.title}
                                 fill
                                 className="object-cover"
                             />
                         </div>
-                        <article
-                            className="prose dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
-                        />
-                    </div>
-                );
-            }
-            // Fallback for no image
-            return (
-                 <article
-                    className="prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: lesson.content || "<p>No content available.</p>" }}
-                />
+                    )}
+                    <article
+                        className="prose dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: lesson.content || "" }}
+                    />
+                </div>
             );
         case 'quiz':
             return <QuizContent lesson={lesson} onQuizPass={onQuizPass} />;

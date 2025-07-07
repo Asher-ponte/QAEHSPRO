@@ -31,6 +31,7 @@ const lessonSchema = z.object({
   type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
+  documentPath: z.string().optional().nullable(),
   questions: z.array(quizQuestionSchema).optional(),
 });
 
@@ -141,7 +142,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
                 if (lessonData.type === 'quiz' && lessonData.questions) {
                     contentToStore = transformQuestionsToDbFormat(lessonData.questions);
                 }
-                await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
+                await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.run('COMMIT');
