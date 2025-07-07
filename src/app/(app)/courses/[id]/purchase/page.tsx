@@ -30,6 +30,11 @@ interface Course {
   price: number;
 }
 
+interface QrCode {
+    label: string;
+    path: string;
+}
+
 const purchaseFormSchema = z.object({
   referenceNumber: z.string().min(1, { message: "Reference number is required." }),
   proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
@@ -43,6 +48,7 @@ export default function PurchasePage() {
     const router = useRouter();
     const { toast } = useToast();
     const [course, setCourse] = useState<Course | null>(null);
+    const [qrCodes, setQrCodes] = useState<QrCode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -52,19 +58,28 @@ export default function PurchasePage() {
     })
 
     useEffect(() => {
-        async function fetchCourseInfo() {
+        async function fetchPurchaseData() {
             if (!courseId) return;
             setIsLoading(true);
             try {
-                const res = await fetch(`/api/courses/${courseId}`);
-                if (!res.ok) {
-                    throw new Error("Could not fetch course information.");
-                }
-                const data = await res.json();
-                if (!data.is_public || !data.price) {
+                const [courseRes, qrRes] = await Promise.all([
+                    fetch(`/api/courses/${courseId}`),
+                    fetch(`/api/settings/public`)
+                ]);
+
+                if (!courseRes.ok) throw new Error("Could not fetch course information.");
+                const courseData = await courseRes.json();
+                if (!courseData.is_public || !courseData.price) {
                      throw new Error("This course is not available for purchase.");
                 }
-                setCourse(data);
+                setCourse(courseData);
+
+                if (qrRes.ok) {
+                    setQrCodes(await qrRes.json());
+                } else {
+                    console.error("Could not fetch QR codes");
+                }
+
             } catch (error) {
                 toast({
                     variant: "destructive",
@@ -76,7 +91,7 @@ export default function PurchasePage() {
                 setIsLoading(false);
             }
         }
-        fetchCourseInfo();
+        fetchPurchaseData();
     }, [courseId, router, toast]);
 
     async function onSubmit(values: PurchaseFormValues) {
@@ -151,15 +166,16 @@ export default function PurchasePage() {
                             Scan one of the QR codes below to pay the course fee of <span className="font-bold text-primary">₱{course.price.toFixed(2)}</span>. Please take a screenshot of the successful transaction.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex flex-wrap justify-center gap-8">
-                         <div className="text-center space-y-2">
-                            <h3 className="font-semibold">G-Cash</h3>
-                            <Image src="https://placehold.co/200x200.png" width={200} height={200} alt="G-Cash QR Code" data-ai-hint="QR code" />
-                        </div>
-                         <div className="text-center space-y-2">
-                            <h3 className="font-semibold">PayMaya</h3>
-                            <Image src="https://placehold.co/200x200.png" width={200} height={200} alt="PayMaya QR Code" data-ai-hint="QR code" />
-                        </div>
+                    <CardContent className="grid grid-cols-2 gap-x-8 gap-y-6 justify-items-center">
+                         {qrCodes.filter(qr => qr.path && qr.label).map((qr, index) => (
+                             <div key={index} className="text-center space-y-2">
+                                <h3 className="font-semibold">{qr.label}</h3>
+                                <Image src={qr.path} width={200} height={200} alt={`${qr.label} QR Code`} data-ai-hint="QR code" />
+                            </div>
+                         ))}
+                         {qrCodes.length === 0 && (
+                            <p className="col-span-2 text-muted-foreground text-center">No payment methods are configured. Please contact an administrator.</p>
+                         )}
                     </CardContent>
                 </Card>
 

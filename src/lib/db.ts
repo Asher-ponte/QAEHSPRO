@@ -256,6 +256,15 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     // Seed default settings if they don't exist.
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', `Company ${siteId}`]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/uploads/logo.png']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_1_label', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_1_path', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_2_label', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_2_path', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_3_label', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_3_path', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_4_label', '']);
+    await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['qr_code_4_path', '']);
+
 
     console.log(`Database connection for site '${siteId}' is ready.`);
     return db;

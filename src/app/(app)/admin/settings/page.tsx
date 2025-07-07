@@ -39,6 +39,14 @@ const settingsFormSchema = z.object({
   companyAddress: z.string().optional(),
   companyLogoPath: z.string().optional(),
   companyLogo2Path: z.string().optional(),
+  qrCode1Label: z.string().optional(),
+  qrCode1Path: z.string().optional(),
+  qrCode2Label: z.string().optional(),
+  qrCode2Path: z.string().optional(),
+  qrCode3Label: z.string().optional(),
+  qrCode3Path: z.string().optional(),
+  qrCode4Label: z.string().optional(),
+  qrCode4Path: z.string().optional(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>
@@ -82,7 +90,20 @@ export default function PlatformSettingsPage() {
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
-        defaultValues: { companyName: "", companyAddress: "", companyLogoPath: "", companyLogo2Path: "" },
+        defaultValues: { 
+            companyName: "", 
+            companyAddress: "", 
+            companyLogoPath: "", 
+            companyLogo2Path: "",
+            qrCode1Label: "",
+            qrCode1Path: "",
+            qrCode2Label: "",
+            qrCode2Path: "",
+            qrCode3Label: "",
+            qrCode3Path: "",
+            qrCode4Label: "",
+            qrCode4Path: "",
+        },
     });
     
     // Effect to set initial selected site from session
@@ -122,7 +143,15 @@ export default function PlatformSettingsPage() {
                   companyName: data.companyName,
                   companyAddress: data.companyAddress || "",
                   companyLogoPath: data.companyLogoPath || "",
-                  companyLogo2Path: data.companyLogo2Path || ""
+                  companyLogo2Path: data.companyLogo2Path || "",
+                  qrCode1Label: data.qrCode1Label || "",
+                  qrCode1Path: data.qrCode1Path || "",
+                  qrCode2Label: data.qrCode2Label || "",
+                  qrCode2Path: data.qrCode2Path || "",
+                  qrCode3Label: data.qrCode3Label || "",
+                  qrCode3Path: data.qrCode3Path || "",
+                  qrCode4Label: data.qrCode4Label || "",
+                  qrCode4Path: data.qrCode4Path || "",
                 });
             } catch (error) {
                 toast({
@@ -173,6 +202,7 @@ export default function PlatformSettingsPage() {
     
     const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
     const isManagingMainSite = isSuperAdmin && selectedSiteId === 'main';
+    const isManagingExternalSite = isSuperAdmin && selectedSiteId === 'external';
 
     return (
         <div className="flex flex-col gap-6">
@@ -217,115 +247,173 @@ export default function PlatformSettingsPage() {
                 )}
             </div>
 
-            {isManagingMainSite && <AppBrandingCard />}
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    {isManagingMainSite && <AppBrandingCard />}
 
-            <Card>
-                <CardHeader>
-                <CardTitle>Branch Branding</CardTitle>
-                <CardDescription>
-                    {isSuperAdmin && currentSite
-                        ? `These settings apply only to the "${selectedSiteName}" branch and will appear on its certificates.`
-                        : 'This information will appear on certificates and other official documents.'
-                    }
-                </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? (
-                        <div className="space-y-4 max-w-sm">
-                            <Skeleton className="h-6 w-32" />
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-20 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-36" />
-                        </div>
-                    ) : (
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-xl">
-                                <FormField
-                                    control={form.control}
-                                    name="companyName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Company Name</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Your Company LLC" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="companyAddress"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Company Address</FormLabel>
-                                            <FormControl>
-                                                <Textarea placeholder="123 Main St, Anytown, USA 12345" {...field} value={field.value ?? ''} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                The physical address of the company. This will appear on certificates.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <FormField
-                                        control={form.control}
-                                        name="companyLogoPath"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Primary Company Logo</FormLabel>
-                                                <FormControl>
-                                                     <ImageUpload
-                                                        onUploadComplete={(path) => field.onChange(path)}
-                                                        initialPath={field.value}
-                                                        onRemove={() => field.onChange("")}
-                                                    />
-                                                </FormControl>
-                                                <FormDescription>
-                                                    The main company logo. Appears top-left on certificates.
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="companyLogo2Path"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Secondary Company Logo</FormLabel>
-                                                 <FormControl>
-                                                     <ImageUpload
-                                                        onUploadComplete={(path) => field.onChange(path)}
-                                                        initialPath={field.value}
-                                                        onRemove={() => field.onChange("")}
-                                                    />
-                                                </FormControl>
-                                                <FormDescription>
-                                                    Optional second logo. Appears top-right on certificates.
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                    <Card>
+                        <CardHeader>
+                        <CardTitle>Branch Branding</CardTitle>
+                        <CardDescription>
+                            {isSuperAdmin && currentSite
+                                ? `These settings apply only to the "${selectedSiteName}" branch and will appear on its certificates.`
+                                : 'This information will appear on certificates and other official documents.'
+                            }
+                        </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? (
+                                <div className="space-y-4 max-w-sm">
+                                    <Skeleton className="h-6 w-32" />
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-20 w-full" />
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-10 w-36" />
                                 </div>
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Save className="mr-2 h-4 w-4" />
-                                    )}
-                                    Save Changes
-                                </Button>
-                            </form>
-                        </Form>
+                            ) : (
+                                <div className="space-y-6 max-w-xl">
+                                    <FormField
+                                        control={form.control}
+                                        name="companyName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Company Name</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Your Company LLC" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="companyAddress"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Company Address</FormLabel>
+                                                <FormControl>
+                                                    <Textarea placeholder="123 Main St, Anytown, USA 12345" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    The physical address of the company. This will appear on certificates.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control}
+                                            name="companyLogoPath"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Primary Company Logo</FormLabel>
+                                                    <FormControl>
+                                                        <ImageUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        The main company logo. Appears top-left on certificates.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="companyLogo2Path"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Secondary Company Logo</FormLabel>
+                                                    <FormControl>
+                                                        <ImageUpload
+                                                            onUploadComplete={(path) => field.onChange(path)}
+                                                            initialPath={field.value}
+                                                            onRemove={() => field.onChange("")}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Optional second logo. Appears top-right on certificates.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {isManagingExternalSite && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Payment QR Codes</CardTitle>
+                                <CardDescription>
+                                    Manage the QR codes displayed on the purchase page for external users. Upload up to four options.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {isLoading ? (
+                                    <Skeleton className="h-64 w-full" />
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {[1, 2, 3, 4].map(i => (
+                                            <div key={i} className="space-y-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`qrCode${i}Label` as keyof SettingsFormValues}
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>QR Code {i} Label</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder={`e.g., G-Cash`} {...field} value={field.value ?? ''}/>
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`qrCode${i}Path` as keyof SettingsFormValues}
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>QR Code {i} Image</FormLabel>
+                                                            <FormControl>
+                                                                <ImageUpload
+                                                                    onUploadComplete={(path) => field.onChange(path)}
+                                                                    initialPath={field.value}
+                                                                    onRemove={() => field.onChange("")}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
                     )}
-                </CardContent>
-            </Card>
+
+                    {!isLoading && (
+                         <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Save className="mr-2 h-4 w-4" />
+                            )}
+                            Save Changes
+                        </Button>
+                    )}
+                </form>
+            </Form>
         </div>
     )
 }
