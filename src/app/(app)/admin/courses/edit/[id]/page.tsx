@@ -73,7 +73,6 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
-  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -99,73 +98,6 @@ const courseSchema = z.object({
 
 type CourseFormValues = z.infer<typeof courseSchema>
 
-
-function BranchAvailabilityField({ control }: { control: Control<CourseFormValues> }) {
-    const [sites, setSites] = useState<Site[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchAllSites = async () => {
-            setIsLoading(true);
-            try {
-                const res = await fetch('/api/sites');
-                if (!res.ok) throw new Error("Failed to load sites");
-                const allSitesData = await res.json();
-                // Filter out main and external sites, as courses are for clients
-                const clientSites = allSitesData.filter((s: Site) => !['main', 'external'].includes(s.id));
-                setSites(clientSites);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchAllSites();
-    }, []);
-
-    return (
-        <FormField
-            control={control}
-            name="targetSiteIds"
-            render={({ field }) => (
-                <FormItem>
-                    {isLoading ? (
-                        <div className="space-y-2">
-                            <Skeleton className="h-6 w-1/2" />
-                            <Skeleton className="h-6 w-1/2" />
-                        </div>
-                    ) : sites.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {sites.map((site) => (
-                                <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value?.includes(site.id)}
-                                            onCheckedChange={(checked) => {
-                                                const currentValue = field.value || [];
-                                                return checked
-                                                    ? field.onChange([...currentValue, site.id])
-                                                    : field.onChange(currentValue.filter((value) => value !== site.id));
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        {site.name}
-                                    </FormLabel>
-                                </FormItem>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            No client branches found to publish to. You can add them from the <Link href="/admin/branches" className="underline">Branch Management</Link> page.
-                        </p>
-                    )}
-                    <FormMessage />
-                </FormItem>
-            )}
-        />
-    )
-}
 
 function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
     const isPublic = useWatch({
@@ -271,7 +203,7 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
         <FormField
             control={control}
             name="signatoryIds"
-            render={({ field }) => (
+            render={() => (
                 <FormItem>
                     {isLoading ? (
                         <div className="space-y-2">
@@ -282,23 +214,32 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
                     ) : signatories.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {signatories.map((signatory) => (
-                                <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value?.includes(signatory.id)}
-                                            onCheckedChange={(checked) => {
-                                                const currentValue = field.value || [];
-                                                return checked
-                                                    ? field.onChange([...currentValue, signatory.id])
-                                                    : field.onChange(currentValue.filter((value) => value !== signatory.id));
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        {signatory.name}
-                                        {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
-                                    </FormLabel>
-                                </FormItem>
+                                <FormField
+                                    key={signatory.id}
+                                    control={control}
+                                    name="signatoryIds"
+                                    render={({ field }) => {
+                                        return (
+                                            <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(signatory.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const currentValue = field.value || [];
+                                                            return checked
+                                                                ? field.onChange([...currentValue, signatory.id])
+                                                                : field.onChange(currentValue.filter((value) => value !== signatory.id));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                    {signatory.name}
+                                                    {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                                </FormLabel>
+                                            </FormItem>
+                                        );
+                                    }}
+                                />
                             ))}
                         </div>
                     ) : (
@@ -602,7 +543,7 @@ export default function EditCoursePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const courseId = params.id;
-  const { isSuperAdmin } = useSession();
+  const { site: currentSite } = useSession();
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -619,7 +560,6 @@ export default function EditCoursePage() {
       price: null,
       modules: [],
       signatoryIds: [],
-      targetSiteIds: [],
     },
     mode: "onChange"
   });
@@ -640,7 +580,6 @@ export default function EditCoursePage() {
                 is_internal: !!data.is_internal,
                 is_public: !!data.is_public,
                 signatoryIds: data.signatoryIds || [],
-                targetSiteIds: data.targetSiteIds || [], // Ensure this is initialized
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
@@ -666,19 +605,6 @@ export default function EditCoursePage() {
   async function onSubmit(values: CourseFormValues) {
     setIsSubmitting(true);
     
-    // Add a check for super admin to ensure at least one branch is selected for propagation.
-    // The course is updated in the current branch regardless.
-    if (isSuperAdmin && values.targetSiteIds && values.targetSiteIds.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Branch Selection Needed",
-            description: "Please select at least one branch to push updates to, or deselect all to only update the current branch's course.",
-        });
-        // We might not want to block the update for the current branch, so we can comment this out.
-        // setIsSubmitting(false);
-        // return;
-    }
-
     const payload = {
       ...values,
       price: values.is_public ? values.price : null,
@@ -718,7 +644,7 @@ export default function EditCoursePage() {
       toast({
         variant: "default",
         title: "Course Updated!",
-        description: `The course "${values.title}" has been successfully updated.`,
+        description: `The course "${values.title}" has been successfully updated for the branch "${currentSite?.name}".`,
       });
       
       router.push('/admin/courses');
@@ -762,7 +688,7 @@ export default function EditCoursePage() {
         <div>
           <h1 className="text-3xl font-bold font-headline">Edit Course</h1>
           <p className="text-muted-foreground">
-            Modify the course details and content below.
+            Modify the course details for branch: <span className="font-semibold text-primary">{currentSite?.name}</span>
           </p>
         </div>
       </div>
@@ -969,20 +895,6 @@ export default function EditCoursePage() {
                     </div>
                 </CardContent>
             </Card>
-
-            {isSuperAdmin && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Branch Availability</CardTitle>
-                        <CardDescription>
-                            Select which branches this course will be created in or updated to.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <BranchAvailabilityField control={form.control} />
-                    </CardContent>
-                </Card>
-            )}
 
              <Card>
                 <CardHeader>

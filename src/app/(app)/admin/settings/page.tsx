@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { useSession } from "@/hooks/use-session"
 
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
@@ -44,6 +45,7 @@ export default function PlatformSettingsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+    const { site: currentSite, isSuperAdmin } = useSession();
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
@@ -74,7 +76,7 @@ export default function PlatformSettingsPage() {
             }
         };
         fetchSettings();
-    }, [form, toast]);
+    }, [form, toast, currentSite]); // Refetch when site changes
 
 
     async function onSubmit(values: SettingsFormValues) {
@@ -122,7 +124,12 @@ export default function PlatformSettingsPage() {
             <Card>
                 <CardHeader>
                 <CardTitle>Company Branding</CardTitle>
-                <CardDescription>This information will appear on certificates and other official documents.</CardDescription>
+                <CardDescription>
+                    {isSuperAdmin && currentSite
+                        ? `These settings apply only to the "${currentSite.name}" branch and will appear on its certificates.`
+                        : 'This information will appear on certificates and other official documents.'
+                    }
+                </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (

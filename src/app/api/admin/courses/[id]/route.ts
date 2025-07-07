@@ -57,7 +57,7 @@ const moduleSchema = z.object({
   lessons: z.array(lessonSchema),
 });
 
-const courseSchema = z.object({
+const courseUpdateSchema = z.object({
   title: z.string(),
   description: z.string(),
   category: z.string(),
@@ -70,7 +70,6 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
-  targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -183,7 +182,7 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId, isSuperAdmin } = await getCurrentSession();
+    const { user, siteId } = await getCurrentSession();
     if (user?.role !== 'Admin' || !siteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
@@ -196,26 +195,17 @@ export async function PUT(
         }
 
         const data = await request.json();
-        const parsedData = courseSchema.safeParse(data);
+        const parsedData = courseUpdateSchema.safeParse(data);
 
         if (!parsedData.success) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
 
-        // ---- Start: Get original title before making changes ----
-        const sourceDb = await getDb(siteId);
-        const originalCourse = await sourceDb.get('SELECT title FROM courses WHERE id = ?', courseId);
-        if (!originalCourse) {
-            throw new Error(`Original course with ID ${courseId} not found in source site ${siteId}`);
-        }
-        const originalTitle = originalCourse.title;
-        // ---- End: Get original title ----
-
-
-        // ---- Start: Update course in the CURRENT site ----
-        db = sourceDb; // Use sourceDb for current site update
+        // An edit action only ever applies to the current site context.
+        // This preserves branch-specific overrides.
+        db = await getDb(siteId);
         await db.run('BEGIN TRANSACTION');
 
         await db.run(
@@ -265,65 +255,8 @@ export async function PUT(
             }
         }
         await db.run('COMMIT');
-        // ---- End: Update course in the CURRENT site ----
-
-
-        // ---- Start: Propagate changes to other sites if super admin ----
-        if (isSuperAdmin && targetSiteIds && targetSiteIds.length > 0) {
-            for (const targetSiteId of targetSiteIds) {
-                if (targetSiteId === siteId) continue; // Skip the site we just updated
-
-                const targetDb = await getDb(targetSiteId);
-                await targetDb.run('BEGIN TRANSACTION');
-
-                try {
-                    // Find if a course with the original title exists.
-                    const existingCourse = await targetDb.get('SELECT id FROM courses WHERE title = ?', originalTitle);
-                    let targetCourseId;
-
-                    if (existingCourse) {
-                        // UPDATE existing course
-                        targetCourseId = existingCourse.id;
-                        await targetDb.run('UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, targetCourseId]);
-                        // Clear existing content for a full resync
-                        await targetDb.run('DELETE FROM modules WHERE course_id = ?', targetCourseId);
-                    } else {
-                        // CREATE new course from scratch
-                        const courseResult = await targetDb.run('INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]);
-                        targetCourseId = courseResult.lastID; 
-                        if (!targetCourseId) { throw new Error('Failed to create course in target branch'); }
-                    }
-
-                    // Resync signatories
-                    await targetDb.run('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
-                    if (signatoryIds && signatoryIds.length > 0) {
-                        const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-                        for (const signatoryId of signatoryIds) { await stmt.run(targetCourseId, signatoryId); }
-                        await stmt.finalize();
-                    }
-                    
-                    // Re-create all modules and lessons from payload
-                    for (const [moduleIndex, moduleData] of modules.entries()) {
-                        const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
-                        const moduleId = moduleResult.lastID; 
-                        if (!moduleId) { throw new Error('Failed to create module'); }
-                        for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                            let contentToStore = lessonData.content ?? null;
-                            if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
-                            await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath]);
-                        }
-                    }
-                    
-                    await targetDb.run('COMMIT');
-                } catch (e) {
-                    await targetDb.run('ROLLBACK');
-                    console.error(`Failed to propagate course update to site ${targetSiteId}:`, e);
-                }
-            }
-        }
-        // ---- End: Propagate changes ----
-
-        const updatedCourse = await getDb(siteId).then(d => d.get('SELECT * FROM courses WHERE id = ?', courseId));
+       
+        const updatedCourse = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
         return NextResponse.json(updatedCourse, { status: 200 });
 
     } catch (error) {
