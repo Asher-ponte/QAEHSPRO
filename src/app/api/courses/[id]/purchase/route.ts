@@ -19,12 +19,7 @@ export async function POST(
     const { PAYMONGO_SECRET_KEY, NEXT_PUBLIC_APP_URL } = process.env;
     if (!PAYMONGO_SECRET_KEY || !NEXT_PUBLIC_APP_URL) {
         console.error("Payment gateway environment variables are not set.");
-        return NextResponse.json({ error: 'Payment gateway is not configured.' }, { status: 500 });
-    }
-
-    if (NEXT_PUBLIC_APP_URL.includes('localhost') || !NEXT_PUBLIC_APP_URL.startsWith('https://')) {
-        console.error("NEXT_PUBLIC_APP_URL must be a public HTTPS URL for payment gateway redirects, not localhost or a placeholder.");
-        return NextResponse.json({ error: 'Server is not configured with a public HTTPS URL for payments.' }, { status: 500 });
+        return NextResponse.json({ error: 'Payment gateway is not configured. Please set PAYMONGO_SECRET_KEY and NEXT_PUBLIC_APP_URL in your environment.' }, { status: 500 });
     }
     
     const db = await getDb(siteId);
