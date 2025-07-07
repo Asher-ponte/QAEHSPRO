@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { open, type Database } from 'sqlite';
@@ -246,16 +247,49 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         }
     }
     
-    // Seed default settings if they don't exist. This replaces the logic that caused the circular dependency.
+    // Seed default settings if they don't exist.
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_name', `Company ${siteId}`]);
     await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", ['company_logo_path', '/images/logo.png']);
     
-    // MIGRATION: Fix foreign key constraint on branch databases
-    if (siteId !== 'main') {
-        // Check course_signatories
+    // MIGRATION: Fix foreign key constraints on signatory tables.
+    if (siteId === 'main') {
+        // For main, ensure the FK to signatories EXISTS.
+        const courseSigPragma = await db.all(`PRAGMA foreign_key_list('course_signatories');`);
+        if (!courseSigPragma.some(fk => fk.table === 'signatories')) {
+            console.log(`Applying migration for site 'main': Rebuilding 'course_signatories' to ADD FK to signatories.`);
+            await db.exec('BEGIN TRANSACTION;');
+            try {
+                await db.exec('ALTER TABLE course_signatories RENAME TO _course_signatories_old;');
+                await db.exec(mainCourseSignatoriesSql);
+                await db.exec('INSERT INTO course_signatories (course_id, signatory_id) SELECT course_id, signatory_id FROM _course_signatories_old;');
+                await db.exec('DROP TABLE _course_signatories_old;');
+                await db.exec('COMMIT;');
+            } catch (e) {
+                await db.exec('ROLLBACK;');
+                throw e; 
+            }
+        }
+
+        const certSigPragma = await db.all(`PRAGMA foreign_key_list('certificate_signatories');`);
+         if (!certSigPragma.some(fk => fk.table === 'signatories')) {
+            console.log(`Applying migration for site 'main': Rebuilding 'certificate_signatories' to ADD FK to signatories.`);
+            await db.exec('BEGIN TRANSACTION;');
+            try {
+                await db.exec('ALTER TABLE certificate_signatories RENAME TO _certificate_signatories_old;');
+                await db.exec(mainCertSignatoriesSql);
+                await db.exec('INSERT INTO certificate_signatories (certificate_id, signatory_id) SELECT certificate_id, signatory_id FROM _certificate_signatories_old;');
+                await db.exec('DROP TABLE _certificate_signatories_old;');
+                await db.exec('COMMIT;');
+            } catch (e) {
+                await db.exec('ROLLBACK;');
+                throw e;
+            }
+        }
+    } else {
+        // For branches, ensure the FK to signatories DOES NOT exist.
         const courseSigPragma = await db.all(`PRAGMA foreign_key_list('course_signatories');`);
         if (courseSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site '${siteId}': Rebuilding 'course_signatories' to remove FK to signatories.`);
+            console.log(`Applying migration for site '${siteId}': Rebuilding 'course_signatories' to REMOVE FK to signatories.`);
             await db.exec('BEGIN TRANSACTION;');
             try {
                 await db.exec('ALTER TABLE course_signatories RENAME TO _course_signatories_old;');
@@ -265,14 +299,13 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
                 await db.exec('COMMIT;');
             } catch (e) {
                 await db.exec('ROLLBACK;');
-                throw e; // Re-throw to indicate failure
+                throw e; 
             }
         }
 
-        // Check certificate_signatories
         const certSigPragma = await db.all(`PRAGMA foreign_key_list('certificate_signatories');`);
         if (certSigPragma.some(fk => fk.table === 'signatories')) {
-            console.log(`Applying migration for site '${siteId}': Rebuilding 'certificate_signatories' to remove FK to signatories.`);
+            console.log(`Applying migration for site '${siteId}': Rebuilding 'certificate_signatories' to REMOVE FK to signatories.`);
             await db.exec('BEGIN TRANSACTION;');
             try {
                 await db.exec('ALTER TABLE certificate_signatories RENAME TO _certificate_signatories_old;');
@@ -282,7 +315,7 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
                 await db.exec('COMMIT;');
             } catch (e) {
                 await db.exec('ROLLBACK;');
-                throw e; // Re-throw to indicate failure
+                throw e;
             }
         }
     }
