@@ -1,5 +1,4 @@
-
-'use server'
+'use server';
 
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
@@ -26,11 +25,11 @@ export interface SessionData {
  * This version correctly handles super admin context switching.
  */
 export async function getCurrentSession(): Promise<SessionData> {
+  // This function is dynamic and should not be cached.
   noStore();
   
-  const cookieStore = cookies();
-  const sessionId = cookieStore.get('session_id')?.value;
-  const siteId = cookieStore.get('site_id')?.value; // This is the site the user is currently "in".
+  const sessionId = cookies().get('session_id')?.value;
+  const siteId = cookies().get('site_id')?.value;
 
   if (!sessionId || !siteId) {
     return { user: null, siteId: null, isSuperAdmin: false };
@@ -43,31 +42,34 @@ export async function getCurrentSession(): Promise<SessionData> {
 
   try {
     const db = await getDb(siteId);
+    
+    // Attempt to find the user in the context of their current site.
     const userInContext = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
-    
-    if (userInContext) {
-        // We found a user in the DB for the current site context. This is their identity.
-        const isSuperAdmin = siteId === 'main' && userInContext.role === 'Admin';
-        return { user: userInContext, siteId: siteId, isSuperAdmin: isSuperAdmin };
-    }
-    
-    // If no user was found in the current context, it's possible it's a super admin
-    // whose identity is in 'main' but they are viewing another branch. This is the context-switching case.
-    if (siteId !== 'main') {
-        const mainDb = await getDb('main');
-        const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
-        
-        if (potentialSuperAdmin) {
-            // Confirmed super admin. Return their identity but keep the current site context.
-            return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
-        }
-    }
-    
-    // If we reach here, the session is invalid (e.g., user deleted, or cookies are mismatched).
-    return { user: null, siteId: null, isSuperAdmin: false };
 
+    if (userInContext) {
+      // User found in the current site. Check if this context makes them a super admin.
+      const isSuperAdmin = siteId === 'main' && userInContext.role === 'Admin';
+      return { user: userInContext, siteId: siteId, isSuperAdmin: isSuperAdmin };
+    }
+
+    // If the user isn't found in the current site's context,
+    // check if they are a super admin from the 'main' site viewing another branch.
+    if (siteId !== 'main') {
+      const mainDb = await getDb('main');
+      const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
+
+      if (potentialSuperAdmin) {
+        // Confirmed super admin. Return their identity but keep the current site context.
+        return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
+      }
+    }
+
+    // If we reach here, the session is invalid for the current context.
+    return { user: null, siteId: null, isSuperAdmin: false };
+    
   } catch (error) {
     console.error("Failed to get current session from DB:", error);
+    // On any database error, return an empty session for security.
     return { user: null, siteId: null, isSuperAdmin: false };
   }
 }
