@@ -51,6 +51,7 @@ export default function PurchasePage() {
     const [qrCodes, setQrCodes] = useState<QrCode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedQr, setSelectedQr] = useState<QrCode | null>(null);
 
     const form = useForm<PurchaseFormValues>({
         resolver: zodResolver(purchaseFormSchema),
@@ -75,7 +76,12 @@ export default function PurchasePage() {
                 setCourse(courseData);
 
                 if (qrRes.ok) {
-                    setQrCodes(await qrRes.json());
+                    const qrCodeData: QrCode[] = await qrRes.json();
+                    const validQrCodes = qrCodeData.filter(qr => qr.path && qr.label);
+                    setQrCodes(validQrCodes);
+                    if (validQrCodes.length > 0) {
+                        setSelectedQr(validQrCodes[0]);
+                    }
                 } else {
                     console.error("Could not fetch QR codes");
                 }
@@ -160,19 +166,32 @@ export default function PurchasePage() {
                     <CardHeader>
                         <CardTitle>Step 1: Make Payment</CardTitle>
                         <CardDescription>
-                            Scan one of the QR codes below to pay the course fee of <span className="font-bold text-primary">₱{course.price.toFixed(2)}</span>. Please take a screenshot of the successful transaction.
+                            Select a payment option below to reveal the QR code, then pay the course fee of <span className="font-bold text-primary">₱{course.price.toFixed(2)}</span>. Please take a screenshot of the successful transaction.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-x-8 gap-y-6 justify-items-center">
-                         {qrCodes.filter(qr => qr.path && qr.label).map((qr, index) => (
-                             <div key={index} className="text-center space-y-2">
-                                <h3 className="font-semibold">{qr.label}</h3>
-                                <Image src={qr.path} width={200} height={200} alt={`${qr.label} QR Code`} data-ai-hint="QR code" />
+                     <CardContent className="space-y-4">
+                         <div className="flex flex-wrap gap-2">
+                            {qrCodes.map((qr, index) => (
+                                <Button
+                                    key={index}
+                                    variant={selectedQr?.path === qr.path ? "default" : "outline"}
+                                    onClick={() => setSelectedQr(qr)}
+                                >
+                                    {qr.label}
+                                </Button>
+                            ))}
+                        </div>
+                         {qrCodes.length === 0 ? (
+                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                                <p>No payment methods are configured.</p>
+                                <p className="text-sm">Please contact an administrator.</p>
                             </div>
-                         ))}
-                         {qrCodes.length === 0 && (
-                            <p className="col-span-2 text-muted-foreground text-center">No payment methods are configured. Please contact an administrator.</p>
-                         )}
+                         ) : selectedQr ? (
+                            <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-white">
+                                <h3 className="font-semibold text-lg mb-4 text-black">{selectedQr.label}</h3>
+                                <Image src={selectedQr.path} width={250} height={250} alt={`${selectedQr.label} QR Code`} data-ai-hint="QR code" />
+                            </div>
+                        ) : null}
                     </CardContent>
                 </Card>
 
@@ -216,7 +235,7 @@ export default function PurchasePage() {
                                         </FormItem>
                                     )}
                                 />
-                                <Button type="submit" disabled={isSubmitting} className="w-full">
+                                <Button type="submit" disabled={isSubmitting || qrCodes.length === 0} className="w-full">
                                     {isSubmitting ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : (
