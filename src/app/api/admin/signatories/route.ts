@@ -8,7 +8,7 @@ import { getAllSites } from '@/lib/sites';
 const signatorySchema = z.object({
   name: z.string().min(1, "Name is required."),
   position: z.string().min(1, "Position is required."),
-  signatureImagePath: z.string().min(1, "Signature image path is required."),
+  signatureImagePath: z.string().min(1, "Signature image is required."),
   siteId: z.string()
 });
 
@@ -75,5 +75,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create signatory' }, { status: 500 });
   }
 }
-
-    

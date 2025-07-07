@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImageUpload } from "@/components/image-upload"
 
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
@@ -208,7 +209,7 @@ export default function PlatformSettingsPage() {
                         </div>
                     ) : (
                         <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-sm">
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-xl">
                                 <FormField
                                     control={form.control}
                                     name="companyName"
@@ -238,38 +239,48 @@ export default function PlatformSettingsPage() {
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name="companyLogoPath"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Company Logo Path</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="/images/your-logo.png" {...field} value={field.value ?? ''} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                Place your logo in `public/images` and enter the path here.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="companyLogo2Path"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Company Logo 2 Path</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="/images/your-second-logo.png" {...field} value={field.value ?? ''} />
-                                            </FormControl>
-                                            <FormDescription>
-                                                Optional second logo. Place in `public/images`.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <FormField
+                                        control={form.control}
+                                        name="companyLogoPath"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Primary Company Logo</FormLabel>
+                                                <FormControl>
+                                                     <ImageUpload
+                                                        onUploadComplete={(path) => field.onChange(path)}
+                                                        initialPath={field.value}
+                                                        onRemove={() => field.onChange("")}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    The main company logo. Appears top-left on certificates.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="companyLogo2Path"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Secondary Company Logo</FormLabel>
+                                                 <FormControl>
+                                                     <ImageUpload
+                                                        onUploadComplete={(path) => field.onChange(path)}
+                                                        initialPath={field.value}
+                                                        onRemove={() => field.onChange("")}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    Optional second logo. Appears top-right on certificates.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
                                 <Button type="submit" disabled={isSubmitting}>
                                     {isSubmitting ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -286,5 +297,3 @@ export default function PlatformSettingsPage() {
         </div>
     )
 }
-
-    

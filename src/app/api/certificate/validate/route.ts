@@ -1,9 +1,24 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getAllSites } from '@/lib/sites';
+import { getAllSites } from "@/lib/sites";
 
-export async function GET(request: NextRequest) {
+interface CertificateData {
+  id: number;
+  completion_date: string;
+  certificateNumber: string | null;
+  type: 'completion' | 'recognition';
+  reason: string | null;
+  companyName: string;
+  companyAddress: string | null;
+  companyLogoPath: string | null;
+  companyLogo2Path: string | null;
+  user: { username: string; fullName: string | null };
+  course: { title: string; venue: string | null } | null;
+  signatories: { name: string; position: string | null; signatureImagePath: string }[];
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse<CertificateData | { error: string }>> {
     const { searchParams } = new URL(request.url);
     const number = searchParams.get('number');
     const siteId = searchParams.get('siteId');
@@ -36,12 +51,17 @@ export async function GET(request: NextRequest) {
             course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         }
 
-        const signatories = await db.all(`
-            SELECT s.name, s.position, s.signatureImagePath
-            FROM signatories s
-            JOIN certificate_signatories cs ON s.id = cs.signatory_id
-            WHERE cs.certificate_id = ?
-        `, certificate.id);
+        const signatoryIdsResult = await db.all('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
+        const signatoryIds = signatoryIdsResult.map(s => s.signatory_id);
+        let signatories = [];
+        if (signatoryIds.length > 0) {
+            const placeholders = signatoryIds.map(() => '?').join(',');
+            signatories = await db.all(`
+                SELECT s.name, s.position, s.signatureImagePath
+                FROM signatories s
+                WHERE s.id IN (${placeholders})
+            `, signatoryIds);
+        }
         
         const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
         
@@ -62,12 +82,9 @@ export async function GET(request: NextRequest) {
             companyLogo2Path: companyLogo2Path,
             user: {
                 username: user?.username || 'Unknown User',
-                fullName: user?.fullName || null
+                fullName: user?.fullName || null,
             },
-            course: course ? {
-                title: course?.title || 'Unknown Course',
-                venue: course?.venue || null,
-            } : null,
+            course: course,
             signatories: signatories,
         };
 
@@ -75,6 +92,6 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error("Failed to validate certificate:", error);
-        return NextResponse.json({ error: 'Failed to validate certificate data' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to retrieve certificate data due to a server error.' }, { status: 500 });
     }
 }

@@ -74,6 +74,7 @@ import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from "lucide-react"
+import { ImageUpload } from "@/components/image-upload"
 
 
 interface Signatory {
@@ -92,7 +93,7 @@ interface User {
 const signatoryFormSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters." }),
   position: z.string().min(3, { message: "Position must be at least 3 characters." }),
-  signatureImagePath: z.string().min(1, { message: "Signature image path is required." }),
+  signatureImagePath: z.string().min(1, { message: "Signature image is required." }),
 })
 
 type SignatoryFormValues = z.infer<typeof signatoryFormSchema>
@@ -211,10 +212,17 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory, open
                             name="signatureImagePath"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Signature Image Path</FormLabel>
+                                    <FormLabel>Signature Image</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="/images/signatures/jane-doe.png" {...field} />
+                                        <ImageUpload
+                                            onUploadComplete={(path) => field.onChange(path)}
+                                            initialPath={field.value}
+                                            onRemove={() => field.onChange("")}
+                                        />
                                     </FormControl>
+                                    <FormDescription>
+                                        Upload a transparent PNG of the signature.
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -319,7 +327,9 @@ function SignatoriesList({ signatories, isLoading, onSignatoryChange, siteId }: 
                         <TableCell className="font-medium">{signatory.name}</TableCell>
                         <TableCell>{signatory.position}</TableCell>
                         <TableCell>
-                            <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
+                            {signatory.signatureImagePath && (
+                                <Image src={signatory.signatureImagePath} alt={`Signature of ${signatory.name}`} width={120} height={40} className="object-contain invert-0 dark:invert" />
+                            )}
                         </TableCell>
                         <TableCell className="text-right">
                              <DropdownMenu>
@@ -762,7 +772,7 @@ export default function ManageCertificatesPage() {
         )}
       </div>
       
-      <Tabs defaultValue="recognition" className="w-full">
+      <Tabs defaultValue="signatories" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signatories">Signatories</TabsTrigger>
             <TabsTrigger value="recognition">Certificate of Recognition</TabsTrigger>
@@ -796,5 +806,3 @@ export default function ManageCertificatesPage() {
     </div>
   )
 }
-
-    

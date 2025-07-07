@@ -4,7 +4,6 @@ import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
-import { getDb } from '@/lib/db';
 import { getAllSites } from "@/lib/sites";
 
 interface CertificateData {
@@ -24,67 +23,20 @@ interface CertificateData {
 
 async function fetchCertificateData(number: string, siteId: string): Promise<{ data: CertificateData | null; error: string | null }> {
     try {
-        const db = await getDb(siteId);
+        const url = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/certificate/validate?number=${number}&siteId=${siteId}`;
+        const res = await fetch(url, { cache: 'no-store' });
         
-        const certificate = await db.get(
-            `SELECT * FROM certificates WHERE certificate_number = ?`,
-            [number]
-        );
-
-        if (!certificate) {
-            return { data: null, error: 'Certificate not found.' };
+        const responseData = await res.json();
+        
+        if (!res.ok) {
+            return { data: null, error: responseData.error || `Failed to fetch data, status: ${res.status}` };
         }
-        
-        const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
-        
-        let course = null;
-        if (certificate.course_id) {
-            course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
-        }
-
-        const mainDb = await getDb('main');
-        const signatoryIdsResult = await db.all('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
-        const signatoryIds = signatoryIdsResult.map(s => s.signatory_id);
-        let signatories = [];
-        if (signatoryIds.length > 0) {
-            const placeholders = signatoryIds.map(() => '?').join(',');
-            signatories = await mainDb.all(`
-                SELECT s.name, s.position, s.signatureImagePath
-                FROM signatories s
-                WHERE s.id IN (${placeholders})
-            `, signatoryIds);
-        }
-        
-        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
-        
-        const companyName = settings.find(s => s.key === 'company_name')?.value || 'Your Company Name';
-        const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || null;
-        const companyLogo2Path = settings.find(s => s.key === 'company_logo_2_path')?.value || null;
-        const companyAddress = settings.find(s => s.key === 'company_address')?.value || null;
-
-        const responseData = {
-            id: certificate.id,
-            completion_date: certificate.completion_date,
-            certificateNumber: certificate.certificate_number,
-            type: certificate.type,
-            reason: certificate.reason,
-            companyName: companyName,
-            companyAddress: companyAddress,
-            companyLogoPath: companyLogoPath,
-            companyLogo2Path: companyLogo2Path,
-            user: {
-                username: user?.username || 'Unknown User',
-                fullName: user?.fullName || null,
-            },
-            course: course,
-            signatories: signatories,
-        };
 
         return { data: responseData, error: null };
 
     } catch (error) {
         console.error("Failed to validate certificate:", error);
-        return { data: null, error: 'Failed to retrieve certificate data due to a server error.' };
+        return { data: null, error: 'Failed to retrieve certificate data due to a network or server error.' };
     }
 }
 

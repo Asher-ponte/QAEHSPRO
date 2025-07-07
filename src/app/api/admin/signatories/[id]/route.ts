@@ -8,7 +8,7 @@ import { getAllSites } from '@/lib/sites';
 const signatoryUpdateSchema = z.object({
   name: z.string().min(1, "Name is required."),
   position: z.string().min(1, "Position is required."),
-  signatureImagePath: z.string().min(1, "Signature image path is required."),
+  signatureImagePath: z.string().min(1, "Signature image is required."),
 });
 
 async function checkPermissions(siteId: string | null) {
@@ -97,5 +97,3 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete signatory' }, { status: 500 });
     }
 }
-
-    
