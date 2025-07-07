@@ -53,9 +53,9 @@ export function SiteSwitcher() {
                 throw new Error(errorData.error || "Failed to switch branches.");
             }
             
-            // On success, force a full page reload.
-            // This is the most reliable way to ensure all state is re-evaluated with the new cookie.
-            window.location.reload();
+            // On success, force a full page navigation to the admin dashboard.
+            // This is more reliable than reload() as it ensures all states are reset.
+            window.location.href = '/admin';
 
         } catch (error) {
             toast({
