@@ -2,43 +2,28 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 
-interface QrCodeSetting {
-    label: string;
-    path: string;
-}
-
 export async function GET() {
     try {
-        // Public settings, especially for payments, are always from the 'external' DB.
-        const db = await getDb('external');
-        
+        const db = await getDb('external'); // QR codes for public payment are stored with the external site settings
         const settings = await db.all(
-            "SELECT key, value FROM app_settings WHERE key LIKE 'qr_code_%'"
+            `SELECT key, value FROM app_settings 
+             WHERE key LIKE 'qr_code_%_path' OR key LIKE 'qr_code_%_label'`
         );
-        
-        const qrCodeSettings: Record<string, Partial<QrCodeSetting>> = {};
 
-        settings.forEach(setting => {
-            const match = setting.key.match(/qr_code_(\d)_(label|path)/);
-            if (match) {
-                const [, index, type] = match;
-                if (!qrCodeSettings[index]) {
-                    qrCodeSettings[index] = {};
-                }
-                qrCodeSettings[index][type as keyof QrCodeSetting] = setting.value;
-            }
-        });
+        const settingsMap = settings.reduce((acc, s) => {
+            acc[s.key] = s.value;
+            return acc;
+        }, {} as Record<string, string>);
 
-        const formattedQrCodes: QrCodeSetting[] = Object.values(qrCodeSettings)
-            .filter(qr => qr.label && qr.path)
-            .map(qr => ({
-                label: qr.label!,
-                path: qr.path!,
-            }));
-            
-        return NextResponse.json(formattedQrCodes);
+        const qrCodes = [1, 2, 3, 4].map(i => ({
+            label: settingsMap[`qr_code_${i}_label`] || '',
+            path: settingsMap[`qr_code_${i}_path`] || '',
+        })).filter(qr => qr.path && qr.label);
+
+        return NextResponse.json(qrCodes);
+
     } catch (error) {
         console.error("Failed to fetch public settings:", error);
-        return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch public settings' }, { status: 500 });
     }
 }
