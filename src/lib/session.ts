@@ -4,7 +4,6 @@
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { unstable_noStore as noStore } from 'next/cache';
-import { getAllSites } from './sites';
 
 interface User {
   id: number;
@@ -24,59 +23,48 @@ export interface SessionData {
 
 /**
  * Gets the current user and their active site from the session cookies.
+ * This version correctly handles super admin context switching.
  */
 export async function getCurrentSession(): Promise<SessionData> {
   noStore();
   
-  try {
-    const cookieStore = cookies();
-    const sessionId = cookieStore.get('session_id')?.value;
-    let siteId = cookieStore.get('site_id')?.value; // This can be the context for a super admin
+  const cookieStore = cookies();
+  const sessionId = cookieStore.get('session_id')?.value;
+  const siteId = cookieStore.get('site_id')?.value; // This is the site the user is currently "in".
 
-    if (!sessionId) {
+  if (!sessionId || !siteId) {
+    return { user: null, siteId: null, isSuperAdmin: false };
+  }
+
+  const userId = parseInt(sessionId, 10);
+  if (isNaN(userId)) {
       return { user: null, siteId: null, isSuperAdmin: false };
-    }
+  }
 
-    const userId = parseInt(sessionId, 10);
-    if (isNaN(userId)) {
-        return { user: null, siteId: null, isSuperAdmin: false };
-    }
-
-    const allSites = await getAllSites();
-
-    // First, check if the user is a super admin by checking them against the 'main' database.
-    const mainDb = await getDb('main');
-    const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ?', userId);
+  try {
+    const db = await getDb(siteId);
+    const userInContext = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
     
-    // A user is a super admin if they are an Admin in the 'main' site.
-    const isSuperAdmin = !!(potentialSuperAdmin && potentialSuperAdmin.role === 'Admin');
-
-    if (isSuperAdmin) {
-      // If the user is a super admin, their user object is `potentialSuperAdmin`.
-      // The `siteId` cookie is just for context. We need to ensure it's a valid site.
-      if (!siteId || !allSites.some(s => s.id === siteId)) {
-        // If the siteId is invalid or missing, default to 'main'.
-        siteId = 'main';
-      }
-      return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
-    } else {
-      // If not a super admin, the user must exist in the DB of the specified siteId.
-      if (!siteId || !allSites.some(s => s.id === siteId)) {
-        // For regular users, an invalid siteId means no session.
-        return { user: null, siteId: null, isSuperAdmin: false };
-      }
-
-      const db = await getDb(siteId);
-      const user = await db.get<User>('SELECT * FROM users WHERE id = ?', userId);
-
-      // The user must exist in this specific branch's DB.
-      if (!user) {
-        return { user: null, siteId: null, isSuperAdmin: false };
-      }
-      
-      // A client admin is not a super admin.
-      return { user: user, siteId, isSuperAdmin: false };
+    if (userInContext) {
+        // We found a user in the DB for the current site context. This is their identity.
+        const isSuperAdmin = siteId === 'main' && userInContext.role === 'Admin';
+        return { user: userInContext, siteId: siteId, isSuperAdmin: isSuperAdmin };
     }
+    
+    // If no user was found in the current context, it's possible it's a super admin
+    // whose identity is in 'main' but they are viewing another branch. This is the context-switching case.
+    if (siteId !== 'main') {
+        const mainDb = await getDb('main');
+        const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
+        
+        if (potentialSuperAdmin) {
+            // Confirmed super admin. Return their identity but keep the current site context.
+            return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
+        }
+    }
+    
+    // If we reach here, the session is invalid (e.g., user deleted, or cookies are mismatched).
+    return { user: null, siteId: null, isSuperAdmin: false };
 
   } catch (error) {
     console.error("Failed to get current session from DB:", error);
