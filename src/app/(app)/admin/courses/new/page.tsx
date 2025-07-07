@@ -136,22 +136,29 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
                     ) : sites.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {sites.map((site) => (
-                                <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value?.includes(site.id)}
-                                            onCheckedChange={(checked) => {
-                                                const currentValue = field.value || [];
-                                                return checked
-                                                    ? field.onChange([...currentValue, site.id])
-                                                    : field.onChange(currentValue.filter((value) => value !== site.id));
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        {site.name}
-                                    </FormLabel>
-                                </FormItem>
+                                <FormField
+                                    key={site.id}
+                                    control={control}
+                                    name="targetSiteIds"
+                                    render={({ field }) => (
+                                        <FormItem key={site.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                            <FormControl>
+                                                <Checkbox
+                                                    checked={field.value?.includes(site.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        const currentValue = field.value || [];
+                                                        return checked
+                                                            ? field.onChange([...currentValue, site.id])
+                                                            : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                    }}
+                                                />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                {site.name}
+                                            </FormLabel>
+                                        </FormItem>
+                                    )}
+                                />
                             ))}
                         </div>
                     ) : (
@@ -765,19 +772,17 @@ export default function CreateCoursePage() {
                             <FormItem>
                                 <FormLabel>Category</FormLabel>
                                 <FormControl>
-                                    <>
-                                        <Input
-                                            placeholder="e.g., Health & Safety"
-                                            {...field}
-                                            list="category-list"
-                                        />
-                                        <datalist id="category-list">
-                                            {categories.map((cat) => (
-                                                <option key={cat} value={cat} />
-                                            ))}
-                                        </datalist>
-                                    </>
+                                    <Input
+                                        placeholder="e.g., Health & Safety"
+                                        {...field}
+                                        list="category-list"
+                                    />
                                 </FormControl>
+                                <datalist id="category-list">
+                                    {categories.map((cat) => (
+                                        <option key={cat} value={cat} />
+                                    ))}
+                                </datalist>
                                 <FormDescription>
                                     Select an existing category or type to create a new one.
                                 </FormDescription>

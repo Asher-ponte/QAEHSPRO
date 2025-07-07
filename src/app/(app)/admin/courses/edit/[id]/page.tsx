@@ -765,19 +765,17 @@ export default function EditCoursePage() {
                                 <FormItem>
                                     <FormLabel>Category</FormLabel>
                                     <FormControl>
-                                        <>
-                                            <Input
-                                                placeholder="e.g., Health & Safety"
-                                                {...field}
-                                                list="category-list"
-                                            />
-                                            <datalist id="category-list">
-                                                {categories.map((cat) => (
-                                                    <option key={cat} value={cat} />
-                                                ))}
-                                            </datalist>
-                                        </>
+                                        <Input
+                                            placeholder="e.g., Health & Safety"
+                                            {...field}
+                                            list="category-list"
+                                        />
                                     </FormControl>
+                                    <datalist id="category-list">
+                                        {categories.map((cat) => (
+                                            <option key={cat} value={cat} />
+                                        ))}
+                                    </datalist>
                                     <FormDescription>
                                         Select an existing category or type to create a new one.
                                     </FormDescription>
