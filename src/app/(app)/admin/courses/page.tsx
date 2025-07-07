@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -75,6 +75,7 @@ interface CourseAdminView {
   is_internal: boolean;
   is_public: boolean;
   price: number | null;
+  publishedTo?: string[];
 }
 
 interface User {
@@ -627,7 +628,7 @@ export default function ManageCoursesPage() {
   const [courseForRetraining, setCourseForRetraining] = useState<CourseAdminView | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast()
-  const { isSuperAdmin } = useSession();
+  const { isSuperAdmin, site } = useSession();
   const [categories, setCategories] = useState<string[]>([]);
   
   const [filters, setFilters] = useState({ title: '', category: 'all' });
@@ -675,7 +676,7 @@ export default function ManageCoursesPage() {
 
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [site]);
 
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
@@ -746,6 +747,7 @@ export default function ManageCoursesPage() {
   };
 
   const filtersAreActive = filters.title !== '' || filters.category !== 'all';
+  const showPublishedToColumn = isSuperAdmin && site?.id === 'main';
 
   return (
     <div className="flex flex-col gap-6">
@@ -808,6 +810,7 @@ export default function ManageCoursesPage() {
                 <TableHead>Price</TableHead>
                 <TableHead className="text-center">Enrolled</TableHead>
                 <TableHead className="w-[180px]">Completion Rate</TableHead>
+                {showPublishedToColumn && <TableHead>Published To</TableHead>}
                 <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -821,6 +824,7 @@ export default function ManageCoursesPage() {
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-5 w-8 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    {showPublishedToColumn && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -852,6 +856,21 @@ export default function ManageCoursesPage() {
                                 <span className="text-xs font-medium text-muted-foreground">{course.completionRate}%</span>
                             </div>
                         </TableCell>
+                        {showPublishedToColumn && (
+                            <TableCell>
+                                {course.publishedTo && course.publishedTo.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                        {course.publishedTo.map(branchName => (
+                                            <Badge key={branchName} variant="secondary" className="font-normal">
+                                                {branchName}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground">Main Only</span>
+                                )}
+                            </TableCell>
+                        )}
                         <TableCell>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -881,10 +900,12 @@ export default function ManageCoursesPage() {
                                     <BarChart className="mr-2 h-4 w-4" />
                                     <span>View Progress</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => openRetrainingDialog(course)}>
-                                    <RefreshCcw className="mr-2 h-4 w-4" />
-                                    <span>Initiate Re-Training</span>
-                                </DropdownMenuItem>
+                                {showPublishedToColumn && (
+                                     <DropdownMenuItem onSelect={() => openRetrainingDialog(course)}>
+                                        <RefreshCcw className="mr-2 h-4 w-4" />
+                                        <span>Initiate Re-Training</span>
+                                    </DropdownMenuItem>
+                                )}
                             <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 <span>Delete</span>
@@ -897,7 +918,7 @@ export default function ManageCoursesPage() {
                 )
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={showPublishedToColumn ? 8 : 7} className="h-24 text-center">
                     No courses found{filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
