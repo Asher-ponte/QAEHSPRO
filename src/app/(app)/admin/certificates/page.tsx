@@ -45,7 +45,6 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog"
 import {
   Form,
@@ -109,14 +108,24 @@ const recognitionCertificateFormSchema = z.object({
 type RecognitionCertificateFormValues = z.infer<typeof recognitionCertificateFormSchema>;
 
 
-function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { onFormSubmit: () => void, children: ReactNode, siteId: string, existingSignatory?: Signatory | null }) {
-    const [open, setOpen] = useState(false);
+function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory, open: controlledOpen, onOpenChange: setControlledOpen }: { 
+    onFormSubmit: () => void;
+    children?: ReactNode;
+    siteId: string;
+    existingSignatory?: Signatory | null;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+}) {
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+    const isControlled = controlledOpen !== undefined && setControlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : uncontrolledOpen;
+    const setOpen = isControlled ? setControlledOpen : setUncontrolledOpen;
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
     const form = useForm<SignatoryFormValues>({
         resolver: zodResolver(signatoryFormSchema),
-        defaultValues: existingSignatory || { name: "", position: "", signatureImagePath: "" },
     });
     
     useEffect(() => {
@@ -129,7 +138,7 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { 
         setIsSubmitting(true);
         try {
             const isEditing = !!existingSignatory;
-            const url = isEditing ? `/api/admin/signatories/${existingSignatory.id}` : '/api/admin/signatories';
+            const url = isEditing ? `/api/admin/signatories/${existingSignatory.id}?siteId=${siteId}` : '/api/admin/signatories';
             const method = isEditing ? 'PUT' : 'POST';
 
             const response = await fetch(url, {
@@ -147,7 +156,7 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { 
                 description: `Signatory "${values.name}" has been saved successfully.`,
             });
             onFormSubmit();
-            setOpen(false);
+            setOpen(false); // Close the dialog
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -161,7 +170,7 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { 
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
+            {children && <DialogTrigger asChild>{children}</DialogTrigger>}
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>{existingSignatory ? 'Edit Signatory' : 'Add New Signatory'}</DialogTitle>
@@ -191,7 +200,7 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { 
                                 <FormItem>
                                     <FormLabel>Position / Title</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Chief Executive Officer" {...field} />
+                                        <Input placeholder="e.g., Chief Executive Officer" {...field} value={field.value ?? ""} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -211,9 +220,7 @@ function SignatoryForm({ onFormSubmit, children, siteId, existingSignatory }: { 
                             )}
                         />
                         <DialogFooter>
-                            <DialogClose asChild>
-                                <Button type="button" variant="outline">Cancel</Button>
-                            </DialogClose>
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {existingSignatory ? 'Save Changes' : 'Add Signatory'}
@@ -347,14 +354,21 @@ function SignatoriesList({ signatories, isLoading, onSignatoryChange, siteId }: 
             </Table>
             </CardContent>
             
-            {/* Edit Dialog */}
-            <SignatoryForm 
-                onFormSubmit={onSignatoryChange} 
-                siteId={siteId} 
+            {/* Edit Dialog Instance */}
+            <SignatoryForm
+                open={!!signatoryToEdit}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSignatoryToEdit(null);
+                    }
+                }}
+                onFormSubmit={() => {
+                    onSignatoryChange();
+                    setSignatoryToEdit(null);
+                }}
+                siteId={siteId}
                 existingSignatory={signatoryToEdit}
-            >
-               {/* This dialog is controlled by the Edit menu item */}
-            </SignatoryForm>
+            />
             
             {/* Delete Dialog */}
              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -782,3 +796,5 @@ export default function ManageCertificatesPage() {
     </div>
   )
 }
+
+    
