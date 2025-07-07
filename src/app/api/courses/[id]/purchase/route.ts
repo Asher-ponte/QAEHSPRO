@@ -38,8 +38,13 @@ export async function POST(
             return NextResponse.json({ error: 'This is not a paid course or the course was not found.' }, { status: 400 });
         }
 
-        const body = await request.json();
-        const parsedData = purchaseSchema.safeParse(body);
+        const formData = await request.formData();
+        const data = {
+            referenceNumber: formData.get('referenceNumber'),
+            proofImagePath: formData.get('proofImagePath')
+        };
+        
+        const parsedData = purchaseSchema.safeParse(data);
         if (!parsedData.success) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
