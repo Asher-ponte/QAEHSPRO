@@ -15,10 +15,11 @@ import type { Site } from "@/lib/sites"
 import { Skeleton } from "./ui/skeleton"
 
 export function SiteSwitcher() {
-    const { site: currentSite, isLoading: isSessionLoading } = useSession();
+    const { site: currentSite, isLoading: isSessionLoading, refreshSession } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
     const [open, setOpen] = useState(false)
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         async function fetchSites() {
@@ -39,23 +40,34 @@ export function SiteSwitcher() {
             return;
         }
         try {
-            await fetch('/api/auth/switch-site', {
+            const switchResponse = await fetch('/api/auth/switch-site', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ siteId }),
             });
+
+            if (!switchResponse.ok) {
+                const errorData = await switchResponse.json();
+                throw new Error(errorData.error || "Failed to switch branches.");
+            }
+
+            // Manually refresh client and server state
+            router.refresh(); // Refreshes Server Components
+            await refreshSession(); // Re-fetches client-side session context
+
             toast({
                 title: "Branch Switched",
-                description: `You are now managing ${sites.find(s => s.id === siteId)?.name}. The page will now reload.`,
+                description: `You are now managing ${sites.find(s => s.id === siteId)?.name}.`,
             });
-            // Reload the page to apply the new site context everywhere
-            window.location.reload();
+
         } catch (error) {
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not switch branches.",
+                description: error instanceof Error ? error.message : "Could not switch branches.",
             });
+        } finally {
+            setOpen(false);
         }
     };
     
@@ -90,7 +102,6 @@ export function SiteSwitcher() {
                                     key={site.id}
                                     value={site.id}
                                     onSelect={(currentValue) => {
-                                        setOpen(false)
                                         handleSwitchSite(currentValue)
                                     }}
                                 >

@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import type { Site } from '@/lib/sites';
@@ -22,6 +22,7 @@ interface SessionContextType {
   isLoading: boolean;
   isSuperAdmin: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  refreshSession: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -33,39 +34,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    async function fetchSessionData() {
-      setIsLoading(true);
-      try {
-        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+  const fetchSessionData = useCallback(async () => {
+    try {
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
 
-        if (meRes.ok) {
-          const sessionData = await meRes.json();
-          setUser(sessionData.user);
-          setSite(sessionData.site);
-          setIsSuperAdmin(sessionData.isSuperAdmin);
-        } else {
-          setUser(null);
-          setSite(null);
-          setIsSuperAdmin(false);
-          router.push('/login');
-        }
-      } catch (error) {
-        console.error("Failed to fetch session", error);
+      if (meRes.ok) {
+        const sessionData = await meRes.json();
+        setUser(sessionData.user);
+        setSite(sessionData.site);
+        setIsSuperAdmin(sessionData.isSuperAdmin);
+      } else {
         setUser(null);
         setSite(null);
         setIsSuperAdmin(false);
         router.push('/login');
-      } finally {
-        setIsLoading(false);
       }
+    } catch (error) {
+      console.error("Failed to fetch session", error);
+      setUser(null);
+      setSite(null);
+      setIsSuperAdmin(false);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
     }
-
-    fetchSessionData();
   }, [router]);
 
+  useEffect(() => {
+    setIsLoading(true);
+    fetchSessionData();
+  }, [fetchSessionData]);
+
+  const value = useMemo(() => ({ 
+      user, 
+      site, 
+      isLoading, 
+      isSuperAdmin, 
+      setUser, 
+      refreshSession: fetchSessionData 
+  }), [user, site, isLoading, isSuperAdmin, setUser, fetchSessionData]);
+
   return (
-    <SessionContext.Provider value={{ user, site, isLoading, isSuperAdmin, setUser }}>
+    <SessionContext.Provider value={value}>
       {isLoading ? (
         <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
