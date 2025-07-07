@@ -12,6 +12,7 @@ import { useSession } from "@/hooks/use-session"
 import { cn } from "@/lib/utils"
 import type { Site } from "@/lib/sites"
 import { Skeleton } from "./ui/skeleton"
+import { useRouter } from "next/navigation"
 
 export function SiteSwitcher() {
     const { site: currentSite, isLoading: isSessionLoading } = useSession();
@@ -19,6 +20,7 @@ export function SiteSwitcher() {
     const [open, setOpen] = useState(false)
     const [isSwitching, setIsSwitching] = useState(false);
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         async function fetchSites() {

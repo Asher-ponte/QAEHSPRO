@@ -53,6 +53,9 @@ export default function PlatformSettingsPage() {
     });
 
     useEffect(() => {
+        // Only fetch settings if we have a valid site context
+        if (!currentSite) return;
+
         const fetchSettings = async () => {
             setIsLoading(true);
             try {
@@ -93,7 +96,7 @@ export default function PlatformSettingsPage() {
             }
             toast({
                 title: "Settings Updated",
-                description: "Your platform settings have been saved successfully.",
+                description: `Settings for "${currentSite?.name}" have been saved.`,
             });
         } catch (error) {
             toast({
@@ -116,7 +119,10 @@ export default function PlatformSettingsPage() {
                     <div>
                         <h1 className="text-3xl font-bold font-headline">Platform Settings</h1>
                         <p className="text-muted-foreground">
-                            Manage global settings for your learning platform.
+                            {isSuperAdmin && currentSite
+                                ? `Viewing settings for branch: ${currentSite.name}`
+                                : 'Manage global settings for your learning platform.'
+                            }
                         </p>
                     </div>
                 </div>

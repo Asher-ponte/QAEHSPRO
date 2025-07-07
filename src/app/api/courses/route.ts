@@ -51,7 +51,7 @@ const courseSchema = z.object({
   is_public: z.boolean().default(false),
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
-  signatoryIds: z.array(z.number()).default([]),
+  branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
@@ -111,7 +111,7 @@ export async function GET() {
 }
 
 // Helper function to contain the course creation logic for a single DB.
-const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForPricing: string) => {
+const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForSignatories: string, siteIdForPricing: string) => {
     await db.run('BEGIN TRANSACTION');
     try {
         const coursePriceForThisBranch = siteIdForPricing === 'external' ? payload.price : null;
@@ -121,10 +121,11 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
         );
         const courseId = courseResult.lastID;
         if (!courseId) throw new Error('Failed to create course');
-
-        if (payload.signatoryIds && payload.signatoryIds.length > 0) {
+        
+        const signatoryIds = payload.branchSignatories[siteIdForSignatories] || [];
+        if (signatoryIds.length > 0) {
             const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-            for (const signatoryId of payload.signatoryIds) {
+            for (const signatoryId of signatoryIds) {
                 await stmt.run(courseId, signatoryId);
             }
             await stmt.finalize();
@@ -169,7 +170,8 @@ export async function POST(request: NextRequest) {
     if (!isSuperAdmin) {
         try {
             const db = await getDb(sessionSiteId);
-            await createCourseInDb(db, coursePayload, sessionSiteId);
+            // For a client admin, there is only one site context.
+            await createCourseInDb(db, coursePayload, 'default', sessionSiteId);
             return NextResponse.json({ success: true, message: 'Course created.' }, { status: 201 });
         } catch (error) {
             console.error(`Course creation failed for client admin in site '${sessionSiteId}':`, error);
@@ -182,7 +184,7 @@ export async function POST(request: NextRequest) {
     // Step 1: Create in Main Branch. This is the critical master copy.
     try {
         const mainDb = await getDb('main');
-        await createCourseInDb(mainDb, coursePayload, 'main');
+        await createCourseInDb(mainDb, coursePayload, 'main', 'main');
     } catch (error) {
         console.error("CRITICAL: Failed to create master course in 'main' branch:", error);
         return NextResponse.json({ error: 'Failed to create the master course.', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
@@ -193,10 +195,10 @@ export async function POST(request: NextRequest) {
     const replicationErrors = [];
 
     for (const targetSiteId of targetSiteIds) {
-        if (targetSiteId === 'main') continue; // Should not be in the list, but double check.
+        if (targetSiteId === 'main') continue;
         try {
             const targetDb = await getDb(targetSiteId);
-            await createCourseInDb(targetDb, coursePayload, targetSiteId);
+            await createCourseInDb(targetDb, coursePayload, targetSiteId, targetSiteId);
         } catch (error) {
             const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
             console.error(errorMessage);
