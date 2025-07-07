@@ -6,7 +6,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeft, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Loader2, Save, Building } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,9 +28,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useSession } from "@/hooks/use-session"
+import type { Site } from "@/lib/sites"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const settingsFormSchema = z.object({
   companyName: z.string().min(1, { message: "Company name cannot be empty." }),
@@ -46,20 +47,46 @@ export default function PlatformSettingsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { site: currentSite, isSuperAdmin } = useSession();
+    
+    const [sites, setSites] = useState<Site[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
         defaultValues: { companyName: "", companyAddress: "", companyLogoPath: "", companyLogo2Path: "" },
     });
-
+    
+    // Effect to set initial selected site from session
     useEffect(() => {
-        // Only fetch settings if we have a valid site context
-        if (!currentSite) return;
+        setSelectedSiteId(currentSite?.id);
+    }, [currentSite]);
+
+    // Effect to fetch sites for the dropdown (super admin only)
+    useEffect(() => {
+        if (isSuperAdmin) {
+            const fetchSites = async () => {
+                try {
+                    const res = await fetch('/api/sites');
+                    if (!res.ok) throw new Error("Failed to fetch sites");
+                    setSites(await res.json());
+                } catch (error) {
+                    console.error(error);
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches for filtering.' });
+                }
+            };
+            fetchSites();
+        }
+    }, [isSuperAdmin, toast]);
+
+
+    // Effect to fetch settings for the selected site
+    useEffect(() => {
+        if (!selectedSiteId) return;
 
         const fetchSettings = async () => {
             setIsLoading(true);
             try {
-                const res = await fetch('/api/admin/settings');
+                const res = await fetch(`/api/admin/settings?siteId=${selectedSiteId}`);
                 if (!res.ok) throw new Error("Failed to fetch settings.");
                 const data = await res.json();
                 form.reset({
@@ -72,31 +99,37 @@ export default function PlatformSettingsPage() {
                 toast({
                     variant: "destructive",
                     title: "Error",
-                    description: error instanceof Error ? error.message : "Could not load settings.",
+                    description: error instanceof Error ? error.message : "Could not load settings for the selected branch.",
                 });
             } finally {
                 setIsLoading(false);
             }
         };
         fetchSettings();
-    }, [form, toast, currentSite]); // Refetch when site changes
+    }, [selectedSiteId, form, toast]);
 
 
     async function onSubmit(values: SettingsFormValues) {
+        if (!selectedSiteId) {
+            toast({ variant: "destructive", title: "Error", description: "No branch selected." });
+            return;
+        }
         setIsSubmitting(true);
         try {
+            const payload = { ...values, siteId: selectedSiteId };
             const response = await fetch('/api/admin/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values),
+                body: JSON.stringify(payload),
             });
             if (!response.ok) {
                 const data = await response.json();
                 throw new Error(data.error || "Failed to update settings.");
             }
+            const selectedSite = sites.find(s => s.id === selectedSiteId) || currentSite;
             toast({
                 title: "Settings Updated",
-                description: `Settings for "${currentSite?.name}" have been saved.`,
+                description: `Settings for "${selectedSite?.name}" have been saved.`,
             });
         } catch (error) {
             toast({
@@ -108,10 +141,12 @@ export default function PlatformSettingsPage() {
             setIsSubmitting(false);
         }
     }
+    
+    const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" asChild>
                         <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
@@ -119,29 +154,57 @@ export default function PlatformSettingsPage() {
                     <div>
                         <h1 className="text-3xl font-bold font-headline">Platform Settings</h1>
                         <p className="text-muted-foreground">
-                            {isSuperAdmin && currentSite
-                                ? `Viewing settings for branch: ${currentSite.name}`
+                            {isSuperAdmin && selectedSiteName
+                                ? `Managing settings for branch: ${selectedSiteName}`
                                 : 'Manage global settings for your learning platform.'
                             }
                         </p>
                     </div>
                 </div>
+                 {isSuperAdmin && (
+                    <div className="w-full sm:w-auto">
+                        <Select
+                            value={selectedSiteId}
+                            onValueChange={(value) => {
+                                if (value) setSelectedSiteId(value);
+                            }}
+                        >
+                            <SelectTrigger className="w-full sm:w-[280px]">
+                                <SelectValue placeholder="Select a branch to manage..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {sites.map(site => (
+                                    <SelectItem key={site.id} value={site.id}>
+                                        <div className="flex items-center gap-2">
+                                          <Building className="h-4 w-4" />
+                                          <span>{site.name}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
             </div>
             <Card>
                 <CardHeader>
                 <CardTitle>Company Branding</CardTitle>
                 <CardDescription>
                     {isSuperAdmin && currentSite
-                        ? `These settings apply only to the "${currentSite.name}" branch and will appear on its certificates.`
+                        ? `These settings apply only to the "${selectedSiteName}" branch and will appear on its certificates.`
                         : 'This information will appear on certificates and other official documents.'
                     }
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="space-y-4">
+                        <div className="space-y-4 max-w-sm">
                             <Skeleton className="h-6 w-32" />
-                            <Skeleton className="h-10 w-full max-w-sm" />
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-20 w-full" />
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-10 w-36" />
                         </div>
                     ) : (
                         <Form {...form}>
@@ -223,3 +286,5 @@ export default function PlatformSettingsPage() {
         </div>
     )
 }
+
+    
