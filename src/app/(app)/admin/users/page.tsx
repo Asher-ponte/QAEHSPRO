@@ -534,6 +534,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
 
 export default function ManageUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [allSites, setAllSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -572,28 +573,35 @@ export default function ManageUsersPage() {
     localStorage.setItem('userAdminFilters', JSON.stringify(filters));
   }, [filters, isSuperAdmin]);
 
-
-  const fetchUsers = async () => {
+  const fetchUsersAndSites = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/users");
-      if (!res.ok) throw new Error("Failed to fetch users");
-      const data = await res.json();
-      setUsers(data);
+      const usersRes = await fetch("/api/admin/users");
+      if (!usersRes.ok) throw new Error("Failed to fetch users");
+      setUsers(await usersRes.json());
+      
+      if (isSuperAdmin) {
+          const sitesRes = await fetch('/api/sites');
+          if (!sitesRes.ok) throw new Error("Failed to fetch sites");
+          // Filter out main site from the filter options
+          const allSitesData = await sitesRes.json();
+          setAllSites(allSitesData.filter((s: Site) => s.id !== 'main'));
+      }
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "Could not load users.",
+        description: error instanceof Error ? error.message : "Could not load page data.",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
+
   useEffect(() => {
-    fetchUsers();
-  }, [site]); // Refetch users when the site context changes
+    fetchUsersAndSites();
+  }, [site, isSuperAdmin]); // Refetch users when the site context changes
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
@@ -616,7 +624,7 @@ export default function ManageUsersPage() {
         title: "Success",
         description: `User "${userToDelete.username}" deleted successfully.`,
       });
-      await fetchUsers(); // Refresh the list
+      await fetchUsersAndSites(); // Refresh the list
       setShowDeleteDialog(false);
       setUserToDelete(null);
     } catch (error) {
@@ -638,12 +646,6 @@ export default function ManageUsersPage() {
   const clearFilters = () => {
     setFilters({ fullName: '', username: '', siteName: 'all', department: '', position: '', role: 'all', type: 'all' });
   };
-  
-  const uniqueSites = useMemo(() => {
-    if (!isSuperAdmin) return [];
-    const siteSet = new Set(users.map(user => user.siteName).filter(Boolean) as string[]);
-    return Array.from(siteSet).sort();
-  }, [users, isSuperAdmin]);
 
   const filteredUsers = useMemo(() => {
     if (!isSuperAdmin) return users;
@@ -699,7 +701,7 @@ export default function ManageUsersPage() {
                 <p className="text-muted-foreground">{pageDescription}</p>
             </div>
         </div>
-        <UserForm onFormSubmit={fetchUsers}>
+        <UserForm onFormSubmit={fetchUsersAndSites}>
             <Button>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Create User
@@ -726,7 +728,7 @@ export default function ManageUsersPage() {
                     <SelectTrigger><SelectValue placeholder="Filter by Branch" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Branches</SelectItem>
-                      {uniqueSites.map(siteName => <SelectItem key={siteName} value={siteName}>{siteName}</SelectItem>)}
+                      {allSites.map(site => <SelectItem key={site.id} value={site.name}>{site.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
 
@@ -864,7 +866,7 @@ export default function ManageUsersPage() {
 
       <EditUserForm
         user={userToEdit}
-        onFormSubmit={fetchUsers}
+        onFormSubmit={fetchUsersAndSites}
         open={!!userToEdit}
         onOpenChange={(open) => {
             if (!open) {
@@ -875,3 +877,5 @@ export default function ManageUsersPage() {
     </div>
   )
 }
+
+    

@@ -293,6 +293,65 @@ interface UserProgress {
     progress: number;
 }
 
+function RetrainingDialog({ course, siteId, siteName, open, onOpenChange, onInitiate }: { course: CourseAdminView | null; siteId: string; siteName: string; open: boolean; onOpenChange: (open: boolean) => void; onInitiate: () => void; }) {
+    const [isRetraining, setIsRetraining] = useState(false);
+    const { toast } = useToast();
+
+    const handleRetraining = async () => {
+        if (!course || !siteId) return;
+        setIsRetraining(true);
+        try {
+            const payload = { targetSiteId: siteId, courseTitle: course.title };
+
+            const res = await fetch(`/api/admin/courses/${course.id}/retraining`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to start re-training.");
+            }
+
+            toast({
+                title: "Re-Training Initiated",
+                description: data.message || `Progress for completed users of "${course.title}" in "${siteName}" has been reset.`,
+            });
+            onInitiate();
+            onOpenChange(false);
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unknown error occurred.",
+            });
+        } finally {
+            setIsRetraining(false);
+        }
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Initiate Re-Training for "{course?.title}"</DialogTitle>
+                     <DialogDescription>
+                        This will reset the progress for all users who have 100% completed this course <strong className="font-semibold text-foreground">in the "{siteName}" branch</strong>. Their existing certificates will be kept, but they will be required to complete the course again. This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <AlertDialogFooter className="mt-4">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleRetraining} disabled={isRetraining}>
+                        {isRetraining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Initiate for "{siteName}"
+                    </Button>
+                </AlertDialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { isSuperAdmin, site: currentSite } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
@@ -301,6 +360,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const [showNotCompleted, setShowNotCompleted] = useState(false);
+    const [showRetrainingDialog, setShowRetrainingDialog] = useState(false);
     const { toast } = useToast();
 
     // Reset local state when dialog closes or course changes
@@ -331,35 +391,38 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         }
     }, [open, isSuperAdmin, toast]);
     
+    const fetchProgress = async () => {
+        if (!course || !selectedSiteId) return;
+
+        setIsLoading(true);
+        try {
+            const url = new URL(`/api/admin/courses/${course.id}/progress`, window.location.origin);
+            // The API needs the course's master ID from 'main' but the title and target site to find it in the other DB
+            url.searchParams.append('targetSiteId', selectedSiteId);
+            url.searchParams.append('courseTitle', course.title);
+            
+            const res = await fetch(url.toString());
+            if (!res.ok) throw new Error('Failed to load user progress.');
+            
+            const data = await res.json();
+            setProgressData(data);
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Could not load data.'
+            });
+            setProgressData([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (open && course && selectedSiteId) {
-            const fetchProgress = async () => {
-                setIsLoading(true);
-                try {
-                    const url = new URL(`/api/admin/courses/${course.id}/progress`, window.location.origin);
-                    if (isSuperAdmin) {
-                        url.searchParams.append('targetSiteId', selectedSiteId);
-                        url.searchParams.append('courseTitle', course.title);
-                    }
-                    const res = await fetch(url.toString());
-                    if (!res.ok) throw new Error('Failed to load user progress.');
-                    
-                    const data = await res.json();
-                    setProgressData(data);
-                } catch (error) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error',
-                        description: error instanceof Error ? error.message : 'Could not load data.'
-                    });
-                     setProgressData([]);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
             fetchProgress();
         }
-    }, [open, course, selectedSiteId, toast, isSuperAdmin]);
+    }, [open, course, selectedSiteId, toast]);
 
 
     const { completedCount, notCompletedCount } = useMemo(() => {
@@ -391,6 +454,8 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         );
     }, [progressData, filter, showNotCompleted]);
 
+    const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name || '';
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -398,7 +463,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                     <DialogTitle>User Progress for "{course?.title}"</DialogTitle>
                      <DialogDescription>
                         {isSuperAdmin 
-                            ? `Viewing data for branch: ${sites.find(s => s.id === selectedSiteId)?.name || '... '}`
+                            ? `Viewing data for branch: ${selectedSiteName}`
                             : 'Track the completion progress of all enrolled users for this course.'
                         }
                     </DialogDescription>
@@ -508,110 +573,28 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         </ScrollArea>
                     )}
                 </div>
-                <DialogFooter>
+                <DialogFooter className="sm:justify-between">
+                    <div>
+                        {isSuperAdmin && (
+                            <Button variant="destructive" onClick={() => setShowRetrainingDialog(true)}>
+                                <RefreshCcw className="mr-2 h-4 w-4" />
+                                Initiate Re-Training
+                            </Button>
+                        )}
+                    </div>
                     <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function RetrainingDialog({ course, open, onOpenChange, onInitiate }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void; onInitiate: () => void; }) {
-    const { isSuperAdmin, site: currentSite } = useSession();
-    const [sites, setSites] = useState<Site[]>([]);
-    const [selectedSiteId, setSelectedSiteId] = useState(currentSite?.id);
-    const [isRetraining, setIsRetraining] = useState(false);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        if (open && isSuperAdmin) {
-            const fetchSites = async () => {
-                try {
-                    const res = await fetch('/api/sites');
-                    if (!res.ok) throw new Error("Failed to fetch sites");
-                    setSites(await res.json());
-                } catch (error) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load branches.' });
-                }
-            };
-            fetchSites();
-        }
-        if (open) {
-            setSelectedSiteId(currentSite?.id);
-        }
-    }, [open, isSuperAdmin, toast, currentSite]);
-
-    const handleRetraining = async () => {
-        if (!course) return;
-        setIsRetraining(true);
-        try {
-            const payload: any = {};
-            if (isSuperAdmin && selectedSiteId) {
-                payload.targetSiteId = selectedSiteId;
-                payload.courseTitle = course.title;
-            }
-
-            const res = await fetch(`/api/admin/courses/${course.id}/retraining`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.error || "Failed to start re-training.");
-            }
-
-            toast({
-                title: "Re-Training Initiated",
-                description: data.message || `Progress for all completed users of "${course.title}" has been reset.`,
-            });
-            onInitiate();
-            onOpenChange(false);
-        } catch (error) {
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: error instanceof Error ? error.message : "An unknown error occurred.",
-            });
-        } finally {
-            setIsRetraining(false);
-        }
-    };
-    
-    const branchName = sites.find(s => s.id === selectedSiteId)?.name || currentSite?.name;
-    
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Initiate Re-Training for "{course?.title}"</DialogTitle>
-                     <DialogDescription>
-                        This will reset the progress for all users who have completed this course. Their existing certificates will be kept, but they will be required to complete the course again. This action cannot be undone.
-                    </DialogDescription>
-                </DialogHeader>
-                 {isSuperAdmin && (
-                    <div className="space-y-2 py-4">
-                         <Label htmlFor="retrain-branch-select">Select Branch to Apply Re-training</Label>
-                         <Select value={selectedSiteId} onValueChange={setSelectedSiteId} name="retrain-branch-select">
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a branch..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {sites.map(site => (
-                                    <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                
+                 {isSuperAdmin && selectedSiteId && (
+                    <RetrainingDialog
+                        course={course}
+                        siteId={selectedSiteId}
+                        siteName={selectedSiteName}
+                        open={showRetrainingDialog}
+                        onOpenChange={setShowRetrainingDialog}
+                        onInitiate={fetchProgress}
+                    />
                 )}
-                <AlertDialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleRetraining} disabled={isRetraining}>
-                        {isRetraining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Initiate for "{branchName}"
-                    </Button>
-                </AlertDialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -625,7 +608,6 @@ export default function ManageCoursesPage() {
   const [courseToDelete, setCourseToDelete] = useState<CourseAdminView | null>(null)
   const [courseToEnroll, setCourseToEnroll] = useState<CourseAdminView | null>(null)
   const [courseForProgress, setCourseForProgress] = useState<CourseAdminView | null>(null);
-  const [courseForRetraining, setCourseForRetraining] = useState<CourseAdminView | null>(null);
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast()
   const { isSuperAdmin, site } = useSession();
@@ -740,10 +722,6 @@ export default function ManageCoursesPage() {
 
   const openProgressDialog = (course: CourseAdminView) => {
     setCourseForProgress(course);
-  };
-  
-  const openRetrainingDialog = (course: CourseAdminView) => {
-    setCourseForRetraining(course);
   };
 
   const filtersAreActive = filters.title !== '' || filters.category !== 'all';
@@ -900,12 +878,6 @@ export default function ManageCoursesPage() {
                                     <BarChart className="mr-2 h-4 w-4" />
                                     <span>View Progress</span>
                                 </DropdownMenuItem>
-                                {showPublishedToColumn && (
-                                     <DropdownMenuItem onSelect={() => openRetrainingDialog(course)}>
-                                        <RefreshCcw className="mr-2 h-4 w-4" />
-                                        <span>Initiate Re-Training</span>
-                                    </DropdownMenuItem>
-                                )}
                             <DropdownMenuItem onSelect={() => openDeleteDialog(course)} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 <span>Delete</span>
@@ -946,13 +918,6 @@ export default function ManageCoursesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-       <RetrainingDialog
-            course={courseForRetraining}
-            open={!!courseForRetraining}
-            onOpenChange={(open) => !open && setCourseForRetraining(null)}
-            onInitiate={fetchCourses}
-        />
-
       <ManageEnrollmentsDialog 
         course={courseToEnroll}
         open={!!courseToEnroll}
@@ -976,3 +941,5 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
+
+    
