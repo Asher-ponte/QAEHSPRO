@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, useCallback, type ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useForm } from "react-hook-form"
@@ -782,5 +782,3 @@ export default function ManageCertificatesPage() {
     </div>
   )
 }
-
-    
