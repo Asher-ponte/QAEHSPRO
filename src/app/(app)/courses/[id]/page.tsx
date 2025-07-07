@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock, Loader2, ClipboardCheck } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, Loader2, ClipboardCheck, AlertCircle } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -47,6 +47,7 @@ interface Course {
   price: number | null;
   allLessonsCompleted: boolean;
   hasFinalAssessment: boolean;
+  transactionStatus: { status: 'pending' | 'completed' | 'rejected'; reason: string | null; } | null;
 }
 
 type CourseStatus = 'Active' | 'Archived' | 'Scheduled';
@@ -80,7 +81,6 @@ export default function CourseDetailPage() {
   const params = useParams<{ id: string }>()
   const [course, setCourse] = useState<Course | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isPurchasing, setIsPurchasing] = useState(false);
   const { toast } = useToast()
   const { user } = useSession();
   const router = useRouter();
@@ -125,33 +125,6 @@ export default function CourseDetailPage() {
     fetchCourse()
   }, [params.id, toast, router])
   
-  const handlePurchase = async () => {
-    if (!course || isPurchasing) return;
-    setIsPurchasing(true);
-    try {
-      const response = await fetch(`/api/courses/${course.id}/purchase`, {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to initialize payment.');
-      }
-      if (data.checkoutUrl) {
-        // Redirect to PayMongo checkout page
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error('Could not retrieve payment link.');
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Payment Error',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-      });
-      setIsPurchasing(false);
-    }
-  };
-
   const getIcon = (type: string) => {
     switch (type) {
       case "video": return <PlayCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
@@ -163,14 +136,57 @@ export default function CourseDetailPage() {
 
   const allLessons = course?.modules.flatMap(module => module.lessons) ?? [];
   const firstUncompletedLesson = allLessons.find(lesson => !lesson.completed);
-  const hasStarted = allLessons.some(l => l.completed);
 
   const statusInfo = course ? getCourseStatusInfo(course.startDate, course.endDate) : null;
   const isPaidCourse = !!(course?.is_public && course.price && course.price > 0);
   const isExternalUser = user?.type === 'External';
   
-  // A user can access content if they are an employee, OR if the course is free, OR if it's a paid course they are already enrolled in.
-  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || (isPaidCourse && (hasStarted || course?.isCompleted));
+  // A user can access content if they are an employee, OR if the course is free, OR if it's a paid course they have paid for.
+  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || course?.transactionStatus?.status === 'completed';
+
+  const PaymentStatusCard = () => {
+    if (!isExternalUser || !isPaidCourse || !course?.transactionStatus || course.transactionStatus.status === 'completed') {
+        return null;
+    }
+
+    if (course.transactionStatus.status === 'pending') {
+        return (
+            <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+                <CardHeader>
+                    <div className="flex items-center gap-4">
+                        <Clock className="h-8 w-8 text-blue-600" />
+                        <div>
+                            <CardTitle className="text-blue-800 dark:text-blue-300">Payment Pending</CardTitle>
+                            <CardDescription className="text-blue-700 dark:text-blue-400">
+                                Your payment is being validated. We'll notify you once it's complete. You can view the status on your payment history page.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+            </Card>
+        );
+    }
+    
+     if (course.transactionStatus.status === 'rejected') {
+        return (
+            <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
+                <CardHeader>
+                    <div className="flex items-center gap-4">
+                        <AlertCircle className="h-8 w-8 text-red-600" />
+                        <div>
+                            <CardTitle className="text-red-800 dark:text-red-300">Payment Rejected</CardTitle>
+                            <CardDescription className="text-red-700 dark:text-red-400">
+                                Reason: {course.transactionStatus.reason || "No reason provided."} Please resubmit your payment.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+            </Card>
+        );
+    }
+
+    return null;
+  }
 
 
   if (isLoading) {
@@ -218,15 +234,30 @@ export default function CourseDetailPage() {
         );
     }
     
-    if (isExternalUser && isPaidCourse && !canAccessContent) {
-        return (
-             <Button className="w-full" onClick={handlePurchase} disabled={isPurchasing}>
-                {isPurchasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Buy Now for ₱{course.price?.toFixed(2)}
+    // Logic for external users with paid courses
+    if (isExternalUser && isPaidCourse) {
+        // If payment is pending, button is disabled. The status card gives the info.
+        if (course.transactionStatus?.status === 'pending') {
+            return (
+                <Button className="w-full" disabled>
+                    <Clock className="mr-2 h-4 w-4" />
+                    Payment Pending Review
+                </Button>
+            );
+        }
+        // If payment is completed or not yet initiated/rejected, link to purchase page.
+        // The text changes based on whether it's a first attempt or a resubmission.
+        const buttonText = course.transactionStatus?.status === 'rejected' ? 'Resubmit Payment' : `Buy Now for ₱${course.price?.toFixed(2)}`;
+         return (
+             <Button className="w-full" asChild>
+                <Link href={`/courses/${course.id}/purchase`}>
+                    {buttonText}
+                </Link>
             </Button>
         );
     }
 
+    // Logic for free courses or internal users
     if (course.allLessonsCompleted && course.hasFinalAssessment) {
         buttonText = "Start Final Assessment";
         buttonHref = `/courses/${course.id}/assessment`;
@@ -240,6 +271,7 @@ export default function CourseDetailPage() {
         buttonDisabled = true;
     } else if (allLessons.length > 0) {
         if (firstUncompletedLesson) {
+            const hasStarted = allLessons.some(l => l.completed);
             buttonText = hasStarted ? "Continue Course" : "Start Course";
             buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
             buttonDisabled = false;
@@ -269,6 +301,8 @@ export default function CourseDetailPage() {
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-headline break-words">{course.title}</h1>
         <p className="text-muted-foreground break-words">{course.description}</p>
         
+        <PaymentStatusCard />
+
         <div className="w-full hidden md:block">
             <ActionButton />
         </div>

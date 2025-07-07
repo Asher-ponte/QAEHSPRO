@@ -142,10 +142,11 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             user_id INTEGER NOT NULL,
             course_id INTEGER NOT NULL,
             amount REAL NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('completed', 'pending', 'failed')),
+            status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'rejected')),
             transaction_date TEXT NOT NULL,
-            gateway TEXT NOT NULL,
-            gateway_transaction_id TEXT,
+            proof_image_path TEXT,
+            reference_number TEXT,
+            rejection_reason TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
@@ -210,6 +211,14 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         await db.exec('ALTER TABLE courses ADD COLUMN passing_rate INTEGER');
         await db.exec('ALTER TABLE courses ADD COLUMN max_attempts INTEGER');
         await db.exec('ALTER TABLE courses ADD COLUMN final_assessment_content TEXT');
+    }
+
+    const transactionsTableInfo = await db.all("PRAGMA table_info(transactions)");
+    if (!transactionsTableInfo.some(col => col.name === 'proof_image_path')) {
+        console.log(`Applying migration for site '${siteId}': Adding proof of payment columns to 'transactions' table.`);
+        await db.exec('ALTER TABLE transactions ADD COLUMN proof_image_path TEXT');
+        await db.exec('ALTER TABLE transactions ADD COLUMN reference_number TEXT');
+        await db.exec('ALTER TABLE transactions ADD COLUMN rejection_reason TEXT');
     }
 
 

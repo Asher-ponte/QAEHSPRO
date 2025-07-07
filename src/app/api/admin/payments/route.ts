@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
-import { getAllSites } from '@/lib/sites';
 
 export async function GET() {
     const { user, isSuperAdmin } = await getCurrentSession();
@@ -11,35 +10,33 @@ export async function GET() {
     }
 
     try {
-        const allSites = await getAllSites();
-        let allTransactions = [];
+        // Manual payments are only handled for the 'external' user database.
+        const db = await getDb('external');
+        const transactions = await db.all(`
+            SELECT
+                t.id,
+                t.amount,
+                t.status,
+                t.transaction_date,
+                t.proof_image_path,
+                t.reference_number,
+                t.rejection_reason,
+                u.username as userName,
+                c.title as courseTitle
+            FROM transactions t
+            LEFT JOIN users u ON t.user_id = u.id
+            LEFT JOIN courses c ON t.course_id = c.id
+            ORDER BY
+                CASE t.status
+                    WHEN 'pending' THEN 1
+                    WHEN 'rejected' THEN 2
+                    WHEN 'completed' THEN 3
+                    ELSE 4
+                END,
+                t.transaction_date DESC
+        `);
 
-        for (const site of allSites) {
-            // We only care about transactions from external users for platform-wide revenue.
-            if (site.id !== 'external') continue;
-            
-            const db = await getDb(site.id);
-            const transactions = await db.all(`
-                SELECT
-                    t.id,
-                    t.amount,
-                    t.status,
-                    t.gateway,
-                    t.transaction_date,
-                    u.username as userName,
-                    c.title as courseTitle
-                FROM transactions t
-                JOIN users u ON t.user_id = u.id
-                JOIN courses c ON t.course_id = c.id
-                ORDER BY t.transaction_date DESC
-            `);
-            allTransactions.push(...transactions);
-        }
-
-        // Sort all transactions by date after aggregating them
-        allTransactions.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
-
-        return NextResponse.json(allTransactions);
+        return NextResponse.json(transactions);
     } catch (error) {
         console.error("Failed to fetch transactions:", error);
         return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });

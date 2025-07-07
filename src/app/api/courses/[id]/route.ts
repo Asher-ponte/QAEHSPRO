@@ -67,12 +67,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
     const hasFinalAssessment = !!course.final_assessment_content;
 
+    let transactionStatus: { status: string, reason: string | null } | null = null;
+    if (user.type === 'External') {
+        const transaction = await db.get(
+            `SELECT status, rejection_reason FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`,
+            [userId, courseId]
+        );
+        if (transaction) {
+            transactionStatus = { status: transaction.status, reason: transaction.rejection_reason };
+        }
+    }
+
     const courseDetail = { 
         ...course, 
         modules: [] as any[], 
         isCompleted: isCourseCompleted,
         allLessonsCompleted: allLessonsCompleted,
-        hasFinalAssessment: hasFinalAssessment
+        hasFinalAssessment: hasFinalAssessment,
+        transactionStatus: transactionStatus,
     };
 
     const modulesMap = new Map<number, any>();

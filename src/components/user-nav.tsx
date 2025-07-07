@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, Settings, User, LogOut } from "lucide-react"
+import { CreditCard, Settings, User, LogOut, Receipt } from "lucide-react"
 import { useSession } from "@/hooks/use-session"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
@@ -47,6 +47,7 @@ export function UserNav() {
   }
 
   const userInitial = user?.fullName?.charAt(0).toUpperCase() || user?.username.charAt(0).toUpperCase() || 'U';
+  const isExternalUser = user?.type === 'External';
 
   return (
     <DropdownMenu>
@@ -80,6 +81,14 @@ export function UserNav() {
               <span>My Certificates</span>
             </Link>
           </DropdownMenuItem>
+           {isExternalUser && (
+             <DropdownMenuItem asChild>
+                <Link href="/profile/payments">
+                    <Receipt className="mr-2 h-4 w-4" />
+                    <span>Payment History</span>
+                </Link>
+            </DropdownMenuItem>
+           )}
           <DropdownMenuItem asChild>
             <Link href="/profile">
               <Settings className="mr-2 h-4 w-4" />
