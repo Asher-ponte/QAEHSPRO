@@ -40,6 +40,15 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
                 name TEXT NOT NULL UNIQUE
             );
         `);
+        // The signatories table must be created before tables that reference it.
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS signatories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                position TEXT,
+                signatureImagePath TEXT NOT NULL
+            );
+        `);
     }
 
     // Schema creation
@@ -178,14 +187,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
 
     // Handle signatories tables based on siteId
     if (siteId === 'main') {
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS signatories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                position TEXT,
-                signatureImagePath TEXT NOT NULL
-            );
-        `);
         await db.exec(mainCourseSignatoriesSql);
         await db.exec(mainCertSignatoriesSql);
     } else {
