@@ -64,17 +64,10 @@ const completionRateChartConfig = {
   },
 } satisfies ChartConfig
 
-const quizPerformanceChartConfig = {
+const performanceChartConfig = {
   "Average Score": {
     label: "Avg. Score (%)",
     color: "hsl(var(--chart-4))",
-  },
-} satisfies ChartConfig
-
-const userPerformanceChartConfig = {
-  "Average Score": {
-    label: "Avg. Score (%)",
-    color: "hsl(var(--chart-5))",
   },
 } satisfies ChartConfig
 
@@ -88,11 +81,11 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+            <div className="grid gap-4 md:grid-cols-2">
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             </div>
+             <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             <div className="grid gap-4 md:grid-cols-2">
                  <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                  <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
@@ -221,7 +214,7 @@ export default function ViewAnalyticsPage() {
                     ))}
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                     <Card>
                         <CardHeader>
                             <CardTitle>Top 5 Most Enrolled Courses</CardTitle>
@@ -230,7 +223,7 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={enrollmentChartConfig} className="min-h-[250px] w-full">
+                            <ChartContainer config={enrollmentChartConfig} className="min-h-[300px] w-full">
                                 <BarChart accessibilityLayer data={data.courseEnrollmentData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                                     <XAxis 
                                         dataKey="name" 
@@ -264,7 +257,7 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                           <ChartContainer config={completionRateChartConfig} className="min-h-[250px] w-full">
+                           <ChartContainer config={completionRateChartConfig} className="min-h-[300px] w-full">
                                 <BarChart accessibilityLayer data={data.courseCompletionRateData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                                     <XAxis 
                                         dataKey="name" 
@@ -295,40 +288,44 @@ export default function ViewAnalyticsPage() {
                             </ChartContainer>
                         </CardContent>
                     </Card>
-
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Course Completions Over Time</CardTitle>
-                            <CardDescription>
-                                Number of courses completed by users per month.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ChartContainer config={completionChartConfig} className="min-h-[250px] w-full">
-                                <LineChart
-                                    accessibilityLayer
-                                    data={data.completionOverTimeData}
-                                    margin={{ top: 5, right: 20, left: -10, bottom: 0 }}
-                                >
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                                    <ChartTooltip
-                                        cursor={false}
-                                        content={<ChartTooltipContent hideLabel />}
-                                    />
-                                     <ChartLegend content={<ChartLegendContent />} />
-                                    <Line
-                                        dataKey="completions"
-                                        type="monotone"
-                                        stroke="var(--color-completions)"
-                                        strokeWidth={2}
-                                        dot={true}
-                                    />
-                                </LineChart>
-                            </ChartContainer>
-                        </CardContent>
-                    </Card>
                 </div>
+                
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Course Completions Over Time</CardTitle>
+                        <CardDescription>
+                            Number of courses completed by users per month.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ChartContainer config={completionChartConfig} className="min-h-[300px] w-full">
+                            <LineChart
+                                accessibilityLayer
+                                data={data.completionOverTimeData}
+                                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                            >
+                                <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                                <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
+                                <ChartTooltip
+                                    cursor={false}
+                                    content={<ChartTooltipContent hideLabel />}
+                                />
+                                 <ChartLegend content={<ChartLegendContent />} />
+                                <Line
+                                    dataKey="completions"
+                                    type="monotone"
+                                    stroke="var(--color-completions)"
+                                    strokeWidth={3}
+                                    dot={{
+                                        r: 5,
+                                        strokeWidth: 2,
+                                        fill: 'hsl(var(--background))'
+                                    }}
+                                />
+                            </LineChart>
+                        </ChartContainer>
+                    </CardContent>
+                </Card>
                 
                  <div className="grid gap-4 md:grid-cols-2">
                     <Card>
@@ -339,7 +336,7 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={quizPerformanceChartConfig} className="min-h-[250px] w-full">
+                            <ChartContainer config={performanceChartConfig} className="min-h-[300px] w-full">
                                 <BarChart accessibilityLayer data={data.quizPerformanceData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                                     <XAxis 
                                         dataKey="name" 
@@ -378,7 +375,7 @@ export default function ViewAnalyticsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={userPerformanceChartConfig} className="min-h-[250px] w-full">
+                            <ChartContainer config={performanceChartConfig} className="min-h-[300px] w-full">
                                 <BarChart accessibilityLayer data={data.userPerformanceData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                                     <XAxis 
                                         dataKey="name" 
