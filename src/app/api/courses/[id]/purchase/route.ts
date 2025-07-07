@@ -21,8 +21,11 @@ export async function POST(
         return NextResponse.json({ error: 'Payment gateway is not configured. Please set PAYMONGO_SECRET_KEY in your environment.' }, { status: 500 });
     }
 
-    // Dynamically determine the application's base URL from the request.
-    const appUrl = request.nextUrl.origin;
+    // Dynamically determine the application's base URL from the request headers.
+    // This is more reliable than nextUrl.origin which can resolve to 0.0.0.0 on the server.
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
+    const appUrl = `${protocol}://${host}`;
     
     const db = await getDb(siteId);
     
