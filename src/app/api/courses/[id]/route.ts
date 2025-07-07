@@ -63,8 +63,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         completedLessonIds = new Set(progressResults.map(r => r.lesson_id));
     }
     
-    const isCourseCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
-    const courseDetail = { ...course, modules: [] as any[], isCompleted: isCourseCompleted };
+    const isCourseCompleted = (await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId])) != null;
+    const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
+    const hasFinalAssessment = !!course.final_assessment_content;
+
+    const courseDetail = { 
+        ...course, 
+        modules: [] as any[], 
+        isCompleted: isCourseCompleted,
+        allLessonsCompleted: allLessonsCompleted,
+        hasFinalAssessment: hasFinalAssessment
+    };
 
     const modulesMap = new Map<number, any>();
     for (const row of modulesAndLessons) {

@@ -26,6 +26,12 @@ const quizQuestionSchema = z.object({
   correctOptionIndex: z.coerce.number(),
 });
 
+const finalAssessmentQuestionSchema = z.object({
+  text: z.string(),
+  options: z.array(quizOptionSchema),
+  correctOptionIndex: z.coerce.number(),
+});
+
 const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
@@ -54,6 +60,9 @@ const courseSchema = z.object({
   modules: z.array(moduleSchema),
   branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
+  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  max_attempts: z.coerce.number().min(1).optional().nullable(),
+  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -75,6 +84,15 @@ const courseSchema = z.object({
 }, {
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
+}).refine(data => {
+    // If there are assessment questions, then passing rate and max attempts are required.
+    if ((data.final_assessment_questions?.length ?? 0) > 0) {
+        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+    }
+    return true;
+}, {
+    message: "Passing Rate and Max Attempts are required when there are assessment questions.",
+    path: ["passing_rate"], // Or point to a more general location.
 });
 
 export async function GET() {
@@ -116,9 +134,13 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
     await db.run('BEGIN TRANSACTION');
     try {
         const coursePriceForThisBranch = siteIdForPricing === 'external' ? payload.price : null;
+        const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
+            ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
+            : null;
+
         const courseResult = await db.run(
-            'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch]
+            'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, final_assessment_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch, payload.passing_rate, payload.max_attempts, finalAssessmentContent]
         );
         const courseId = courseResult.lastID;
         if (!courseId) throw new Error('Failed to create course');

@@ -14,7 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Clock, Loader2 } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, Clock, Loader2, ClipboardCheck } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -45,6 +45,8 @@ interface Course {
   isCompleted: boolean;
   is_public: boolean;
   price: number | null;
+  allLessonsCompleted: boolean;
+  hasFinalAssessment: boolean;
 }
 
 type CourseStatus = 'Active' | 'Archived' | 'Scheduled';
@@ -103,7 +105,9 @@ export default function CourseDetailPage() {
                     ...lesson,
                     completed: !!lesson.completed
                 }))
-            }))
+            })),
+            allLessonsCompleted: !!data.allLessonsCompleted,
+            hasFinalAssessment: !!data.hasFinalAssessment,
         }
         setCourse(courseDataWithBooleans)
       } catch (error) {
@@ -205,6 +209,7 @@ export default function CourseDetailPage() {
     let buttonText = "Start Course";
     let buttonHref = "#";
     let buttonDisabled = true;
+    let Icon = null;
 
     if (course.isCompleted) {
         return (
@@ -224,7 +229,12 @@ export default function CourseDetailPage() {
         );
     }
 
-    if (statusInfo?.status === 'Scheduled') {
+    if (course.allLessonsCompleted && course.hasFinalAssessment) {
+        buttonText = "Start Final Assessment";
+        buttonHref = `/courses/${course.id}/assessment`;
+        buttonDisabled = false;
+        Icon = ClipboardCheck;
+    } else if (statusInfo?.status === 'Scheduled') {
         buttonText = "Course is Scheduled";
         buttonDisabled = true;
     } else if (statusInfo?.status === 'Archived') {
@@ -247,7 +257,10 @@ export default function CourseDetailPage() {
 
     return (
         <Button asChild className="w-full" disabled={buttonDisabled}>
-            <Link href={buttonHref}>{buttonText}</Link>
+            <Link href={buttonHref}>
+                {Icon && <Icon className="mr-2 h-4 w-4" />}
+                {buttonText}
+            </Link>
         </Button>
     );
   };
@@ -303,6 +316,20 @@ export default function CourseDetailPage() {
                 </AccordionItem>
               ))}
             </Accordion>
+             {course.hasFinalAssessment && (
+                 <div className="mt-4 border-t pt-4">
+                     <div className={cn(
+                         "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
+                         !course.allLessonsCompleted && "pointer-events-none opacity-50"
+                     )}>
+                         <div className="flex items-center min-w-0 font-semibold">
+                             <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
+                             <span className="break-words flex-1">Final Assessment</span>
+                         </div>
+                         <CheckCircle className={`h-5 w-5 shrink-0 ${course.isCompleted ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                     </div>
+                 </div>
+            )}
           </CardContent>
         </Card>
       </div>

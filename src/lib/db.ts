@@ -71,7 +71,10 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             venue TEXT,
             is_public BOOLEAN NOT NULL DEFAULT 0,
             price REAL,
-            is_internal BOOLEAN NOT NULL DEFAULT 1
+            is_internal BOOLEAN NOT NULL DEFAULT 1,
+            passing_rate INTEGER,
+            max_attempts INTEGER,
+            final_assessment_content TEXT
         );
         CREATE TABLE IF NOT EXISTS modules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +163,17 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
             FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS final_assessment_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            course_id INTEGER NOT NULL,
+            score INTEGER NOT NULL,
+            total INTEGER NOT NULL,
+            passed BOOLEAN NOT NULL,
+            attempt_date TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+        );
     `);
     
     // Add columns if they don't exist (for backward compatibility / migrations)
@@ -189,6 +203,13 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
     if (!lessonsTableInfo.some(col => col.name === 'documentPath')) {
          console.log(`Applying migration for site '${siteId}': Adding 'documentPath' column to 'lessons' table.`);
         await db.exec('ALTER TABLE lessons ADD COLUMN documentPath TEXT');
+    }
+
+    if (!coursesTableInfo.some(col => col.name === 'passing_rate')) {
+        console.log(`Applying migration for site '${siteId}': Adding final assessment columns to 'courses' table.`);
+        await db.exec('ALTER TABLE courses ADD COLUMN passing_rate INTEGER');
+        await db.exec('ALTER TABLE courses ADD COLUMN max_attempts INTEGER');
+        await db.exec('ALTER TABLE courses ADD COLUMN final_assessment_content TEXT');
     }
 
 

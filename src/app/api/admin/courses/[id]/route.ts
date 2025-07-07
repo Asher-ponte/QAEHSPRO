@@ -42,6 +42,13 @@ const quizQuestionSchema = z.object({
   correctOptionIndex: z.coerce.number(),
 });
 
+const finalAssessmentQuestionSchema = z.object({
+  id: z.number().optional(),
+  text: z.string(),
+  options: z.array(quizOptionSchema),
+  correctOptionIndex: z.coerce.number(),
+});
+
 const lessonSchema = z.object({
   id: z.number().optional(),
   title: z.string(),
@@ -71,6 +78,9 @@ const courseUpdateSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
+  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  max_attempts: z.coerce.number().min(1).optional().nullable(),
+  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -92,6 +102,15 @@ const courseUpdateSchema = z.object({
 }, {
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
+}).refine(data => {
+    // If there are assessment questions, then passing rate and max attempts are required.
+    if ((data.final_assessment_questions?.length ?? 0) > 0) {
+        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+    }
+    return true;
+}, {
+    message: "Passing Rate and Max Attempts are required when there are assessment questions.",
+    path: ["passing_rate"], // Or point to a more general location.
 });
 
 
@@ -164,6 +183,8 @@ export async function GET(
         
         const assignedSignatories = await db.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
         const signatoryIds = assignedSignatories.map(s => s.signatory_id);
+        
+        const finalAssessmentQuestions = transformDbToQuestionsFormat(course.final_assessment_content);
 
         return NextResponse.json({
             ...course,
@@ -172,6 +193,7 @@ export async function GET(
             imagePath: course.imagePath ?? null,
             venue: course.venue ?? null,
             signatoryIds,
+            final_assessment_questions: finalAssessmentQuestions,
         });
 
     } catch (error) {
@@ -204,7 +226,11 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds } = parsedData.data;
+        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, passing_rate, max_attempts, final_assessment_questions } = parsedData.data;
+
+        const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
+            ? transformQuestionsToDbFormat(final_assessment_questions)
+            : null;
 
         // An edit action only ever applies to the current site context.
         // This preserves branch-specific overrides.
@@ -212,8 +238,8 @@ export async function PUT(
         await db.run('BEGIN TRANSACTION');
 
         await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ? WHERE id = ?',
-            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, courseId]
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ?, passing_rate = ?, max_attempts = ?, final_assessment_content = ? WHERE id = ?',
+            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, finalAssessmentContent, courseId]
         );
         await db.run('DELETE FROM course_signatories WHERE course_id = ?', courseId);
         if (signatoryIds && signatoryIds.length > 0) {

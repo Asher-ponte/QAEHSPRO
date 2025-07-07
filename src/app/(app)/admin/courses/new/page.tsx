@@ -47,6 +47,13 @@ const quizQuestionSchema = z.object({
   correctOptionIndex: z.coerce.number(),
 });
 
+const finalAssessmentQuestionSchema = z.object({
+  text: z.string(),
+  options: z.array(quizOptionSchema),
+  correctOptionIndex: z.coerce.number(),
+});
+
+
 const lessonSchema = z.object({
   title: z.string(),
   type: z.enum(["video", "document", "quiz"]),
@@ -75,6 +82,9 @@ const courseSchema = z.object({
   modules: z.array(moduleSchema),
   branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
+  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  max_attempts: z.coerce.number().min(1).optional().nullable(),
+  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -96,6 +106,15 @@ const courseSchema = z.object({
 }, {
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
+}).refine(data => {
+    // If there are assessment questions, then passing rate and max attempts are required.
+    if ((data.final_assessment_questions?.length ?? 0) > 0) {
+        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+    }
+    return true;
+}, {
+    message: "Passing Rate and Max Attempts are required when there are assessment questions.",
+    path: ["passing_rate"], // Or point to a more general location.
 });
 
 
@@ -650,6 +669,108 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
+function FinalAssessmentQuestionOptions({ questionIndex, control }: { questionIndex: number; control: Control<CourseFormValues> }) {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `final_assessment_questions.${questionIndex}.options`,
+    });
+
+    const correctOptionFieldName = `final_assessment_questions.${questionIndex}.correctOptionIndex`;
+
+    return (
+        <div className="space-y-2">
+            <FormLabel className="text-xs">Options</FormLabel>
+            <FormField
+                control={control}
+                name={correctOptionFieldName}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                                value={field.value?.toString()}
+                                className="space-y-2"
+                            >
+                                {fields.map((optionField, optionIndex) => (
+                                    <div key={optionField.id} className="flex items-center gap-2">
+                                        <FormControl>
+                                            <RadioGroupItem value={optionIndex.toString()} />
+                                        </FormControl>
+                                        <FormField
+                                            control={control}
+                                            name={`final_assessment_questions.${questionIndex}.options.${optionIndex}.text`}
+                                            render={({ field }) => (
+                                                <FormItem className="flex-grow">
+                                                    <FormControl>
+                                                        <Input placeholder={`Option ${optionIndex + 1}`} {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => remove(optionIndex)} disabled={fields.length <= 2}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={() => append({ text: "" })}>
+                <Plus className="mr-2 h-4 w-4" /> Add Option
+            </Button>
+        </div>
+    );
+}
+
+function FinalAssessmentBuilder({ control }: { control: Control<CourseFormValues> }) {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `final_assessment_questions`,
+    });
+
+    return (
+        <div className="space-y-4">
+            {fields.map((questionField, questionIndex) => (
+                <div key={questionField.id} className="p-4 border rounded-lg space-y-4 bg-background">
+                    <div className="flex justify-between items-center">
+                        <FormLabel>Question {questionIndex + 1}</FormLabel>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(questionIndex)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                    <FormField
+                        control={control}
+                        name={`final_assessment_questions.${questionIndex}.text`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs">Question Text</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., What is the primary goal of..." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FinalAssessmentQuestionOptions questionIndex={questionIndex} control={control} />
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 })}
+            >
+                <Plus className="mr-2 h-4 w-4" /> Add Question
+            </Button>
+            <FormMessage>{(control.getFieldState('final_assessment_questions').error as any)?.message}</FormMessage>
+        </div>
+    );
+}
+
 
 export default function CreateCoursePage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -680,14 +801,17 @@ export default function CreateCoursePage() {
       category: "",
       imagePath: "",
       venue: "",
-      startDate: null,
-      endDate: null,
+      startDate: undefined,
+      endDate: undefined,
       is_internal: true,
       is_public: false,
-      price: null,
+      price: undefined,
       modules: [],
       branchSignatories: site ? { [site.id]: [] } : {},
       targetSiteIds: [],
+      passing_rate: 80,
+      max_attempts: 3,
+      final_assessment_questions: [],
     },
     mode: "onChange"
   })
@@ -1073,7 +1197,53 @@ export default function CreateCoursePage() {
                     <FormMessage>{form.formState.errors.modules?.message}</FormMessage>
                 </CardContent>
             </Card>
-            
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Final Assessment</CardTitle>
+                    <CardDescription>
+                        Create a final exam for this course. This assessment is presented to users only after they have completed all lessons.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <FormField
+                            control={form.control}
+                            name="passing_rate"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Passing Rate (%)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormDescription>The minimum score required to pass.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="max_attempts"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Maximum Attempts</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="e.g., 3" {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormDescription>How many times a user can attempt the exam.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <div>
+                        <Label>Assessment Questions</Label>
+                        <FormDescription className="mb-4">Build the final exam questions below.</FormDescription>
+                        <FinalAssessmentBuilder control={form.control} />
+                    </div>
+                </CardContent>
+            </Card>
+
             <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
                 {isLoading ? (
                 <>
