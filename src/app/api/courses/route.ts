@@ -83,22 +83,22 @@ export async function GET() {
   }
 
   try {
-    // If user is external, fetch public courses from 'main' site.
-    // Otherwise, fetch courses from the user's own site.
-    const courseDbSiteId = user.type === 'External' ? 'main' : siteId;
-    const db = await getDb(courseDbSiteId);
+    // Each user type (external or internal) fetches courses from their own sandboxed database.
+    // This enforces strict data separation between branches.
+    const db = await getDb(siteId);
 
     let courses;
-    // Admins and Employees see courses available on their site.
-    // External users see only public courses from the MAIN site.
     if (user.type === 'External') {
+        // External users see only public courses from the 'external' database.
          courses = await db.all(`
             SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
         `);
     } else { // Employee or Admin
+        // Branch users see all internal or public courses from their branch's database.
+        // Price is explicitly nulled to ensure they don't see payment options.
         courses = await db.all(`
             SELECT id, title, description, category, imagePath, startDate, endDate, is_public, is_internal,
-                   NULL as price  -- Explicitly nullify price for branch users
+                   NULL as price
             FROM courses 
             WHERE is_internal = 1 OR is_public = 1
             ORDER BY title ASC
@@ -128,8 +128,6 @@ export async function POST(request: NextRequest) {
     
     const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
 
-    const effectivePrice = (isSuperAdmin && targetSiteIds?.includes('external')) || (!isSuperAdmin && sessionSiteId === 'external') ? price : null;
-
     // Use selected sites for super admin, or session site for client admin
     const sitesToCreateIn = isSuperAdmin ? (targetSiteIds || []) : [sessionSiteId];
     if (sitesToCreateIn.length === 0) {
@@ -141,6 +139,7 @@ export async function POST(request: NextRequest) {
         const db = await getDb(targetSiteId);
         await db.run('BEGIN TRANSACTION');
         try {
+            // Price is only applied if the course is being created in the 'external' branch.
             const coursePriceForThisBranch = targetSiteId === 'external' ? price : null;
             const courseResult = await db.run(
               'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',

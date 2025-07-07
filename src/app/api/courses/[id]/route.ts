@@ -11,14 +11,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    const courseDbSiteId = user.type === 'External' ? 'main' : siteId;
-    const courseDb = await getDb(courseDbSiteId);
-    const userDb = await getDb(siteId);
+    const db = await getDb(siteId);
 
     const userId = user.id;
     const courseId = params.id;
 
-    const course = await courseDb.get('SELECT * FROM courses WHERE id = ?', courseId)
+    const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
     
     if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
@@ -39,8 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         course.price = null;
     }
 
-
-    const modulesAndLessons = await courseDb.all(
+    const modulesAndLessons = await db.all(
         `SELECT 
             m.id as module_id, 
             m.title as module_title, 
@@ -59,7 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const allLessonIds = modulesAndLessons.filter(l => l.lesson_id).map(l => l.lesson_id);
     let completedLessonIds = new Set<number>();
     if (allLessonIds.length > 0) {
-        const progressResults = await userDb.all(
+        const progressResults = await db.all(
             `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (${allLessonIds.map(() => '?').join(',')}) AND completed = 1`,
             [userId, ...allLessonIds]
         );

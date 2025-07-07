@@ -16,8 +16,9 @@ export async function POST(
         return NextResponse.json({ error: 'This action is for external users only.' }, { status: 403 });
     }
     
-    const userDb = await getDb(siteId); // User's own DB ('external')
-    const mainDb = await getDb('main'); // Course data lives in 'main' DB
+    // For external users, siteId is 'external'. All operations (user, course, transaction)
+    // happen within this single database silo.
+    const db = await getDb(siteId);
     
     try {
         const courseId = parseInt(params.id, 10);
@@ -25,7 +26,7 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid course ID' }, { status: 400 });
         }
 
-        const course = await mainDb.get('SELECT * FROM courses WHERE id = ? AND is_public = 1', courseId);
+        const course = await db.get('SELECT * FROM courses WHERE id = ? AND is_public = 1', courseId);
         if (!course) {
             return NextResponse.json({ error: 'Paid course not found.' }, { status: 404 });
         }
@@ -34,15 +35,15 @@ export async function POST(
              return NextResponse.json({ error: 'This is not a paid course.' }, { status: 400 });
         }
 
-        const existingEnrollment = await userDb.get('SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
+        const existingEnrollment = await db.get('SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
         if (existingEnrollment) {
             return NextResponse.json({ error: 'You are already enrolled in this course.' }, { status: 409 });
         }
 
-        await userDb.run('BEGIN TRANSACTION');
+        await db.run('BEGIN TRANSACTION');
 
         // Create a mock transaction record in the user's DB.
-        const transactionResult = await userDb.run(
+        const transactionResult = await db.run(
             `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, gateway, gateway_transaction_id)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
@@ -61,17 +62,17 @@ export async function POST(
         }
 
         // Enroll the user in the course in their DB.
-        await userDb.run(
+        await db.run(
             'INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)',
             [user.id, courseId]
         );
 
-        await userDb.run('COMMIT');
+        await db.run('COMMIT');
 
         return NextResponse.json({ success: true, message: 'Purchase successful, you are now enrolled.' });
 
     } catch (error) {
-        await userDb.run('ROLLBACK').catch(console.error);
+        await db.run('ROLLBACK').catch(console.error);
         console.error("Failed to process mock purchase:", error);
         const details = error instanceof Error ? error.message : 'Unknown server error';
         return NextResponse.json({ error: 'Failed to complete purchase', details }, { status: 500 });
