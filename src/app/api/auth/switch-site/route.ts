@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { getAllSites } from '@/lib/sites';
+import { getCurrentSession } from '@/lib/session';
 
 const switchSiteSchema = z.object({
   siteId: z.string(),
@@ -10,6 +11,11 @@ const switchSiteSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const { user, isSuperAdmin } = await getCurrentSession();
+    if (!user || !isSuperAdmin) {
+      return NextResponse.json({ error: 'Unauthorized: Only super admins can switch branches.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const parsedData = switchSiteSchema.safeParse(body);
 
