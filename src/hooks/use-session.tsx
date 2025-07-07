@@ -37,7 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async function fetchSessionData() {
       setIsLoading(true);
       try {
-        const meRes = await fetch('/api/auth/me');
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
 
         if (meRes.ok) {
           const sessionData = await meRes.json();
