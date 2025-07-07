@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -8,6 +9,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Separator } from "./ui/separator"
 
 
 interface Lesson {
@@ -50,6 +52,11 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117] pt-4">
+      <div className="px-4 pb-2">
+        <h3 className="font-semibold text-white truncate">{course.title}</h3>
+        <p className="text-xs text-gray-400">Course Outline</p>
+      </div>
+      <Separator className="bg-gray-700" />
       <div className="flex-1 overflow-y-auto">
         <Accordion type="multiple" defaultValue={activeModule ? [activeModule.id.toString()] : []} className="w-full">
             {course.modules.map((module) => (
@@ -90,3 +97,5 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
     </div>
   )
 }
+
+    

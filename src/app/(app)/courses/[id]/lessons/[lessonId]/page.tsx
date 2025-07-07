@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -70,10 +71,9 @@ function SidebarToggleButton() {
         <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
             onClick={toggleSidebar}
         >
-           {state === 'collapsed' ? <ChevronsRight /> : <ChevronsLeft />}
+           {state === 'collapsed' ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
            <span className="sr-only">Toggle Sidebar</span>
         </Button>
     )
@@ -498,9 +498,14 @@ export default function LessonPage() {
             </Sidebar>
             <SidebarInset>
                  <div className="space-y-6 p-4 sm:p-6 pb-24 md:pb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold font-headline">{course.title}</h1>
-                        <p className="text-muted-foreground">Follow the modules below to complete the course.</p>
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold font-headline">{course.title}</h1>
+                            <p className="text-muted-foreground">Follow the modules below to complete the course.</p>
+                        </div>
+                        <div className="hidden md:block">
+                            <SidebarToggleButton />
+                        </div>
                     </div>
 
                     <Card>
@@ -517,7 +522,6 @@ export default function LessonPage() {
                         <CardHeader>
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-4">
-                                    <SidebarToggleButton />
                                     {getIcon()}
                                     <CardTitle className="text-2xl font-bold font-headline break-words">{lesson.title}</CardTitle>
                                 </div>
@@ -569,7 +573,13 @@ export default function LessonPage() {
                         )}
                     </div>
                 </div>
+                {/* Mobile-only toggle button */}
+                <div className="md:hidden fixed top-16 right-0 z-40 m-2">
+                    <SidebarToggleButton />
+                </div>
             </SidebarInset>
         </SidebarProvider>
     )
 }
+
+    
