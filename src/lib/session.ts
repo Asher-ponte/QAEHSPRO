@@ -1,7 +1,6 @@
 
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
-import { unstable_noStore as noStore } from 'next/cache';
 
 interface User {
   id: number;
@@ -24,9 +23,8 @@ export interface SessionData {
  * This version correctly handles super admin context switching.
  */
 export async function getCurrentSession(): Promise<SessionData> {
-  // This function is dynamic and should not be cached.
-  noStore();
-  
+  // Using cookies() automatically opts this function into dynamic rendering.
+  // noStore() is not needed.
   const cookieStore = cookies();
   const sessionId = cookieStore.get('session_id')?.value;
   const siteId = cookieStore.get('site_id')?.value;
