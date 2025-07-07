@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
         }
         
         // Find the corresponding payment intent. There should only be one for this type of checkout.
-        const paymentIntent = session.data.attributes.payments.find(
-            (p: any) => p.attributes.status === 'paid'
-        );
+        const payments = session.data.attributes.payments;
+        const paymentIntent = Array.isArray(payments)
+            ? payments.find((p: any) => p.attributes.status === 'paid')
+            : undefined;
 
         if (!paymentIntent) {
             // Update transaction to failed if no paid payment intent is found.
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Extract metadata and verify
-        const metadata = session.data.attributes.metadata;
+        const metadata = session.data.attributes.metadata || {};
         const { userId, courseId, siteId } = metadata;
         if (!userId || !courseId || siteId !== 'external') {
             throw new Error("Payment session metadata is invalid or missing.");
