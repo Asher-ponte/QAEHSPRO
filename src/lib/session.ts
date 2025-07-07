@@ -1,5 +1,3 @@
-'use server';
-
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -28,8 +26,9 @@ export async function getCurrentSession(): Promise<SessionData> {
   // This function is dynamic and should not be cached.
   noStore();
   
-  const sessionId = cookies().get('session_id')?.value;
-  const siteId = cookies().get('site_id')?.value;
+  const cookieStore = cookies();
+  const sessionId = cookieStore.get('session_id')?.value;
+  const siteId = cookieStore.get('site_id')?.value;
 
   if (!sessionId || !siteId) {
     return { user: null, siteId: null, isSuperAdmin: false };
