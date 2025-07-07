@@ -36,19 +36,20 @@ export async function POST(request: NextRequest) {
 
         const response = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${checkoutSessionId}`, options);
         
+        const session = await response.json();
+
+        // Check for PayMongo's own error structure first
+        if (session.errors) {
+            console.error("PayMongo API Error in session response:", session.errors);
+            const errorMessage = session.errors[0]?.detail || 'Could not retrieve payment session details due to API error.';
+            throw new Error(errorMessage);
+        }
+
         if (!response.ok) {
             console.error("PayMongo Error fetching session, status:", response.status);
             throw new Error(`Could not retrieve payment session details. Status: ${response.status}`);
         }
-
-        const session = await response.json();
-
-        // Check for PayMongo's own error structure
-        if (session.errors) {
-            console.error("PayMongo API Error in session response:", session.errors);
-            throw new Error('Could not retrieve payment session details due to API error.');
-        }
-
+        
         // Add extra defensive checks for the response structure
         if (!session?.data?.attributes) {
             console.error("Invalid session structure received from PayMongo:", session);
@@ -110,6 +111,4 @@ export async function POST(request: NextRequest) {
         if (db) await db.run('ROLLBACK').catch(console.error);
         const msg = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error("Failed to verify payment: ", msg, error);
-        return NextResponse.json({ error: 'Failed to verify payment.' }, { status: 500 });
-    }
-}
+        return NextResponse.json({
