@@ -97,7 +97,9 @@ export async function GET() {
         `);
     } else { // Employee or Admin
         courses = await db.all(`
-            SELECT * FROM courses 
+            SELECT id, title, description, category, imagePath, startDate, endDate, is_public, is_internal,
+                   NULL as price  -- Explicitly nullify price for branch users
+            FROM courses 
             WHERE is_internal = 1 OR is_public = 1
             ORDER BY title ASC
         `);
@@ -126,6 +128,8 @@ export async function POST(request: NextRequest) {
     
     const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, targetSiteIds } = parsedData.data;
 
+    const effectivePrice = (isSuperAdmin && targetSiteIds?.includes('external')) || (!isSuperAdmin && sessionSiteId === 'external') ? price : null;
+
     // Use selected sites for super admin, or session site for client admin
     const sitesToCreateIn = isSuperAdmin ? (targetSiteIds || []) : [sessionSiteId];
     if (sitesToCreateIn.length === 0) {
@@ -137,9 +141,10 @@ export async function POST(request: NextRequest) {
         const db = await getDb(targetSiteId);
         await db.run('BEGIN TRANSACTION');
         try {
+            const coursePriceForThisBranch = targetSiteId === 'external' ? price : null;
             const courseResult = await db.run(
               'INSERT INTO courses (title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price]
+              [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, coursePriceForThisBranch]
             )
             const courseId = courseResult.lastID;
             if (!courseId) {

@@ -33,6 +33,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             return NextResponse.json({ error: 'This course is not available to you.' }, { status: 403 });
         }
     }
+    
+    // Nullify price for non-external users to enforce free access for them.
+    if (user.type !== 'External') {
+        course.price = null;
+    }
 
 
     const modulesAndLessons = await courseDb.all(
