@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { format } from "date-fns"
 import { PlusCircle, Trash2, ArrowLeft, Loader2, UserPlus, Award, CalendarIcon, Check } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -70,6 +71,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useSession } from "@/hooks/use-session"
 
 interface Signatory {
   id: number;
@@ -217,7 +219,7 @@ function SignatoriesList({ signatories, isLoading, openDeleteDialog, onSignatory
                     <div>
                         <CardTitle>Certificate Signatories</CardTitle>
                         <CardDescription>
-                            Manage the global pool of signatories.
+                            Manage the global pool of signatories for the entire platform.
                         </CardDescription>
                     </div>
                      <SignatoryForm onFormSubmit={onSignatoryChange}>
@@ -489,6 +491,35 @@ function RecognitionCertificateForm({ signatories, onFormSubmit, isLoadingData }
     );
 }
 
+function PageSkeleton() {
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="outline" size="icon" asChild>
+                        <Link href="/admin"><ArrowLeft className="h-4 w-4" /></Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline">Manage Certificates</h1>
+                        <p className="text-muted-foreground">
+                            Loading or access denied...
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle><Skeleton className="h-6 w-48" /></CardTitle>
+                    <CardDescription><Skeleton className="h-4 w-64" /></CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-32 w-full" />
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 export default function ManageCertificatesPage() {
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -496,6 +527,15 @@ export default function ManageCertificatesPage() {
   const [signatoryToDelete, setSignatoryToDelete] = useState<Signatory | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const { isSuperAdmin, isLoading: isSessionLoading } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isSessionLoading && !isSuperAdmin) {
+      toast({ variant: 'destructive', title: 'Access Denied', description: 'This page is available for Super Admins only.' });
+      router.push('/admin');
+    }
+  }, [isSessionLoading, isSuperAdmin, router, toast]);
 
   const fetchSignatories = async () => {
     setIsLoading(true);
@@ -516,8 +556,10 @@ export default function ManageCertificatesPage() {
   };
 
   useEffect(() => {
-    fetchSignatories();
-  }, []);
+    if (isSuperAdmin) {
+        fetchSignatories();
+    }
+  }, [isSuperAdmin]);
 
   const handleDelete = async () => {
     if (!signatoryToDelete) return;
@@ -554,6 +596,10 @@ export default function ManageCertificatesPage() {
     setShowDeleteDialog(true);
   };
   
+  if (isSessionLoading || !isSuperAdmin) {
+      return <PageSkeleton />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -564,7 +610,7 @@ export default function ManageCertificatesPage() {
             <div>
                 <h1 className="text-3xl font-bold font-headline">Manage Certificates</h1>
                 <p className="text-muted-foreground">
-                    Manage signatories and issue special recognition certificates.
+                    Manage global signatories and issue special recognition certificates.
                 </p>
             </div>
         </div>

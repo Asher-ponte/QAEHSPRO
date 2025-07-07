@@ -11,13 +11,13 @@ const signatorySchema = z.object({
 });
 
 export async function GET() {
-  const { user, siteId } = await getCurrentSession();
-  if (!user || !siteId) {
+  const { user } = await getCurrentSession();
+  if (!user) { // Any logged in user can view signatories
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
   try {
-    const db = await getDb(siteId);
+    const db = await getDb('main'); // Always get from main
     const signatories = await db.all('SELECT * FROM signatories ORDER BY name');
     return NextResponse.json(signatories);
   } catch (error) {
@@ -27,13 +27,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, siteId } = await getCurrentSession();
-  if (user?.role !== 'Admin' || !siteId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  const { isSuperAdmin } = await getCurrentSession();
+  if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Unauthorized: Super Admin access required.' }, { status: 403 });
   }
 
   try {
-    const db = await getDb(siteId);
+    const db = await getDb('main');
     const data = await request.json();
     const parsedData = signatorySchema.safeParse(data);
 

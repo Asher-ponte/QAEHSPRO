@@ -7,12 +7,12 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const { isSuperAdmin } = await getCurrentSession();
+    if (!isSuperAdmin) {
+        return NextResponse.json({ error: 'Unauthorized: Super Admin access required.' }, { status: 403 });
     }
     
-    const db = await getDb(siteId);
+    const db = await getDb('main');
     const { id } = params;
 
     if (!id) {

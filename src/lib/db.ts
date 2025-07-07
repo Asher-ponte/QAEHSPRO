@@ -103,12 +103,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE SET NULL
         );
-        CREATE TABLE IF NOT EXISTS signatories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            position TEXT,
-            signatureImagePath TEXT NOT NULL
-        );
         CREATE TABLE IF NOT EXISTS enrollments (
             user_id INTEGER NOT NULL,
             course_id INTEGER NOT NULL,
@@ -119,20 +113,6 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         CREATE TABLE IF NOT EXISTS app_settings (
             key TEXT PRIMARY KEY,
             value TEXT
-        );
-        CREATE TABLE IF NOT EXISTS course_signatories (
-            course_id INTEGER NOT NULL,
-            signatory_id INTEGER NOT NULL,
-            PRIMARY KEY (course_id, signatory_id),
-            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
-            FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS certificate_signatories (
-            certificate_id INTEGER NOT NULL,
-            signatory_id INTEGER NOT NULL,
-            PRIMARY KEY (certificate_id, signatory_id),
-            FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
-            FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS quiz_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +139,48 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
     `);
+    
+    // Handle signatories tables based on siteId
+    if (siteId === 'main') {
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS signatories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                position TEXT,
+                signatureImagePath TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS course_signatories (
+                course_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (course_id, signatory_id),
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+                FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS certificate_signatories (
+                certificate_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (certificate_id, signatory_id),
+                FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE,
+                FOREIGN KEY (signatory_id) REFERENCES signatories (id) ON DELETE CASCADE
+            );
+        `);
+    } else {
+        // Branch DBs do not have a signatories table, so FK constraint is removed.
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS course_signatories (
+                course_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (course_id, signatory_id),
+                FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS certificate_signatories (
+                certificate_id INTEGER NOT NULL,
+                signatory_id INTEGER NOT NULL,
+                PRIMARY KEY (certificate_id, signatory_id),
+                FOREIGN KEY (certificate_id) REFERENCES certificates (id) ON DELETE CASCADE
+            );
+        `);
+    }
     
     // Add columns if they don't exist (for backward compatibility / migrations)
     const usersTableInfo = await db.all("PRAGMA table_info(users)");

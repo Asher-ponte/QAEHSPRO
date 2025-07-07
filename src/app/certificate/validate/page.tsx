@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { getDb } from '@/lib/db';
-import { SITES } from "@/lib/sites";
+import { getAllSites } from "@/lib/sites";
 
 interface CertificateData {
   id: number;
@@ -42,12 +42,18 @@ async function fetchCertificateData(number: string, siteId: string): Promise<{ d
             course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
         }
 
-        const signatories = await db.all(`
-            SELECT s.name, s.position, s.signatureImagePath
-            FROM signatories s
-            JOIN certificate_signatories cs ON s.id = cs.signatory_id
-            WHERE cs.certificate_id = ?
-        `, certificate.id);
+        const mainDb = await getDb('main');
+        const signatoryIdsResult = await db.all('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
+        const signatoryIds = signatoryIdsResult.map(s => s.signatory_id);
+        let signatories = [];
+        if (signatoryIds.length > 0) {
+            const placeholders = signatoryIds.map(() => '?').join(',');
+            signatories = await mainDb.all(`
+                SELECT s.name, s.position, s.signatureImagePath
+                FROM signatories s
+                WHERE s.id IN (${placeholders})
+            `, signatoryIds);
+        }
         
         const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
         
@@ -84,6 +90,8 @@ async function fetchCertificateData(number: string, siteId: string): Promise<{ d
 
 
 async function CertificateValidator({ certificateNumber, siteId }: { certificateNumber?: string | string[], siteId?: string | string[] }) {
+    const allSites = await getAllSites();
+
     if (!certificateNumber || typeof certificateNumber !== 'string' || !siteId || typeof siteId !== 'string') {
         return (
             <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
@@ -102,7 +110,7 @@ async function CertificateValidator({ certificateNumber, siteId }: { certificate
         )
     }
     
-    if (!SITES.some(s => s.id === siteId)) {
+    if (!allSites.some(s => s.id === siteId)) {
         return (
             <Card className="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
                 <CardHeader>
@@ -150,7 +158,7 @@ async function CertificateValidator({ certificateNumber, siteId }: { certificate
                             <div>
                                 <CardTitle className="text-green-800 dark:text-green-300">Certificate Valid</CardTitle>
                                 <CardDescription className="text-green-700 dark:text-green-400">
-                                    This certificate has been successfully verified for site: {SITES.find(s => s.id === siteId)?.name}.
+                                    This certificate has been successfully verified for site: {allSites.find(s => s.id === siteId)?.name}.
                                 </CardDescription>
                             </div>
                         </div>
