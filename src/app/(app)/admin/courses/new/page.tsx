@@ -271,7 +271,7 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
         <FormField
             control={control}
             name="signatoryIds"
-            render={({ field }) => (
+            render={() => (
                 <FormItem>
                     {isLoading ? (
                         <div className="space-y-2">
@@ -282,23 +282,30 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
                     ) : signatories.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {signatories.map((signatory) => (
-                                <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value?.includes(signatory.id)}
-                                            onCheckedChange={(checked) => {
-                                                const currentValue = field.value || [];
-                                                return checked
-                                                    ? field.onChange([...currentValue, signatory.id])
-                                                    : field.onChange(currentValue.filter((value) => value !== signatory.id));
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        {signatory.name}
-                                        {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
-                                    </FormLabel>
-                                </FormItem>
+                                <FormField
+                                    key={signatory.id}
+                                    control={control}
+                                    name="signatoryIds"
+                                    render={({ field }) => (
+                                        <FormItem key={signatory.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                            <FormControl>
+                                                <Checkbox
+                                                    checked={field.value?.includes(signatory.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        const currentValue = field.value || [];
+                                                        return checked
+                                                            ? field.onChange([...currentValue, signatory.id])
+                                                            : field.onChange(currentValue.filter((value) => value !== signatory.id));
+                                                    }}
+                                                />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                {signatory.name}
+                                                {signatory.position && <span className="block text-xs text-muted-foreground">{signatory.position}</span>}
+                                            </FormLabel>
+                                        </FormItem>
+                                    )}
+                                />
                             ))}
                         </div>
                     ) : (
@@ -578,6 +585,21 @@ export default function CreateCoursePage() {
   const { toast } = useToast()
   const router = useRouter()
   const { isSuperAdmin } = useSession();
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch('/api/admin/categories');
+            if (res.ok) {
+                setCategories(await res.json());
+            }
+        } catch (error) {
+            console.error("Could not fetch categories", error);
+        }
+    };
+    fetchCategories();
+  }, []);
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
@@ -742,23 +764,22 @@ export default function CreateCoursePage() {
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Category</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a category" />
-                                    </SelectTrigger>
+                                    <>
+                                        <Input
+                                            placeholder="e.g., Health & Safety"
+                                            {...field}
+                                            list="category-list"
+                                        />
+                                        <datalist id="category-list">
+                                            {categories.map((cat) => (
+                                                <option key={cat} value={cat} />
+                                            ))}
+                                        </datalist>
+                                    </>
                                 </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="Leadership">Leadership</SelectItem>
-                                    <SelectItem value="Marketing">Marketing</SelectItem>
-                                    <SelectItem value="Sales">Sales</SelectItem>
-                                    <SelectItem value="Engineering">Engineering</SelectItem>
-                                    <SelectItem value="Product">Product</SelectItem>
-                                    <SelectItem value="Design">Design</SelectItem>
-                                </SelectContent>
-                                </Select>
                                 <FormDescription>
-                                Categorize the course to help users find it.
+                                    Select an existing category or type to create a new one.
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>

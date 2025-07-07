@@ -628,6 +628,7 @@ export default function ManageCoursesPage() {
   const [isDialogDeleting, setIsDialogDeleting] = useState(false);
   const { toast } = useToast()
   const { isSuperAdmin } = useSession();
+  const [categories, setCategories] = useState<string[]>([]);
   
   const [filters, setFilters] = useState({ title: '', category: 'all' });
 
@@ -650,10 +651,17 @@ export default function ManageCoursesPage() {
   const fetchCourses = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/courses");
-      if (!res.ok) throw new Error("Failed to fetch courses");
-      const data = await res.json();
-      setCourses(data);
+      const [coursesRes, categoriesRes] = await Promise.all([
+        fetch("/api/admin/courses"),
+        fetch("/api/admin/categories")
+      ]);
+
+      if (!coursesRes.ok) throw new Error("Failed to fetch courses");
+      setCourses(await coursesRes.json());
+
+      if (categoriesRes.ok) {
+        setCategories(await categoriesRes.json());
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -782,12 +790,9 @@ export default function ManageCoursesPage() {
                   </SelectTrigger>
                   <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="Leadership">Leadership</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="Sales">Sales</SelectItem>
-                      <SelectItem value="Engineering">Engineering</SelectItem>
-                      <SelectItem value="Product">Product</SelectItem>
-                      <SelectItem value="Design">Design</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
                   </SelectContent>
               </Select>
               <Button variant="outline" onClick={clearFilters} disabled={!filtersAreActive}>Clear Filters</Button>
