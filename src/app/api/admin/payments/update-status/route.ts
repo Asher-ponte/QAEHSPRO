@@ -43,17 +43,15 @@ export async function POST(request: NextRequest) {
 
         if (status === 'completed') {
             await db.run('UPDATE transactions SET status = ? WHERE id = ?', ['completed', transactionId]);
-            // Enroll the user in the course
-            await db.run(
-                'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
-                [transaction.user_id, transaction.course_id]
-            );
         } else if (status === 'rejected') {
             if (!rejectionReason || rejectionReason.trim() === "") {
                 await db.run('ROLLBACK');
                 return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
             }
             await db.run('UPDATE transactions SET status = ?, rejection_reason = ? WHERE id = ?', ['rejected', rejectionReason, transactionId]);
+            
+            // Un-enroll the user from the course upon rejection.
+            await db.run('DELETE FROM enrollments WHERE user_id = ? AND course_id = ?', [transaction.user_id, transaction.course_id]);
         }
         
         await db.run('COMMIT');
@@ -66,3 +64,5 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to update transaction status' }, { status: 500 });
     }
 }
+
+    

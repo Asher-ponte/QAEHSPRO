@@ -25,6 +25,23 @@ export async function GET(
             return NextResponse.json({ error: 'Certificate not found or you do not have permission to view it.' }, { status: 404 });
         }
         
+        // --- Payment Verification Logic ---
+        if (sessionUser.type === 'External' && certificate.course_id) {
+            const course = await db.get('SELECT price FROM courses WHERE id = ?', certificate.course_id);
+            // Check if it's a paid course
+            if (course && course.price > 0) {
+                const transaction = await db.get(
+                    `SELECT status FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`,
+                    [sessionUser.id, certificate.course_id]
+                );
+
+                if (!transaction || transaction.status !== 'completed') {
+                    return NextResponse.json({ error: 'Certificate is not available until payment has been confirmed by an administrator.' }, { status: 403 });
+                }
+            }
+        }
+        // --- End Payment Verification ---
+
         const certificateHolder = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         
         let course = null;

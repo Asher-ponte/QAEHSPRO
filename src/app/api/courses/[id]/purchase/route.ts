@@ -36,8 +36,8 @@ export async function POST(
         }
         
         const coursePrice = course ? parseFloat(course.price) : 0;
-        if (!coursePrice || coursePrice <= 0) {
-            return NextResponse.json({ error: 'This is not a paid course.' }, { status: 400 });
+        if (coursePrice === undefined || coursePrice < 0) {
+            return NextResponse.json({ error: 'This course does not have a valid price.' }, { status: 400 });
         }
 
         const body = await request.json();
@@ -48,14 +48,18 @@ export async function POST(
         }
         const { proofImagePath } = parsedData.data;
 
+        await db.run('BEGIN TRANSACTION');
+
         const existingPending = await db.get(
-            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status = 'pending'`,
+            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
             [user.id, courseId]
         );
         if (existingPending) {
-            return NextResponse.json({ error: 'You already have a pending payment for this course. Please wait for it to be validated.' }, { status: 409 });
+            await db.run('ROLLBACK');
+            return NextResponse.json({ error: 'You already have a pending or completed payment for this course.' }, { status: 409 });
         }
 
+        // Create the transaction record
         await db.run(
             `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path, gateway)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -70,11 +74,22 @@ export async function POST(
             ]
         );
 
-        return NextResponse.json({ success: true });
+        // Enroll the user immediately so they can start the course.
+        await db.run(
+            'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
+            [user.id, courseId]
+        );
+        
+        await db.run('COMMIT');
+
+        return NextResponse.json({ success: true, message: "Payment submitted and course unlocked." });
 
     } catch (error) {
+        if (db) await db.run('ROLLBACK').catch(console.error);
         const details = error instanceof Error ? error.message : 'Unknown server error';
         console.error("Purchase API: CATCH BLOCK ERROR:", { error: details, stack: (error as Error).stack });
         return NextResponse.json({ error: 'Failed to submit payment proof due to a server error.', details }, { status: 500 });
     }
 }
+
+    

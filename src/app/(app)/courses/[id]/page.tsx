@@ -106,6 +106,7 @@ export default function CourseDetailPage() {
                     completed: !!lesson.completed
                 }))
             })),
+            isCompleted: !!data.isCompleted,
             allLessonsCompleted: !!data.allLessonsCompleted,
             hasFinalAssessment: !!data.hasFinalAssessment,
         }
@@ -142,7 +143,8 @@ export default function CourseDetailPage() {
   const isExternalUser = user?.type === 'External';
   
   // A user can access content if they are an employee, OR if the course is free, OR if it's a paid course they have paid for.
-  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || course?.transactionStatus?.status === 'completed';
+  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || (isPaidCourse && isExternalUser);
+
 
   const PaymentStatusCard = () => {
     if (!isExternalUser || !isPaidCourse || !course?.transactionStatus || course.transactionStatus.status === 'completed') {
@@ -156,9 +158,9 @@ export default function CourseDetailPage() {
                     <div className="flex items-center gap-4">
                         <Clock className="h-8 w-8 text-blue-600" />
                         <div>
-                            <CardTitle className="text-blue-800 dark:text-blue-300">Payment Pending</CardTitle>
+                            <CardTitle className="text-blue-800 dark:text-blue-300">Payment Pending Validation</CardTitle>
                             <CardDescription className="text-blue-700 dark:text-blue-400">
-                                Your payment is being validated. We'll notify you once it's complete. You can view the status on your payment history page.
+                                You can start the course now. Your certificate will be available once an admin validates your payment.
                             </CardDescription>
                         </div>
                     </div>
@@ -176,11 +178,16 @@ export default function CourseDetailPage() {
                         <div>
                             <CardTitle className="text-red-800 dark:text-red-300">Payment Rejected</CardTitle>
                             <CardDescription className="text-red-700 dark:text-red-400">
-                                Reason: {course.transactionStatus.reason || "No reason provided."} Please resubmit your payment.
+                                Reason: {course.transactionStatus.reason || "No reason provided."} Your access has been revoked. Please resubmit your payment to re-gain access.
                             </CardDescription>
                         </div>
                     </div>
                 </CardHeader>
+                 <CardFooter className="bg-red-100/50 dark:bg-red-900/10 p-4">
+                    <Button asChild className="w-full" size="sm">
+                        <Link href={`/courses/${course.id}/purchase`}>Resubmit Payment</Link>
+                    </Button>
+                </CardFooter>
             </Card>
         );
     }
@@ -222,10 +229,10 @@ export default function CourseDetailPage() {
   const ActionButton = () => {
     let buttonText = "Start Course";
     let buttonHref = "#";
-    let buttonDisabled = true;
+    let buttonDisabled = false;
     let Icon = null;
 
-    if (course.isCompleted) {
+    if (course.isCompleted && course.transactionStatus?.status === 'completed') {
         return (
             <Button className="w-full" disabled>
                 <CheckCircle className="mr-2 h-4 w-4" />
@@ -236,53 +243,56 @@ export default function CourseDetailPage() {
     
     // Logic for external users with paid courses
     if (isExternalUser && isPaidCourse) {
-        // If payment is pending, button is disabled. The status card gives the info.
-        if (course.transactionStatus?.status === 'pending') {
-            return (
-                <Button className="w-full" disabled>
-                    <Clock className="mr-2 h-4 w-4" />
-                    Payment Pending Review
+        if (course.transactionStatus?.status === 'rejected') {
+             return (
+                <Button className="w-full" asChild>
+                    <Link href={`/courses/${course.id}/purchase`}>
+                        Resubmit Payment
+                    </Link>
                 </Button>
             );
         }
-        // If payment is completed or not yet initiated/rejected, link to purchase page.
-        // The text changes based on whether it's a first attempt or a resubmission.
-        const buttonText = course.transactionStatus?.status === 'rejected' ? 'Resubmit Payment' : `Buy Now for ₱${course.price?.toFixed(2)}`;
-         return (
-             <Button className="w-full" asChild>
-                <Link href={`/courses/${course.id}/purchase`}>
-                    {buttonText}
-                </Link>
-            </Button>
-        );
+        // If payment is pending or completed, they can start/continue
+        if (!course.transactionStatus) {
+            return (
+                <Button className="w-full" asChild>
+                    <Link href={`/courses/${course.id}/purchase`}>
+                        {`Buy Now for ₱${course.price?.toFixed(2)}`}
+                    </Link>
+                </Button>
+            );
+        }
     }
 
-    // Logic for free courses or internal users
+    // Logic for continuing the course
     if (course.allLessonsCompleted && course.hasFinalAssessment) {
         buttonText = "Start Final Assessment";
         buttonHref = `/courses/${course.id}/assessment`;
-        buttonDisabled = false;
         Icon = ClipboardCheck;
-    } else if (statusInfo?.status === 'Scheduled') {
-        buttonText = "Course is Scheduled";
-        buttonDisabled = true;
-    } else if (statusInfo?.status === 'Archived') {
-        buttonText = "Course Archived";
-        buttonDisabled = true;
     } else if (allLessons.length > 0) {
         if (firstUncompletedLesson) {
             const hasStarted = allLessons.some(l => l.completed);
             buttonText = hasStarted ? "Continue Course" : "Start Course";
             buttonHref = `/courses/${course.id}/lessons/${firstUncompletedLesson.id}`;
-            buttonDisabled = false;
-        } else { // Should only happen if all lessons are done but course isn't marked completed yet
-            buttonText = "Review Course";
-            buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
-            buttonDisabled = false;
+        } else if (course.isCompleted) {
+             buttonText = "Review Course";
+             buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
+        } else {
+            // All lessons done, but course not complete (e.g. pending assessment)
+             buttonText = "Review Course";
+             buttonHref = `/courses/${course.id}/lessons/${allLessons[0].id}`;
         }
     } else {
          buttonText = "Content Coming Soon";
          buttonDisabled = true;
+    }
+
+    if (statusInfo?.status === 'Scheduled') {
+        buttonText = "Course is Scheduled";
+        buttonDisabled = true;
+    } else if (statusInfo?.status === 'Archived') {
+        buttonText = "Course Archived";
+        buttonDisabled = true;
     }
 
     return (
@@ -332,7 +342,8 @@ export default function CourseDetailPage() {
                              href={canAccessContent ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
                              className={cn(
                                 "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md transition-colors",
-                                canAccessContent ? "hover:bg-muted/50" : "pointer-events-none opacity-50"
+                                canAccessContent ? "hover:bg-muted/50" : "pointer-events-none opacity-50",
+                                course.transactionStatus?.status === 'rejected' && "pointer-events-none opacity-50"
                              )}
                            >
                             <div className="flex items-center min-w-0">
@@ -352,7 +363,7 @@ export default function CourseDetailPage() {
                  <div className="mt-4 border-t pt-4">
                      <div className={cn(
                          "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
-                         !course.allLessonsCompleted && "pointer-events-none opacity-50"
+                         (!course.allLessonsCompleted || course.transactionStatus?.status === 'rejected') && "pointer-events-none opacity-50"
                      )}>
                          <div className="flex items-center min-w-0 font-semibold">
                              <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
@@ -394,3 +405,5 @@ export default function CourseDetailPage() {
     </div>
   )
 }
+
+    
