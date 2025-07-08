@@ -53,27 +53,35 @@ function getCourseStatus(
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
+  const [userCourseIds, setUserCourseIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const { user } = useSession();
 
   useEffect(() => {
-    async function fetchCourses() {
+    async function fetchData() {
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/courses")
-        if (!res.ok) {
-          throw new Error("Failed to fetch courses")
+        const coursesRes = await fetch("/api/courses");
+        if (!coursesRes.ok) throw new Error("Failed to fetch courses");
+        const coursesData = await coursesRes.json();
+        setCourses(coursesData);
+
+        if (user) {
+            const statusRes = await fetch("/api/profile/enrollment-status");
+            if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                setUserCourseIds(new Set(statusData.userCourseIds?.map(Number) || []));
+            }
         }
-        const data = await res.json()
-        setCourses(data)
       } catch (error) {
         console.error(error)
       } finally {
         setIsLoading(false)
       }
     }
-    fetchCourses()
-  }, [])
+    fetchData();
+  }, [user])
 
   const filteredCourses = courses.filter(course =>
     course.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -121,12 +129,14 @@ export default function CoursesPage() {
               const isActionable = !status || status.text === 'Active';
               const isPaidCourse = course.is_public && course.price && course.price > 0;
               const isExternalUser = user?.type === 'External';
+              const hasAccess = userCourseIds.has(Number(course.id));
 
               const ActionButton = () => {
                 if (!isActionable) {
                     return <Button className="flex-1" disabled>{status?.text}</Button>;
                 }
-                if (isExternalUser && isPaidCourse) {
+
+                if (isExternalUser && isPaidCourse && !hasAccess) {
                     return (
                         <Button asChild className="flex-1">
                             <Link href={`/courses/${course.id}`}>
@@ -135,6 +145,7 @@ export default function CoursesPage() {
                         </Button>
                     );
                 }
+                
                 return (
                     <Button asChild className="flex-1">
                         <Link href={`/courses/${course.id}`}>Start Learning</Link>
@@ -158,7 +169,7 @@ export default function CoursesPage() {
                      {status && status.text !== 'Active' && (
                         <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
                     )}
-                     {isExternalUser && isPaidCourse && (
+                     {isExternalUser && isPaidCourse && !hasAccess && (
                          <Badge variant="default" className="absolute top-2 left-2">
                             ₱{course.price?.toFixed(2)}
                          </Badge>
