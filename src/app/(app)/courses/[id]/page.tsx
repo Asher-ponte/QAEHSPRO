@@ -160,7 +160,7 @@ export default function CourseDetailPage() {
                         <div>
                             <CardTitle className="text-blue-800 dark:text-blue-300">Payment Pending Validation</CardTitle>
                             <CardDescription className="text-blue-700 dark:text-blue-400">
-                                You can start the course now. Your certificate will be available once an admin validates your payment.
+                                Thank you for your payment! You can start the course now. Your certificate will be available once an admin validates your payment.
                             </CardDescription>
                         </div>
                     </div>
@@ -405,5 +405,3 @@ export default function CourseDetailPage() {
     </div>
   )
 }
-
-    

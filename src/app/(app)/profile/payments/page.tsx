@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { ArrowLeft, Clock, CheckCircle, XCircle } from "lucide-react"
@@ -145,7 +145,36 @@ export default function MyPaymentsPage() {
                             <TableCell colSpan={5} className="p-0">
                                 <Alert variant="destructive" className="rounded-none border-x-0 border-b-0">
                                     <AlertTitle>Rejection Reason</AlertTitle>
-                                    <AlertDescription>{tx.rejection_reason}</AlertDescription>
+                                    <AlertDescription>
+                                      {tx.rejection_reason}
+                                      <Button variant="link" asChild className="p-0 h-auto ml-2">
+                                        <Link href={`/courses/${tx.courseId}/purchase`}>Click here to resubmit.</Link>
+                                      </Button>
+                                    </AlertDescription>
+                                </Alert>
+                            </TableCell>
+                        </TableRow>
+                    )}
+                     {tx.status === 'pending' && (
+                        <TableRow>
+                            <TableCell colSpan={5} className="p-0">
+                                <Alert className="rounded-none border-x-0 border-b-0">
+                                    <AlertTitle className="flex items-center gap-2"><Clock className="h-4 w-4"/>Awaiting Verification</AlertTitle>
+                                    <AlertDescription>
+                                      Your payment was sent to the administrator. Thank you for your patience while we verify it.
+                                    </AlertDescription>
+                                </Alert>
+                            </TableCell>
+                        </TableRow>
+                    )}
+                     {tx.status === 'completed' && (
+                        <TableRow>
+                            <TableCell colSpan={5} className="p-0">
+                                <Alert className="rounded-none border-x-0 border-b-0 border-green-500/50 bg-green-500/10">
+                                    <AlertTitle className="flex items-center gap-2 text-green-700 dark:text-green-400"><CheckCircle className="h-4 w-4"/>Payment Verified</AlertTitle>
+                                    <AlertDescription className="text-green-600 dark:text-green-500">
+                                      Your payment has been accepted. Thank you!
+                                    </AlertDescription>
                                 </Alert>
                             </TableCell>
                         </TableRow>
