@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, useMemo, useRef } from "react"
+import { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -89,7 +89,6 @@ export default function AssessmentPage() {
     const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
 
     // State for focus tracking proctoring
-    const [isPageFocused, setIsPageFocused] = useState(true);
     const [showFocusWarning, setShowFocusWarning] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -118,72 +117,69 @@ export default function AssessmentPage() {
         fetchAssessment();
     }, [courseId, router, toast]);
 
-    const handleExamRestart = () => {
+    const handleExamRestart = useCallback(() => {
         toast({
             variant: "destructive",
             title: "Exam Terminated",
             description: "You looked away from the page for too long. The attempt has been reset.",
         });
         window.location.reload();
-    };
+    }, [toast]);
 
-    // Effect for Desktop Focus Proctoring
+    // Effect for Focus Proctoring
     useEffect(() => {
-        // Do not run proctoring until the user agrees to the rules
         if (!hasAgreedToRules) return;
 
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                setIsPageFocused(false);
-            } else {
-                setIsPageFocused(true);
-            }
-        };
-
-        const handleBlur = () => setIsPageFocused(false);
-        const handleFocus = () => setIsPageFocused(true);
-
-        window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('blur', handleBlur);
-        window.addEventListener('focus', handleFocus);
-
-        return () => {
-            window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('blur', handleBlur);
-            window.removeEventListener('focus', handleFocus);
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-            }
-        };
-    }, [hasAgreedToRules]);
-
-    useEffect(() => {
-        if (!isPageFocused && hasAgreedToRules) {
+        const startCountdown = () => {
+            // Prevent multiple intervals from running
+            if (countdownIntervalRef.current) return;
+            
             setShowFocusWarning(true);
             countdownIntervalRef.current = setInterval(() => {
-                setFocusCountdown((prevCountdown) => {
-                    if (prevCountdown <= 1) {
+                setFocusCountdown((prev) => {
+                    if (prev <= 1) {
                         clearInterval(countdownIntervalRef.current!);
                         handleExamRestart();
                         return 0;
                     }
-                    return prevCountdown - 1;
+                    return prev - 1;
                 });
             }, 1000);
-        } else {
+        };
+
+        const stopCountdown = () => {
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
             }
             setShowFocusWarning(false);
             setFocusCountdown(10);
-        }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                startCountdown();
+            } else {
+                stopCountdown();
+            }
+        };
+
+        // We use visibilitychange as the primary mechanism for tab/app switching.
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Blur and focus on the window are fallbacks for desktop window switching.
+        window.addEventListener('blur', startCountdown);
+        window.addEventListener('focus', stopCountdown);
 
         return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', startCountdown);
+            window.removeEventListener('focus', stopCountdown);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [isPageFocused, hasAgreedToRules]);
+    }, [hasAgreedToRules, handleExamRestart]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
