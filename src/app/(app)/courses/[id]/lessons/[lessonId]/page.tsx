@@ -261,43 +261,53 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
             );
         case 'document':
             return (
-                <div className="space-y-6">
-                    {lesson.documentPath && (
-                        <Dialog>
-                            <DialogTrigger asChild>
-                                <Button variant="outline">
-                                    <FileTextIcon className="mr-2 h-4 w-4" />
-                                    View Attached PDF
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
-                                <DialogHeader className="p-4 border-b">
-                                    <DialogTitle>PDF Viewer</DialogTitle>
-                                </DialogHeader>
-                                <div className="flex-1">
-                                    <iframe 
-                                        src={lesson.documentPath} 
-                                        className="w-full h-full"
-                                        title={`PDF Viewer for ${lesson.title}`}
-                                    />
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-                    )}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                    {/* Left Column for Image */}
                     {lesson.imagePath && (
-                        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                            <Image
-                                src={lesson.imagePath}
-                                alt={lesson.title}
-                                fill
-                                className="object-cover"
-                            />
+                        <div className="lg:col-span-1">
+                            <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                                <Image
+                                    src={lesson.imagePath}
+                                    alt={lesson.title}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
                         </div>
                     )}
-                    <article
-                        className="prose dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: lesson.content || "" }}
-                    />
+
+                    {/* Right Column for Text and PDF */}
+                    <div className={cn(
+                        "space-y-6",
+                        lesson.imagePath ? "lg:col-span-2" : "lg:col-span-3"
+                    )}>
+                        {lesson.documentPath && (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline">
+                                        <FileTextIcon className="mr-2 h-4 w-4" />
+                                        View Attached PDF
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
+                                    <DialogHeader className="p-4 border-b">
+                                        <DialogTitle>PDF Viewer</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="flex-1">
+                                        <iframe 
+                                            src={lesson.documentPath} 
+                                            className="w-full h-full"
+                                            title={`PDF Viewer for ${lesson.title}`}
+                                        />
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        )}
+                        <article
+                            className="prose dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ __html: lesson.content || "" }}
+                        />
+                    </div>
                 </div>
             );
         case 'quiz':
