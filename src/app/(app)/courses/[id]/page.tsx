@@ -142,8 +142,8 @@ export default function CourseDetailPage() {
   const isPaidCourse = !!(course?.is_public && course.price && course.price > 0);
   const isExternalUser = user?.type === 'External';
   
-  // A user can access content if they are an employee, OR if the course is free, OR if it's a paid course they have paid for.
-  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || (isPaidCourse && isExternalUser);
+  const hasPaidOrIsPending = isExternalUser && isPaidCourse && !!course?.transactionStatus && course.transactionStatus.status !== 'rejected';
+  const canAccessContent = user?.type === 'Employee' || !isPaidCourse || hasPaidOrIsPending;
 
 
   const PaymentStatusCard = () => {
@@ -361,16 +361,17 @@ export default function CourseDetailPage() {
             </Accordion>
              {course.hasFinalAssessment && (
                  <div className="mt-4 border-t pt-4">
-                     <div className={cn(
+                     <Link href={canAccessContent && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
                          "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
-                         (!course.allLessonsCompleted || course.transactionStatus?.status === 'rejected') && "pointer-events-none opacity-50"
+                         (!canAccessContent || !course.allLessonsCompleted) && "pointer-events-none opacity-50",
+                         course.transactionStatus?.status === 'rejected' && "pointer-events-none opacity-50"
                      )}>
                          <div className="flex items-center min-w-0 font-semibold">
                              <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
                              <span className="break-words flex-1">Final Assessment</span>
                          </div>
                          <CheckCircle className={`h-5 w-5 shrink-0 ${course.isCompleted ? 'text-green-500' : 'text-muted-foreground/30'}`} />
-                     </div>
+                     </Link>
                  </div>
             )}
           </CardContent>
@@ -405,3 +406,5 @@ export default function CourseDetailPage() {
     </div>
   )
 }
+
+    
