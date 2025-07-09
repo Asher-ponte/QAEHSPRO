@@ -44,6 +44,14 @@ interface AssessmentData {
     attempts: Attempt[];
 }
 
+interface LastResult {
+    score: number;
+    total: number;
+    passed: boolean;
+    certificateId: number | null;
+    retakeRequired: boolean;
+}
+
 function AssessmentSkeleton() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -71,7 +79,13 @@ export default function AssessmentPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [answers, setAnswers] = useState<Record<number, number>>({});
+    
+    // State for dialogs
     const [showRetakeConfirm, setShowRetakeConfirm] = useState(false);
+    const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+    const [showResultDialog, setShowResultDialog] = useState(false);
+    const [lastResult, setLastResult] = useState<LastResult | null>(null);
+
     const [isRetaking, setIsRetaking] = useState(false);
 
     useEffect(() => {
@@ -101,7 +115,7 @@ export default function AssessmentPage() {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
     };
 
-    const handleSubmit = async () => {
+    const executeSubmit = async () => {
         if (!assessmentData) return;
         setIsSubmitting(true);
         try {
@@ -114,39 +128,27 @@ export default function AssessmentPage() {
             if (!res.ok) {
                 throw new Error(result.error || "Failed to submit assessment.");
             }
+            
+            // This is a local update to keep the UI consistent until reload.
+            setAssessmentData(prev => prev ? ({
+                ...prev,
+                attempts: [
+                    ...prev.attempts,
+                    { id: Date.now(), score: result.score, total: result.total, passed: result.passed, attempt_date: new Date().toISOString() }
+                ]
+            }) : null);
 
-            if (result.passed) {
-                toast({
-                    title: "Congratulations! Assessment Passed!",
-                    description: "You have successfully completed the course.",
-                    duration: 5000,
-                });
-                router.push(`/profile/certificates/${result.certificateId}`);
-            } else if (result.retakeRequired) {
-                toast({
-                    variant: "destructive",
-                    title: "Maximum Attempts Reached",
-                    description: "You must retake the course to try the assessment again.",
-                    duration: 8000,
-                });
-                // Force a reload of the page to show the "retake course" state
-                window.location.reload();
-            } else {
-                toast({
-                    variant: "destructive",
-                    title: "Assessment Failed",
-                    description: `Your score was ${result.score}/${result.total}. Please review the material and try again.`,
-                    duration: 8000,
-                });
-                // Force a reload of the page to get the updated attempt history
-                window.location.reload();
-            }
+            setLastResult(result);
+            setShowSubmitConfirm(false);
+            setShowResultDialog(true);
+            
         } catch (error) {
              toast({
                 variant: "destructive",
                 title: "Submission Error",
                 description: error instanceof Error ? error.message : "An unknown error occurred.",
             });
+             setShowSubmitConfirm(false);
         } finally {
             setIsSubmitting(false);
         }
@@ -176,6 +178,55 @@ export default function AssessmentPage() {
             setShowRetakeConfirm(false);
         }
     }
+    
+    const ResultDialog = () => {
+        if (!lastResult) return null;
+
+        const { score, total, passed, certificateId } = lastResult;
+        const attemptsLeft = (assessmentData?.maxAttempts || 0) - (assessmentData?.attempts.length || 0);
+
+        const handleTryAgain = () => {
+            setShowResultDialog(false);
+            window.location.reload();
+        };
+
+        const handleViewCertificate = () => {
+            if (certificateId) {
+                router.push(`/profile/certificates/${certificateId}`);
+            }
+        };
+
+        return (
+            <AlertDialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-center text-2xl font-bold">
+                            {passed ? "Assessment Passed!" : "Assessment Failed"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-center !mt-4 space-y-2">
+                             <p className="text-lg">Your Score</p>
+                             <p className="text-5xl font-bold text-foreground my-2">{score} / {total}</p>
+                             <p className="text-base text-muted-foreground">{Math.round((score / total) * 100)}%</p>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                     <AlertDialogFooter className="!flex-row !justify-center gap-4">
+                        {passed ? (
+                            <AlertDialogAction className="w-full" onClick={handleViewCertificate}>
+                                View Certificate
+                            </AlertDialogAction>
+                        ) : (
+                            <>
+                                <AlertDialogCancel>Okay</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleTryAgain}>
+                                    Try Again ({attemptsLeft} left)
+                                </AlertDialogAction>
+                            </>
+                        )}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        );
+    };
 
     const canSubmit = useMemo(() => {
         if (!assessmentData) return false;
@@ -246,6 +297,24 @@ export default function AssessmentPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            <ResultDialog />
+            <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Final Submission</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Please double check your answer before final submission.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={executeSubmit} disabled={isSubmitting}>
+                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             Submit Final Answer
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <div>
                 <h1 className="text-3xl font-bold font-headline">Final Assessment: {courseTitle}</h1>
                 <p className="text-muted-foreground">
@@ -286,7 +355,7 @@ export default function AssessmentPage() {
             </Card>
 
             <div className="flex justify-end">
-                <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
+                <Button onClick={() => setShowSubmitConfirm(true)} disabled={!canSubmit || isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Submit Attempt {attemptsMade + 1}
                 </Button>
