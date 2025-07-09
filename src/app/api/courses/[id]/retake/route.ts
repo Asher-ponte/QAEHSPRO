@@ -15,8 +15,13 @@ export async function POST(
     let db;
     try {
         db = await getDb(siteId);
-        const { id: courseId } = params;
+        const { id: courseIdStr } = params;
+        const courseId = parseInt(courseIdStr, 10);
         const userId = user.id;
+
+        if (isNaN(courseId)) {
+            return NextResponse.json({ error: 'Invalid course ID.' }, { status: 400 });
+        }
         
         await db.run('BEGIN TRANSACTION');
 
@@ -38,12 +43,18 @@ export async function POST(
             );
         }
 
+        // Also delete previous final assessment attempts for this user and course
+        await db.run(
+            'DELETE FROM final_assessment_attempts WHERE user_id = ? AND course_id = ?',
+            [userId, courseId]
+        );
+
         // We no longer delete the certificate. It remains as a historical record.
         // The user can now start the course again from 0% progress.
         
         await db.run('COMMIT');
 
-        return NextResponse.json({ success: true, message: 'Course progress reset.' });
+        return NextResponse.json({ success: true, message: 'Course progress and assessment attempts have been reset.' });
 
     } catch (error) {
         if (db) {
