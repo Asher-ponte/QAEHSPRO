@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -596,12 +595,14 @@ export default function LessonPage() {
                             <>
                                 {nextLessonId ? (
                                     <Button
-                                        asChild
+                                        onClick={() => {
+                                            if (lesson.completed && nextLessonId) {
+                                                router.push(`/courses/${course.id}/lessons/${nextLessonId}`);
+                                            }
+                                        }}
                                         disabled={!lesson.completed || isQuizSubmitting}
                                     >
-                                        <Link href={`/courses/${course.id}/lessons/${nextLessonId}`}>
-                                            Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
-                                        </Link>
+                                        Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 ) : (
                                     <Button disabled={!lesson.completed || isQuizSubmitting}>
