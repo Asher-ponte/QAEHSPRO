@@ -84,13 +84,22 @@ export async function POST(
             return NextResponse.json({ success: true, message: 'No users have 100% completion to reset for re-training.' });
         }
         
-        const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
         const userIdsPlaceholder = userIdsToReset.map(() => '?').join(',');
 
+        // Delete final assessment attempts for these users on this course.
         await db.run(
-            `DELETE FROM user_progress WHERE lesson_id IN (${lessonIdsPlaceholder}) AND user_id IN (${userIdsPlaceholder})`,
-            [...lessonIds, ...userIdsToReset]
+            `DELETE FROM final_assessment_attempts WHERE course_id = ? AND user_id IN (${userIdsPlaceholder})`,
+            [effectiveCourseId, ...userIdsToReset]
         );
+
+        // Delete lesson progress for these users on this course.
+        if (lessonIds.length > 0) {
+            const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
+            await db.run(
+                `DELETE FROM user_progress WHERE lesson_id IN (${lessonIdsPlaceholder}) AND user_id IN (${userIdsPlaceholder})`,
+                [...lessonIds, ...userIdsToReset]
+            );
+        }
 
         await db.run('COMMIT');
         
