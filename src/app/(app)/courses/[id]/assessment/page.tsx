@@ -1,13 +1,13 @@
 
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, CheckCircle, Loader2, RefreshCw, XCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Loader2, RefreshCw, XCircle, ShieldAlert } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
@@ -85,8 +85,14 @@ export default function AssessmentPage() {
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [showResultDialog, setShowResultDialog] = useState(false);
     const [lastResult, setLastResult] = useState<LastResult | null>(null);
-
     const [isRetaking, setIsRetaking] = useState(false);
+
+    // State for focus tracking proctoring
+    const [isPageFocused, setIsPageFocused] = useState(true);
+    const [showFocusWarning, setShowFocusWarning] = useState(false);
+    const [focusCountdown, setFocusCountdown] = useState(10);
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 
     useEffect(() => {
         async function fetchAssessment() {
@@ -110,6 +116,71 @@ export default function AssessmentPage() {
         }
         fetchAssessment();
     }, [courseId, router, toast]);
+
+    const handleExamRestart = () => {
+        toast({
+            variant: "destructive",
+            title: "Exam Terminated",
+            description: "You looked away from the page for too long. The attempt has been reset.",
+        });
+        window.location.reload();
+    };
+
+    // Effect for Desktop Focus Proctoring
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                setIsPageFocused(false);
+            } else {
+                setIsPageFocused(true);
+            }
+        };
+
+        const handleBlur = () => setIsPageFocused(false);
+        const handleFocus = () => setIsPageFocused(true);
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('blur', handleBlur);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleBlur);
+            window.removeEventListener('focus', handleFocus);
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isPageFocused) {
+            setShowFocusWarning(true);
+            countdownIntervalRef.current = setInterval(() => {
+                setFocusCountdown((prevCountdown) => {
+                    if (prevCountdown <= 1) {
+                        clearInterval(countdownIntervalRef.current!);
+                        handleExamRestart();
+                        return 0;
+                    }
+                    return prevCountdown - 1;
+                });
+            }, 1000);
+        } else {
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+            }
+            setShowFocusWarning(false);
+            setFocusCountdown(10);
+        }
+
+        return () => {
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+            }
+        };
+    }, [isPageFocused]);
+
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
@@ -217,9 +288,13 @@ export default function AssessmentPage() {
                         ) : (
                             <>
                                 <AlertDialogCancel>Okay</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleTryAgain}>
-                                    Try Again ({attemptsLeft} left)
-                                </AlertDialogAction>
+                                {attemptsLeft > 0 ? (
+                                    <AlertDialogAction onClick={handleTryAgain}>
+                                        Try Again ({attemptsLeft} left)
+                                    </AlertDialogAction>
+                                ) : (
+                                    <AlertDialogAction disabled>No Attempts Left</AlertDialogAction>
+                                )}
                             </>
                         )}
                     </AlertDialogFooter>
@@ -227,6 +302,28 @@ export default function AssessmentPage() {
             </AlertDialog>
         );
     };
+
+    const FocusWarningDialog = () => (
+        <AlertDialog open={showFocusWarning}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                        <ShieldAlert className="h-6 w-6 text-destructive" />
+                        Focus Warning
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You have navigated away from the exam. Please return to the page immediately. The exam will be terminated in...
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="text-center text-6xl font-bold text-destructive my-4">
+                    {focusCountdown}
+                </div>
+                <AlertDialogFooter>
+                    <p className="text-xs text-muted-foreground">This action is to ensure exam integrity.</p>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
 
     const canSubmit = useMemo(() => {
         if (!assessmentData) return false;
@@ -244,8 +341,8 @@ export default function AssessmentPage() {
     const { courseTitle, questions, passingRate, maxAttempts, attempts } = assessmentData;
     const attemptsMade = attempts.length;
     const hasPassed = attempts.some(a => a.passed);
-    const hasReachedMaxAttempts = attemptsMade >= maxAttempts;
     
+    // Check this condition before the max attempts reached condition
     if (hasPassed) {
          return (
              <div className="max-w-4xl mx-auto text-center space-y-6">
@@ -260,6 +357,8 @@ export default function AssessmentPage() {
             </div>
          )
     }
+    
+    const hasReachedMaxAttempts = attemptsMade >= maxAttempts;
 
     if (hasReachedMaxAttempts) {
         return (
@@ -297,6 +396,7 @@ export default function AssessmentPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            <FocusWarningDialog />
             <ResultDialog />
             <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
                 <AlertDialogContent>
