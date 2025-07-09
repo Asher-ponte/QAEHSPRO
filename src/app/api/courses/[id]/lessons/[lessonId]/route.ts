@@ -24,12 +24,32 @@ export async function GET(
         return NextResponse.json({ error: 'Invalid course or lesson ID.' }, { status: 400 });
     }
 
+    // --- ACCESS CONTROL ---
     if (user.role !== 'Admin') {
+        let hasAccess = false;
+        // 1. Check for direct enrollment
         const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-        if (!enrollment) {
-            return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        if (enrollment) {
+            hasAccess = true;
+        }
+
+        // 2. For external users, also check if they have a valid transaction, as this also grants access.
+        // This is the key fix for the "Not Enrolled" bug after purchase.
+        if (!hasAccess && user.type === 'External') {
+            const transaction = await db.get(
+                `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+                [userId, courseId]
+            );
+            if (transaction) {
+                hasAccess = true;
+            }
+        }
+
+        if (!hasAccess) {
+             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
         }
     }
+    // --- END ACCESS CONTROL ---
 
     // When a user views a lesson, create a progress entry if it doesn't exist.
     await db.run(
