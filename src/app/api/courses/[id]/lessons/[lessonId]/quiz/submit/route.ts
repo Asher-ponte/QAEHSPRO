@@ -38,12 +38,29 @@ export async function POST(
 
         const userId = user.id;
         
+        // --- ACCESS CONTROL ---
         if (user.role !== 'Admin') {
+            let hasAccess = false;
             const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-            if (!enrollment) {
+            if (enrollment) {
+                hasAccess = true;
+            }
+
+            if (!hasAccess && user.type === 'External') {
+                const transaction = await db.get(
+                    `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+                    [userId, courseId]
+                );
+                if (transaction) {
+                    hasAccess = true;
+                }
+            }
+
+            if (!hasAccess) {
                 return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
             }
         }
+        // --- END ACCESS CONTROL ---
         
         const body = await request.json();
         const parsedBody = quizSubmissionSchema.safeParse(body);
