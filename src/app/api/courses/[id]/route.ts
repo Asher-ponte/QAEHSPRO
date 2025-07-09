@@ -14,7 +14,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const db = await getDb(siteId);
 
     const userId = user.id;
-    const courseId = params.id;
+    const courseId = parseInt(params.id, 10);
+
+    if (isNaN(courseId)) {
+        return NextResponse.json({ error: 'Invalid course ID.' }, { status: 400 });
+    }
 
     const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
     

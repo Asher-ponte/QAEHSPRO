@@ -14,10 +14,15 @@ export async function GET(
 
   try {
     const db = await getDb(siteId);
-    const { id: courseId, lessonId: currentLessonIdStr } = params
+    const { id: courseIdStr, lessonId: currentLessonIdStr } = params
     const currentLessonId = parseInt(currentLessonIdStr, 10);
+    const courseId = parseInt(courseIdStr, 10);
     
     const userId = user.id;
+    
+    if (isNaN(courseId) || isNaN(currentLessonId)) {
+        return NextResponse.json({ error: 'Invalid course or lesson ID.' }, { status: 400 });
+    }
 
     if (user.role !== 'Admin') {
         const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
