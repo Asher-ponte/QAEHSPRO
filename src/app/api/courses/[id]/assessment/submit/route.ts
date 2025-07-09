@@ -14,6 +14,30 @@ interface DbQuizQuestion {
     options: { text: string; isCorrect: boolean }[];
 }
 
+// Helper for access check
+async function hasAccess(db: any, user: any, courseId: number) {
+    if (user.role === 'Admin') return true;
+    
+    // Check for direct enrollment
+    const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
+    if (enrollment) {
+        return true;
+    }
+    
+    // For external users, also check for a valid transaction
+    if (user.type === 'External') {
+        const transaction = await db.get(
+            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+            [user.id, courseId]
+        );
+        if (transaction) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 export async function POST(
     request: NextRequest, 
     { params }: { params: { id: string } }
@@ -31,6 +55,13 @@ export async function POST(
         if (isNaN(courseId)) {
             return NextResponse.json({ error: 'Invalid course ID.' }, { status: 400 });
         }
+
+        // --- ACCESS CONTROL ---
+        const canAccess = await hasAccess(db, user, courseId);
+        if (!canAccess) {
+             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+        // --- END ACCESS CONTROL ---
         
         const course = await db.get(
             'SELECT final_assessment_content, passing_rate, max_attempts FROM courses WHERE id = ?',
