@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import Link from "next/link"
@@ -6,6 +7,7 @@ import {
   FileText,
   PlayCircle,
   CheckCircle as CheckCircleIcon,
+  Lock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -49,6 +51,10 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
   const activeModule = course.modules.find(module => 
     module.lessons.some(lesson => lesson.id === currentLessonId)
   );
+  
+  // Flatten lessons to enforce linear progression
+  const allLessons = course.modules.flatMap(m => m.lessons);
+  const firstIncompleteIndex = allLessons.findIndex(l => !l.completed);
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117] pt-4">
@@ -66,28 +72,40 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
                     </AccordionTrigger>
                     <AccordionContent>
                         <ul className="space-y-1 pt-1">
-                            {module.lessons.map((lesson) => (
+                            {module.lessons.map((lesson) => {
+                                const lessonIndex = allLessons.findIndex(l => l.id === lesson.id);
+                                const isLocked = firstIncompleteIndex !== -1 && lessonIndex > firstIncompleteIndex;
+
+                                return (
                                 <li key={lesson.id}>
                                     <Link
-                                        href={`/courses/${course.id}/lessons/${lesson.id}`}
+                                        href={isLocked ? '#' : `/courses/${course.id}/lessons/${lesson.id}`}
                                         className={cn(
                                             "flex items-center justify-between gap-3 text-sm p-2 rounded-md transition-colors w-full",
                                             lesson.id === currentLessonId
                                             ? "bg-blue-900/50 text-blue-400"
                                             : "hover:bg-gray-800/70",
+                                            isLocked && "opacity-60 pointer-events-none"
                                         )}
+                                        aria-disabled={isLocked}
+                                        tabIndex={isLocked ? -1 : undefined}
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
                                             {getIcon(lesson.type)}
                                             <span className="break-words text-white">{lesson.title}</span>
                                         </div>
-                                        <CheckCircleIcon className={cn(
-                                                "h-5 w-5 shrink-0", 
-                                                lesson.completed ? 'text-green-500' : 'text-gray-600'
-                                            )} />
+                                        {isLocked ? (
+                                            <Lock className="h-5 w-5 shrink-0 text-gray-500" />
+                                        ) : (
+                                            <CheckCircleIcon className={cn(
+                                                    "h-5 w-5 shrink-0", 
+                                                    lesson.completed ? 'text-green-500' : 'text-gray-600'
+                                                )} />
+                                        )}
                                     </Link>
                                 </li>
-                            ))}
+                                )}
+                            )}
                         </ul>
                     </AccordionContent>
                 </AccordionItem>
@@ -97,5 +115,3 @@ export function CourseOutlineSidebar({ course, currentLessonId }: { course: Cour
     </div>
   )
 }
-
-    

@@ -79,12 +79,21 @@ function SidebarToggleButton() {
     )
 }
 
-const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data: any) => void }) => {
+const QuizContent = ({ 
+    lesson, 
+    onQuizPass, 
+    isSubmitting, 
+    setIsSubmitting 
+}: { 
+    lesson: Lesson, 
+    onQuizPass: (data: any) => void,
+    isSubmitting: boolean,
+    setIsSubmitting: (isSubmitting: boolean) => void
+}) => {
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<number, number>>({});
     const [showResults, setShowResults] = useState(false);
     const [correctlyAnswered, setCorrectlyAnswered] = useState<Set<number>>(new Set());
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastScore, setLastScore] = useState<{ correct: number, total: number } | null>(null);
     const { toast } = useToast();
 
@@ -250,7 +259,17 @@ const QuizContent = ({ lesson, onQuizPass }: { lesson: Lesson, onQuizPass: (data
     );
 };
 
-const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (data: any) => void; }) => {
+const LessonContent = ({ 
+    lesson, 
+    onQuizPass,
+    isQuizSubmitting,
+    setIsQuizSubmitting
+}: { 
+    lesson: Lesson; 
+    onQuizPass: (data: any) => void;
+    isQuizSubmitting: boolean;
+    setIsQuizSubmitting: (isSubmitting: boolean) => void;
+}) => {
     switch (lesson.type) {
         case 'video':
             return (
@@ -311,7 +330,12 @@ const LessonContent = ({ lesson, onQuizPass }: { lesson: Lesson; onQuizPass: (da
                 </div>
             );
         case 'quiz':
-            return <QuizContent lesson={lesson} onQuizPass={onQuizPass} />;
+            return <QuizContent 
+                        lesson={lesson} 
+                        onQuizPass={onQuizPass} 
+                        isSubmitting={isQuizSubmitting}
+                        setIsSubmitting={setIsQuizSubmitting}
+                    />;
         default:
             return <p>Unsupported lesson type.</p>;
     }
@@ -353,6 +377,7 @@ export default function LessonPage() {
     const [pageData, setPageData] = useState<LessonPageData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
+    const [isQuizSubmitting, setIsQuizSubmitting] = useState(false);
     
     const fetchPageData = useCallback(async (options: { invalidateCache?: boolean } = {}) => {
         if (!params.id || !params.lessonId) return;
@@ -544,7 +569,12 @@ export default function LessonPage() {
                             </div>
                         </CardHeader>
                         <CardContent className="p-6">
-                           <LessonContent lesson={lesson} onQuizPass={handlePostCompletion} />
+                           <LessonContent 
+                            lesson={lesson} 
+                            onQuizPass={handlePostCompletion} 
+                            isQuizSubmitting={isQuizSubmitting}
+                            setIsQuizSubmitting={setIsQuizSubmitting}
+                           />
                         </CardContent>
                     </Card>
                     
@@ -567,14 +597,14 @@ export default function LessonPage() {
                                 {nextLessonId ? (
                                     <Button
                                         asChild
-                                        disabled={!lesson.completed}
+                                        disabled={!lesson.completed || isQuizSubmitting}
                                     >
                                         <Link href={`/courses/${course.id}/lessons/${nextLessonId}`}>
                                             Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
                                         </Link>
                                     </Button>
                                 ) : (
-                                    <Button disabled={!lesson.completed}>
+                                    <Button disabled={!lesson.completed || isQuizSubmitting}>
                                         <CheckCircle className="mr-2 h-4 w-4" />
                                         {lesson.completed ? 'Course Complete' : 'Pass Quiz to Finish'}
                                     </Button>
@@ -591,5 +621,3 @@ export default function LessonPage() {
         </SidebarProvider>
     )
 }
-
-    
