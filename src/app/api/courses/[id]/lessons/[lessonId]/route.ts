@@ -108,6 +108,7 @@ export async function GET(
     const currentLessonIndex = allLessonsOrderedIds.findIndex(l_id => l_id === currentLessonId);
     const previousLessonId = currentLessonIndex > 0 ? allLessonsOrderedIds[currentLessonIndex - 1] : null;
     const nextLessonId = currentLessonIndex < totalLessons - 1 ? allLessonsOrderedIds[currentLessonIndex + 1] : null;
+    const hasFinalAssessment = !!courseData.final_assessment_content;
     
     // Assemble the final response
     const responseData = {
@@ -119,6 +120,7 @@ export async function GET(
         progress: courseProgress,
         previousLessonId,
         nextLessonId,
+        hasFinalAssessment,
     };
 
     return NextResponse.json(responseData);

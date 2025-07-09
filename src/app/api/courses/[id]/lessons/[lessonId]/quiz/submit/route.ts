@@ -85,6 +85,7 @@ export async function POST(
         const passed = score === dbQuestions.length;
         let nextLessonId: number | null = null;
         let certificateId: number | null = null;
+        let redirectToAssessment = false;
         
         if (passed) {
             const totalLessonsResult = await db.get(
@@ -103,35 +104,42 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const existingCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-                if (!existingCertificate) {
-                    const today = new Date();
-                    const datePrefix = format(today, 'yyyyMMdd');
-                    const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                    const nextSerial = (countResult?.count ?? 0) + 1;
-                    const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
-                    
-                    const certResult = await db.run(
-                        `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
-                        [userId, courseId, today.toISOString(), certificateNumber]
-                    );
-                    certificateId = certResult.lastID ?? null;
+                const courseInfo = await db.get('SELECT final_assessment_content FROM courses WHERE id = ?', courseId);
+                const hasFinalAssessment = !!courseInfo?.final_assessment_content;
 
-                    if (certificateId) {
-                         const courseSignatories = await db.all(
-                            'SELECT signatory_id FROM course_signatories WHERE course_id = ?',
-                            courseId
-                        );
-                        if (courseSignatories.length > 0) {
-                            const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
-                            for (const sig of courseSignatories) {
-                                await stmt.run(certificateId, sig.signatory_id);
-                            }
-                            await stmt.finalize();
-                        }
-                    }
+                if (hasFinalAssessment) {
+                    redirectToAssessment = true;
                 } else {
-                    certificateId = existingCertificate.id;
+                    const existingCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+                    if (!existingCertificate) {
+                        const today = new Date();
+                        const datePrefix = format(today, 'yyyyMMdd');
+                        const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+                        const nextSerial = (countResult?.count ?? 0) + 1;
+                        const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+                        
+                        const certResult = await db.run(
+                            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
+                            [userId, courseId, today.toISOString(), certificateNumber]
+                        );
+                        certificateId = certResult.lastID ?? null;
+
+                        if (certificateId) {
+                            const courseSignatories = await db.all(
+                                'SELECT signatory_id FROM course_signatories WHERE course_id = ?',
+                                courseId
+                            );
+                            if (courseSignatories.length > 0) {
+                                const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
+                                for (const sig of courseSignatories) {
+                                    await stmt.run(certificateId, sig.signatory_id);
+                                }
+                                await stmt.finalize();
+                            }
+                        }
+                    } else {
+                        certificateId = existingCertificate.id;
+                    }
                 }
             }
 
@@ -156,6 +164,7 @@ export async function POST(
             correctlyAnsweredIndices,
             nextLessonId,
             certificateId,
+            redirectToAssessment,
         });
 
     } catch (error) {

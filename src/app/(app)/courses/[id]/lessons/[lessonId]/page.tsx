@@ -57,6 +57,7 @@ interface LessonPageData {
     progress: number;
     nextLessonId: number | null;
     previousLessonId: number | null;
+    hasFinalAssessment: boolean;
 }
 
 interface QuizQuestion {
@@ -429,12 +430,18 @@ export default function LessonPage() {
         fetchPageData();
     }, [params.lessonId, fetchPageData]);
 
-    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number }) => {
+    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number, redirectToAssessment?: boolean }) => {
         // Refetch to update UI state (e.g., show lesson as completed in sidebar)
         // Pass invalidateCache to ensure we get the latest progress state.
         fetchPageData({ invalidateCache: true });
 
-        if (data.certificateId) {
+        if (data.redirectToAssessment) {
+            toast({
+                title: "All Lessons Completed!",
+                description: "Proceeding to the final assessment.",
+            });
+            router.push(`/courses/${params.id}/assessment`);
+        } else if (data.certificateId) {
             toast({
                 title: "Congratulations! Course Completed!",
                 description: "Redirecting to your new certificate...",
@@ -479,10 +486,14 @@ export default function LessonPage() {
     
     const handleNextClick = () => {
         if (!pageData) return;
-        if (pageData.lesson.completed && pageData.nextLessonId) {
-            router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
+        if (pageData.lesson.completed) {
+            if (pageData.nextLessonId) {
+                router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
+            } else if (pageData.hasFinalAssessment) {
+                 router.push(`/courses/${pageData.course.id}/assessment`);
+            }
         } else if (!pageData.lesson.completed) {
-            handleCompleteLesson();
+            handleCompleteLesson(); // This will handle the redirect via handlePostCompletion
         }
     };
 
@@ -507,7 +518,7 @@ export default function LessonPage() {
         );
     }
     
-    const { lesson, course, progress, nextLessonId, previousLessonId } = pageData;
+    const { lesson, course, progress, nextLessonId, previousLessonId, hasFinalAssessment } = pageData;
 
     const getIcon = () => {
         switch (lesson.type) {
@@ -520,9 +531,42 @@ export default function LessonPage() {
 
     const NextButtonContent = () => {
         if (lesson.completed) {
-            return <>Next Lesson <ArrowRight className="ml-2 h-4 w-4" /></>;
+            if (!nextLessonId && hasFinalAssessment) {
+                return <>Start Final Assessment <ArrowRight className="ml-2 h-4 w-4" /></>;
+            }
+            if (nextLessonId) {
+                return <>Next Lesson <ArrowRight className="ml-2 h-4 w-4" /></>;
+            }
+            return <>Course Complete <CheckCircle className="ml-2 h-4 w-4" /></>;
         }
+        
+        if (!nextLessonId && hasFinalAssessment) {
+            return <>Complete & Start Assessment <ArrowRight className="ml-2 h-4 w-4" /></>;
+        }
+
         return <> {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />} Complete & Continue </>;
+    };
+
+    const QuizNavButton = () => {
+        if (isQuizSubmitting) {
+            return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</Button>;
+        }
+        if (!lesson.completed) {
+            return <Button disabled>Pass Quiz to Continue</Button>;
+        }
+        
+        const destinationText = nextLessonId ? "Next Lesson" : "Start Final Assessment";
+        const destinationPath = nextLessonId ? `/courses/${course.id}/lessons/${nextLessonId}` : `/courses/${course.id}/assessment`;
+
+        if (nextLessonId || hasFinalAssessment) {
+             return (
+                <Button onClick={() => router.push(destinationPath)}>
+                    {destinationText} <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+            );
+        }
+
+        return <Button disabled><CheckCircle className="mr-2 h-4 w-4" /> Course Complete</Button>;
     };
 
     return (
@@ -585,32 +629,15 @@ export default function LessonPage() {
                             </Link>
                         </Button>
                         
-                        {lesson.type !== 'quiz' && (
-                            <Button onClick={handleNextClick} disabled={isCompleting || (lesson.completed && !nextLessonId)}>
+                        {lesson.type !== 'quiz' ? (
+                            <Button 
+                                onClick={handleNextClick} 
+                                disabled={isCompleting || (lesson.completed && !nextLessonId && !hasFinalAssessment)}
+                            >
                                 <NextButtonContent />
                             </Button>
-                        )}
-
-                        {lesson.type === 'quiz' && (
-                            <>
-                                {nextLessonId ? (
-                                    <Button
-                                        onClick={() => {
-                                            if (lesson.completed && nextLessonId) {
-                                                router.push(`/courses/${course.id}/lessons/${nextLessonId}`);
-                                            }
-                                        }}
-                                        disabled={!lesson.completed || isQuizSubmitting}
-                                    >
-                                        Next Lesson <ArrowRight className="ml-2 h-4 w-4" />
-                                    </Button>
-                                ) : (
-                                    <Button disabled={!lesson.completed || isQuizSubmitting}>
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        {lesson.completed ? 'Course Complete' : 'Pass Quiz to Finish'}
-                                    </Button>
-                                )}
-                            </>
+                        ) : (
+                            <QuizNavButton />
                         )}
                     </div>
                 </div>
