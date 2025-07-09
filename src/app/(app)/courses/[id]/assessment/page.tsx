@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, CheckCircle, Loader2, RefreshCw, XCircle, ShieldAlert } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -86,6 +86,7 @@ export default function AssessmentPage() {
     const [showResultDialog, setShowResultDialog] = useState(false);
     const [lastResult, setLastResult] = useState<LastResult | null>(null);
     const [isRetaking, setIsRetaking] = useState(false);
+    const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
 
     // State for focus tracking proctoring
     const [isPageFocused, setIsPageFocused] = useState(true);
@@ -128,6 +129,9 @@ export default function AssessmentPage() {
 
     // Effect for Desktop Focus Proctoring
     useEffect(() => {
+        // Do not run proctoring until the user agrees to the rules
+        if (!hasAgreedToRules) return;
+
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 setIsPageFocused(false);
@@ -151,10 +155,10 @@ export default function AssessmentPage() {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, []);
+    }, [hasAgreedToRules]);
 
     useEffect(() => {
-        if (!isPageFocused) {
+        if (!isPageFocused && hasAgreedToRules) {
             setShowFocusWarning(true);
             countdownIntervalRef.current = setInterval(() => {
                 setFocusCountdown((prevCountdown) => {
@@ -179,7 +183,7 @@ export default function AssessmentPage() {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [isPageFocused]);
+    }, [isPageFocused, hasAgreedToRules]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -390,6 +394,37 @@ export default function AssessmentPage() {
                     </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+            </div>
+        )
+    }
+
+    if (!hasAgreedToRules) {
+        return (
+            <div className="max-w-2xl mx-auto text-center space-y-6">
+                <Card>
+                    <CardHeader>
+                        <ShieldAlert className="h-16 w-16 mx-auto text-primary" />
+                        <CardTitle className="text-2xl font-bold font-headline mt-4">Final Assessment Rules</CardTitle>
+                        <CardDescription>
+                            Please read the following rules carefully before you begin.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-left space-y-4">
+                        <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
+                            <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
+                            <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li>If you switch to another browser tab, window, or app (on desktop or mobile), a 10-second warning timer will start.</li>
+                                <li>If you do not return to the exam within 10 seconds, your attempt will be automatically terminated and you will have to start over.</li>
+                            </ul>
+                        </div>
+                        <p className="text-sm text-center text-muted-foreground">Please remain focused on the exam. Good luck!</p>
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={() => setHasAgreedToRules(true)} className="w-full">
+                            I Understand, Start Assessment
+                        </Button>
+                    </CardFooter>
+                </Card>
             </div>
         )
     }
