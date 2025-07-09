@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
     }
 
     let db;
+    let transactionIdForError: number | null = null;
+    let statusForError: string | null = null;
     try {
         const body = await request.json();
         const parsedData = updateStatusSchema.safeParse(body);
@@ -26,11 +28,13 @@ export async function POST(request: NextRequest) {
         }
         
         const { transactionId, status, rejectionReason } = parsedData.data;
+        transactionIdForError = transactionId;
+        statusForError = status;
 
         // All manual payments are in the 'external' DB
         db = await getDb('external');
         
-        console.log(`[Admin Action] Updating transaction ${transactionId} to status: ${status}`);
+        console.log(`[Admin Action] Attempting to update transaction ${transactionId} to status: ${status}`);
 
         const transaction = await db.get('SELECT * FROM transactions WHERE id = ?', transactionId);
         if (!transaction) {
@@ -45,23 +49,19 @@ export async function POST(request: NextRequest) {
         
         await db.run('BEGIN TRANSACTION');
 
-        // Defensive patch: If an old transaction has a null gateway, fix it.
-        // This prevents the NOT NULL constraint from failing on update.
-        if (!transaction.gateway) {
-            await db.run('UPDATE transactions SET gateway = ? WHERE id = ?', ['manual_upload', transactionId]);
-            console.log(`Patched gateway for old transaction ${transactionId}.`);
-        }
-
         if (status === 'completed') {
-            await db.run('UPDATE transactions SET status = ? WHERE id = ?', ['completed', transactionId]);
+            // Use COALESCE to patch the gateway if it's NULL, preventing NOT NULL constraint errors on older records.
+            await db.run("UPDATE transactions SET status = ?, gateway = COALESCE(gateway, 'manual_upload') WHERE id = ?", ['completed', transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'completed'.`);
+
         } else if (status === 'rejected') {
             if (!rejectionReason || rejectionReason.trim() === "") {
                 await db.run('ROLLBACK');
                 console.error("Rejection attempt failed: Reason is required.");
                 return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
             }
-            await db.run('UPDATE transactions SET status = ?, rejection_reason = ? WHERE id = ?', ['rejected', rejectionReason, transactionId]);
+            
+            await db.run("UPDATE transactions SET status = ?, rejection_reason = ?, gateway = COALESCE(gateway, 'manual_upload') WHERE id = ?", ['rejected', rejectionReason, transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'rejected'.`);
             
             // Un-enroll the user from the course upon rejection.
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
             await db.run('ROLLBACK').catch(console.error);
         }
         const message = error instanceof Error ? error.message : "An unknown error occurred.";
-        console.error("Failed to update transaction status:", message, error);
+        console.error(`Failed to update transaction status for ID: ${transactionIdForError}, intended status: ${statusForError}. Error:`, message, error);
         return NextResponse.json({ error: 'Failed to update transaction status.', details: message }, { status: 500 });
     }
 }
