@@ -260,9 +260,9 @@ function SignUpForm() {
                             name="email"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email Address (Optional)</FormLabel>
+                                    <FormLabel>Email Address</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="e.g., john@example.com" {...field} />
+                                        <Input type="email" placeholder="Email Address" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -273,9 +273,9 @@ function SignUpForm() {
                             name="phone"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Phone Number (Optional)</FormLabel>
+                                    <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., +1 234 567 890" {...field} />
+                                        <Input placeholder="Phone Number" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
