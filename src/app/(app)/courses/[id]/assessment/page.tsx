@@ -306,20 +306,23 @@ export default function AssessmentPage() {
     const FocusWarningDialog = () => (
         <AlertDialog open={showFocusWarning}>
             <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
+                <AlertDialogHeader className="text-center">
+                    <AlertDialogTitle className="justify-center flex items-center gap-2">
                         <ShieldAlert className="h-6 w-6 text-destructive" />
                         Focus Warning
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                        You have navigated away from the exam. Please return to the page immediately. The exam will be terminated in...
+                        You have navigated away from the exam page.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <div className="text-center text-6xl font-bold text-destructive my-4">
-                    {focusCountdown}
+                <div className="bg-destructive/10 p-6 rounded-lg text-center">
+                     <p className="text-muted-foreground text-sm mb-2">Return to the page immediately or the exam will be terminated in:</p>
+                     <div className="text-6xl font-bold text-destructive">
+                        {focusCountdown}
+                    </div>
                 </div>
                 <AlertDialogFooter>
-                    <p className="text-xs text-muted-foreground">This action is to ensure exam integrity.</p>
+                    <p className="text-xs text-muted-foreground text-center w-full">This action is to ensure exam integrity.</p>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
