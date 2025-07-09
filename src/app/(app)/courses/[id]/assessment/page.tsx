@@ -261,11 +261,11 @@ export default function AssessmentPage() {
                         <AlertDialogTitle className="text-center text-2xl font-bold">
                             {passed ? "Assessment Passed!" : "Assessment Failed"}
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-center !mt-4 space-y-2">
-                             <p className="text-lg">Your Score</p>
-                             <p className="text-5xl font-bold text-foreground my-2">{score} / {total}</p>
-                             <p className="text-base text-muted-foreground">{Math.round((score / total) * 100)}%</p>
-                        </AlertDialogDescription>
+                        <div className="text-center !mt-4 space-y-2">
+                             <div className="text-sm text-muted-foreground">Your Score</div>
+                             <div className="text-5xl font-bold text-foreground my-2">{score} / {total}</div>
+                             <div className="text-base text-muted-foreground">{Math.round((score / total) * 100)}%</div>
+                        </div>
                     </AlertDialogHeader>
                      <AlertDialogFooter className="!flex-row !justify-center gap-4">
                         {passed ? (
