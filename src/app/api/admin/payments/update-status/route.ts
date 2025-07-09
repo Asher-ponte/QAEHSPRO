@@ -44,7 +44,13 @@ export async function POST(request: NextRequest) {
         }
         
         await db.run('BEGIN TRANSACTION');
-        console.log("Transaction started.");
+
+        // Defensive patch: If an old transaction has a null gateway, fix it.
+        // This prevents the NOT NULL constraint from failing on update.
+        if (!transaction.gateway) {
+            await db.run('UPDATE transactions SET gateway = ? WHERE id = ?', ['manual_upload', transactionId]);
+            console.log(`Patched gateway for old transaction ${transactionId}.`);
+        }
 
         if (status === 'completed') {
             await db.run('UPDATE transactions SET status = ? WHERE id = ?', ['completed', transactionId]);
