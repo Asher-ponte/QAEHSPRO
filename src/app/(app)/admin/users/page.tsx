@@ -6,7 +6,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, UserPlus } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, UserPlus, Mail, Phone } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -79,6 +79,8 @@ interface User {
   fullName: string | null;
   department: string | null;
   position: string | null;
+  email: string | null;
+  phone: string | null;
   role: 'Employee' | 'Admin';
   type: 'Employee' | 'External';
   siteId?: string;
@@ -91,6 +93,8 @@ const createUserFormSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters."}),
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
   type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
   siteId: z.string({ required_error: "Branch is required." }),
@@ -104,6 +108,8 @@ const updateUserFormSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   department: z.string().min(2, { message: "Department must be at least 2 characters." }),
   position: z.string().min(2, { message: "Position must be at least 2 characters." }),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   role: z.enum(["Employee", "Admin"], { required_error: "Role is required."}),
   type: z.enum(["Employee", "External"], { required_error: "User type is required."}),
 })
@@ -134,13 +140,13 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
 
     const form = useForm<CreateUserFormValues>({
         resolver: zodResolver(createUserFormSchema),
-        defaultValues: { username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee", siteId: site?.id },
+        defaultValues: { username: "", fullName: "", password: "", department: "", position: "", email: "", phone: "", role: "Employee", type: "Employee", siteId: site?.id },
     });
     
     // Reset form default when site context changes or dialog opens/closes
     useEffect(() => {
         if (site) {
-             form.reset({ username: "", fullName: "", password: "", department: "", position: "", role: "Employee", type: "Employee", siteId: site.id });
+             form.reset({ username: "", fullName: "", password: "", department: "", position: "", email: "", phone: "", role: "Employee", type: "Employee", siteId: site.id });
         }
     }, [site, open, form]);
 
@@ -254,6 +260,32 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                         />
                          <FormField
                             control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email Address (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input type="email" placeholder="e.g., jane@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="phone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Phone Number (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., +1 234 567 890" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
                             name="department"
                             render={({ field }) => (
                                 <FormItem>
@@ -352,7 +384,9 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
             form.reset({
                 ...user,
                 password: "",
-                fullName: user.fullName || user.username
+                fullName: user.fullName || user.username,
+                email: user.email || "",
+                phone: user.phone || ""
             });
         }
     }, [user, open, form]);
@@ -442,6 +476,32 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                     <FormDescription>
                                         Leave blank to keep the current password.
                                     </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email Address (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input type="email" placeholder="e.g., jane@example.com" {...field} value={field.value ?? ""} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="phone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Phone Number (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., +1 234 567 890" {...field} value={field.value ?? ""} />
+                                    </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -763,6 +823,8 @@ export default function ManageUsersPage() {
                 <TableHead>Full Name</TableHead>
                 <TableHead>Username</TableHead>
                 {isSuperAdmin && <TableHead>Branch</TableHead>}
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Role</TableHead>
@@ -774,13 +836,15 @@ export default function ManageUsersPage() {
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    {isSuperAdmin && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    {isSuperAdmin && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -790,6 +854,8 @@ export default function ManageUsersPage() {
                     <TableCell className="font-medium">{user.fullName || user.username}</TableCell>
                     <TableCell className="text-muted-foreground">{user.username}</TableCell>
                     {isSuperAdmin && <TableCell>{user.siteName}</TableCell>}
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phone}</TableCell>
                     <TableCell>{user.department}</TableCell>
                     <TableCell>{user.position}</TableCell>
                     <TableCell>
@@ -836,7 +902,7 @@ export default function ManageUsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={isSuperAdmin ? 10 : 9} className="h-24 text-center">
                     No users found{isSuperAdmin && filtersAreActive ? ' matching your filters' : ''}.
                   </TableCell>
                 </TableRow>
@@ -877,5 +943,3 @@ export default function ManageUsersPage() {
     </div>
   )
 }
-
-    

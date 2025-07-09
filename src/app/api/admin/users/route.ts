@@ -12,6 +12,8 @@ const userSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters."),
   department: z.string().min(2, "Department must be at least 2 characters long."),
   position: z.string().min(2, "Position must be at least 2 characters long."),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   role: z.enum(["Employee", "Admin"]),
   type: z.enum(["Employee", "External"]),
   siteId: z.string(),
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
       // If a specific site is requested by a super admin, fetch users for that site.
       if (requestedSiteId) {
         const db = await getDb(requestedSiteId);
-        const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+        const users = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
         return NextResponse.json(users);
       }
 
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
         if (site.id === 'main') continue;
           
         const db = await getDb(site.id);
-        const siteUsers = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+        const siteUsers = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
         
         allUsers.push(...siteUsers.map(u => ({
           ...u,
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Client admin gets users from their own branch, ignoring any requestedSiteId param
       const db = await getDb(sessionSiteId);
-      const users = await db.all('SELECT id, username, fullName, department, position, role, type FROM users ORDER BY username');
+      const users = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
       return NextResponse.json(users);
     }
   } catch (error) {
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { username, fullName, password, department, position, role, type, siteId } = parsedData.data;
+    const { username, fullName, password, department, position, role, type, siteId, email, phone } = parsedData.data;
     
     // Determine if the calling user is a super admin
     const isSuperAdmin = adminUser.role === 'Admin' && adminSiteId === 'main';
@@ -110,10 +112,10 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const result = await db.run(
-      'INSERT INTO users (username, password, fullName, department, position, role, type) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-      [username, hashedPassword, fullName, department, position, role, type]
+      'INSERT INTO users (username, password, fullName, department, position, role, type, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+      [username, hashedPassword, fullName, department, position, role, type, email || null, phone || null]
     );
-    const newUser = await db.get('SELECT id, username, fullName, department, position, role, type FROM users WHERE id = ?', result.lastID);
+    const newUser = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', result.lastID);
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
@@ -121,5 +123,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
   }
 }
-
-    

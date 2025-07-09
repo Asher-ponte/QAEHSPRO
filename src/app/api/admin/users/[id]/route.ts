@@ -11,6 +11,8 @@ const userUpdateSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   department: z.string().min(2, "Department must be at least 2 characters long."),
   position: z.string().min(2, "Position must be at least 2 characters long."),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   role: z.enum(["Employee", "Admin"]),
   type: z.enum(["Employee", "External"]),
 });
@@ -47,7 +49,7 @@ export async function GET(
     }
 
     try {
-        const user = await db.get('SELECT id, username, fullName, department, position, role, type FROM users WHERE id = ?', userId);
+        const user = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
@@ -89,7 +91,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
 
-        const { username, fullName, password, department, position, role, type } = parsedData.data;
+        const { username, fullName, password, department, position, role, type, email, phone } = parsedData.data;
         
         const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?', [username, userId]);
         if (existingUser) {
@@ -100,17 +102,17 @@ export async function PUT(
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash(password, saltRounds);
             await db.run(
-                'UPDATE users SET username = ?, fullName = ?, password = ?, department = ?, position = ?, role = ?, type = ? WHERE id = ?',
-                [username, fullName, hashedPassword, department, position, role, type, userId]
+                'UPDATE users SET username = ?, fullName = ?, password = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ?',
+                [username, fullName, hashedPassword, department, position, role, type, email || null, phone || null, userId]
             );
         } else {
             await db.run(
-                'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ? WHERE id = ?',
-                [username, fullName, department, position, role, type, userId]
+                'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ?',
+                [username, fullName, department, position, role, type, email || null, phone || null, userId]
             );
         }
         
-        const updatedUser = await db.get('SELECT id, username, fullName, department, position, role, type FROM users WHERE id = ?', userId);
+        const updatedUser = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
         return NextResponse.json(updatedUser, { status: 200 });
 
     } catch (error) {
@@ -153,5 +155,3 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
     }
 }
-
-    

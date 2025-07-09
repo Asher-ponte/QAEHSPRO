@@ -40,6 +40,8 @@ const signupSchema = z.object({
     username: z.string().min(3, { message: "Username must be at least 3 characters." }),
     password: z.string().min(6, { message: "Password must be at least 6 characters."}),
     confirmPassword: z.string(),
+    email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+    phone: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -147,7 +149,7 @@ function SignUpForm() {
 
     const form = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
-        defaultValues: { fullName: "", username: "", password: "", confirmPassword: "" },
+        defaultValues: { fullName: "", username: "", password: "", confirmPassword: "", email: "", phone: "" },
     });
 
     async function onSubmit(values: SignupFormValues) {
@@ -160,6 +162,8 @@ function SignUpForm() {
                     fullName: values.fullName,
                     username: values.username,
                     password: values.password,
+                    email: values.email,
+                    phone: values.phone,
                 }),
             });
             const data = await response.json();
@@ -246,6 +250,32 @@ function SignUpForm() {
                                     <FormLabel>Confirm Password</FormLabel>
                                     <FormControl>
                                         <Input type="password" placeholder="••••••••" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email Address (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input type="email" placeholder="e.g., john@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="phone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Phone Number (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., +1 234 567 890" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

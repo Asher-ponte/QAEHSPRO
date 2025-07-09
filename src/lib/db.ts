@@ -58,7 +58,9 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             department TEXT,
             position TEXT,
             role TEXT NOT NULL DEFAULT 'Employee' CHECK(role IN ('Employee', 'Admin')),
-            type TEXT NOT NULL DEFAULT 'Employee' CHECK(type IN ('Employee', 'External'))
+            type TEXT NOT NULL DEFAULT 'Employee' CHECK(type IN ('Employee', 'External')),
+            email TEXT,
+            phone TEXT
         );
         CREATE TABLE IF NOT EXISTS courses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,6 +149,8 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
             proof_image_path TEXT,
             reference_number TEXT,
             rejection_reason TEXT,
+            gateway TEXT NOT NULL,
+            gateway_transaction_id TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
         );
@@ -188,6 +192,14 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         console.log(`Applying migration for site '${siteId}': Adding 'type' column to 'users' table.`);
         await db.exec("ALTER TABLE users ADD COLUMN type TEXT NOT NULL DEFAULT 'Employee'");
     }
+    if (!usersTableInfo.some(col => col.name === 'email')) {
+        console.log(`Applying migration for site '${siteId}': Adding 'email' column to 'users' table.`);
+        await db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+    }
+    if (!usersTableInfo.some(col => col.name === 'phone')) {
+        console.log(`Applying migration for site '${siteId}': Adding 'phone' column to 'users' table.`);
+        await db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
+    }
 
     const coursesTableInfo = await db.all("PRAGMA table_info(courses)");
     if (!coursesTableInfo.some(col => col.name === 'is_public')) {
@@ -219,6 +231,8 @@ const setupDatabase = async (siteId: string): Promise<Database> => {
         await db.exec('ALTER TABLE transactions ADD COLUMN proof_image_path TEXT');
         await db.exec('ALTER TABLE transactions ADD COLUMN reference_number TEXT');
         await db.exec('ALTER TABLE transactions ADD COLUMN rejection_reason TEXT');
+        await db.exec("ALTER TABLE transactions ADD COLUMN gateway TEXT NOT NULL DEFAULT 'unknown'");
+        await db.exec('ALTER TABLE transactions ADD COLUMN gateway_transaction_id TEXT');
     }
 
 

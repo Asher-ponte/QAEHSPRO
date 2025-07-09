@@ -10,6 +10,8 @@ const registerSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
   username: z.string().min(3, "Username must be at least 3 characters."),
   password: z.string().min(6, "Password must be at least 6 characters."),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -21,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input.', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { fullName, username, password } = parsedData.data;
+    const { fullName, username, password, email, phone } = parsedData.data;
 
     // External users are always created in the 'external' site database
     const siteId = 'external';
@@ -44,9 +46,9 @@ export async function POST(request: NextRequest) {
     
     // Create the user
     const result = await db.run(
-        `INSERT INTO users (username, password, fullName, department, position, role, type) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [username, hashedPassword, fullName, null, null, 'Employee', 'External']
+        `INSERT INTO users (username, password, fullName, department, position, role, type, email, phone) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [username, hashedPassword, fullName, null, null, 'Employee', 'External', email || null, phone || null]
     );
 
     const newUserId = result.lastID;

@@ -12,6 +12,8 @@ interface User {
   fullName: string | null;
   department: string | null;
   position: string | null;
+  email: string | null;
+  phone: string | null;
   role: 'Employee' | 'Admin';
   type: 'Employee' | 'External';
 }
