@@ -126,55 +126,42 @@ export default function AssessmentPage() {
         window.location.reload();
     }, [toast]);
 
-    // Effect for Focus Proctoring
+    // Effect for Focus Proctoring - Refactored for reliability
     useEffect(() => {
         if (!hasAgreedToRules) return;
 
-        const startCountdown = () => {
-            // Prevent multiple intervals from running
-            if (countdownIntervalRef.current) return;
-            
-            setShowFocusWarning(true);
-            countdownIntervalRef.current = setInterval(() => {
-                setFocusCountdown((prev) => {
-                    if (prev <= 1) {
-                        clearInterval(countdownIntervalRef.current!);
-                        handleExamRestart();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        };
-
-        const stopCountdown = () => {
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-                countdownIntervalRef.current = null;
-            }
-            setShowFocusWarning(false);
-            setFocusCountdown(10);
-        };
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
-                startCountdown();
+                // User has switched tabs or minimized the window. Start the countdown.
+                if (countdownIntervalRef.current) return; // Prevent multiple timers
+
+                setShowFocusWarning(true);
+                countdownIntervalRef.current = setInterval(() => {
+                    setFocusCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(countdownIntervalRef.current!);
+                            handleExamRestart();
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
             } else {
-                stopCountdown();
+                // User has returned to the page. Stop the countdown.
+                if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                    countdownIntervalRef.current = null;
+                }
+                setShowFocusWarning(false);
+                setFocusCountdown(10);
             }
         };
 
-        // We use visibilitychange as the primary mechanism for tab/app switching.
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        
-        // Blur and focus on the window are fallbacks for desktop window switching.
-        window.addEventListener('blur', startCountdown);
-        window.addEventListener('focus', stopCountdown);
 
+        // Cleanup function to remove the event listener
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('blur', startCountdown);
-            window.removeEventListener('focus', stopCountdown);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
