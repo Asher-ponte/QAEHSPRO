@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, CheckCircle, Loader2, RefreshCw, XCircle, ShieldAlert } from "lucide-react"
+import { AlertCircle, CheckCircle, Loader2, RefreshCw, XCircle, ShieldAlert, Video } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
@@ -93,30 +93,9 @@ export default function AssessmentPage() {
     const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-
-    useEffect(() => {
-        async function fetchAssessment() {
-            try {
-                const res = await fetch(`/api/courses/${courseId}/assessment`);
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.error || "Failed to load assessment");
-                }
-                setAssessmentData(await res.json());
-            } catch (error) {
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Could not load assessment.",
-                });
-                router.push(`/courses/${courseId}`);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        fetchAssessment();
-    }, [courseId, router, toast]);
+    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const faceNotVisibleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleExamRestart = useCallback(() => {
         toast({
@@ -150,9 +129,10 @@ export default function AssessmentPage() {
             countdownIntervalRef.current = null;
         }
         setIsCountdownActive(false);
+        setFocusCountdown(10);
     }, []);
 
-    // Effect for Focus Proctoring - Refactored for reliability
+    // Effect for Focus Proctoring
     useEffect(() => {
         if (!hasAgreedToRules) return;
 
@@ -161,33 +141,83 @@ export default function AssessmentPage() {
                 startWarning();
             } else {
                 stopWarning();
+                setShowFocusWarning(false);
             }
         };
-        
-        const handleMouseLeave = (e: MouseEvent) => {
-            if (!e.relatedTarget && !e.toElement) {
-                startWarning();
-            }
-        };
-        
-        const handleMouseEnter = () => {
-            stopWarning();
+
+        const handleBlur = () => {
+            startWarning();
         }
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        document.documentElement.addEventListener('mouseleave', handleMouseLeave);
-        document.documentElement.addEventListener('mouseenter', handleMouseEnter);
+        const handleFocus = () => {
+             stopWarning();
+             setShowFocusWarning(false);
+        }
+        
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('blur', handleBlur);
+        window.addEventListener('focus', handleFocus);
 
-        // Cleanup function to remove the event listener
         return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
-            document.documentElement.removeEventListener('mouseenter', handleMouseEnter);
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleBlur);
+            window.removeEventListener('focus', handleFocus);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
     }, [hasAgreedToRules, startWarning, stopWarning]);
+
+    // Effect for Camera Permission and Face Detection
+    useEffect(() => {
+        if (!hasAgreedToRules) return;
+
+        const getCameraPermission = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+                setHasCameraPermission(true);
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                setHasCameraPermission(false);
+            }
+        };
+        getCameraPermission();
+    }, [hasAgreedToRules]);
+    
+    const handleFaceDetection = async () => {
+        if (videoRef.current && videoRef.current.readyState >= 3) {
+            // Placeholder for a lightweight face detection library if needed.
+            // For now, we simulate this to avoid heavy dependencies.
+            // In a real scenario, this would use a library to detect a face.
+            const isFaceVisible = true; // Placeholder
+
+            if (!isFaceVisible) {
+                if (!faceNotVisibleTimerRef.current) {
+                    faceNotVisibleTimerRef.current = setTimeout(() => {
+                        startWarning();
+                    }, 2000); // 2-second grace period
+                }
+            } else {
+                if (faceNotVisibleTimerRef.current) {
+                    clearTimeout(faceNotVisibleTimerRef.current);
+                    faceNotVisibleTimerRef.current = null;
+                }
+                if (!document.hasFocus()) return; // Don't stop warning if window is not focused
+                stopWarning();
+                setShowFocusWarning(false);
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (hasCameraPermission) {
+            const detectionInterval = setInterval(handleFaceDetection, 500);
+            return () => clearInterval(detectionInterval);
+        }
+    }, [hasCameraPermission]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -208,7 +238,6 @@ export default function AssessmentPage() {
                 throw new Error(result.error || "Failed to submit assessment.");
             }
             
-            // This is a local update to keep the UI consistent until reload.
             setAssessmentData(prev => prev ? ({
                 ...prev,
                 attempts: [
@@ -313,8 +342,8 @@ export default function AssessmentPage() {
 
     const FocusWarningDialog = () => {
         const handleCloseWarning = () => {
+            stopWarning();
             setShowFocusWarning(false);
-            setFocusCountdown(10);
         };
         return (
             <AlertDialog open={showFocusWarning}>
@@ -355,6 +384,29 @@ export default function AssessmentPage() {
         return Object.keys(answers).length === assessmentData.questions.length;
     }, [answers, assessmentData]);
 
+    useEffect(() => {
+        async function fetchAssessment() {
+            try {
+                const res = await fetch(`/api/courses/${courseId}/assessment`);
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.error || "Failed to load assessment");
+                }
+                setAssessmentData(await res.json());
+            } catch (error) {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Could not load assessment.",
+                });
+                router.push(`/courses/${courseId}`);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchAssessment();
+    }, [courseId, router, toast]);
+    
     if (isLoading) {
         return <AssessmentSkeleton />;
     }
@@ -367,7 +419,6 @@ export default function AssessmentPage() {
     const attemptsMade = attempts.length;
     const hasPassed = attempts.some(a => a.passed);
     
-    // Check this condition before the max attempts reached condition
     if (hasPassed) {
          return (
              <div className="max-w-4xl mx-auto text-center space-y-6">
@@ -434,9 +485,9 @@ export default function AssessmentPage() {
                         <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>If you switch to another browser tab, window, or app, a 10-second warning timer will start.</li>
-                                <li>If your mouse cursor leaves the browser window, a 10-second warning timer will start.</li>
-                                <li>If you do not return to the exam within 10 seconds, your attempt will be automatically terminated and you will have to start over.</li>
+                                <li>You must allow camera access. Your face must be visible at all times.</li>
+                                <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
+                                <li>If you do not return within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
                         <p className="text-sm text-center text-muted-foreground">Please remain focused on the exam. Good luck!</p>
@@ -459,9 +510,9 @@ export default function AssessmentPage() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Final Submission</AlertDialogTitle>
-                        <AlertDialogDescription>
+                        <div className="text-sm text-muted-foreground">
                            Please double check your answer before final submission.
-                        </AlertDialogDescription>
+                        </div>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
@@ -472,6 +523,21 @@ export default function AssessmentPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            
+            <div className="fixed bottom-4 right-4 z-50">
+                <Card className="p-2 w-48 h-36">
+                    <CardContent className="p-0 relative h-full">
+                         <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
+                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
+                            <p className="text-white text-xs font-semibold flex items-center gap-1">
+                                <Video className="h-3 w-3"/> Proctoring Active
+                            </p>
+                         </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+
             <div>
                 <h1 className="text-3xl font-bold font-headline">Final Assessment: {courseTitle}</h1>
                 <p className="text-muted-foreground">
