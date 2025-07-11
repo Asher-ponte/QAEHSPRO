@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { FaceMesh, FilesetResolver, FaceLandmarkerResult } from "@mediapipe/tasks-vision";
+import { FaceDetector, FilesetResolver, FaceDetectorResult } from "@mediapipe/tasks-vision";
 
 
 interface Question {
@@ -103,7 +103,7 @@ export default function AssessmentPage() {
 
 
     // --- MediaPipe State ---
-    const faceMeshRef = useRef<FaceMesh | null>(null);
+    const faceDetectorRef = useRef<FaceDetector | null>(null);
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -133,8 +133,10 @@ export default function AssessmentPage() {
     }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
     const startWarning = useCallback((message: string) => {
+        // Prevent showing a new warning if one is already active but paused
         if (showFocusWarning) {
-            if (!isCountdownActive) { // Resume countdown if it was paused
+            // If the warning is shown but countdown paused, just resume it
+            if (!isCountdownActive) {
                  setIsCountdownActive(true);
             }
             return;
@@ -145,6 +147,8 @@ export default function AssessmentPage() {
     }, [showFocusWarning, isCountdownActive]);
 
     const stopWarning = useCallback(() => {
+        // This function will now PAUSE the countdown instead of hiding the dialog.
+        // The dialog is hidden by the user's explicit action.
         setIsCountdownActive(false); 
     }, []);
 
@@ -188,22 +192,21 @@ export default function AssessmentPage() {
     useEffect(() => {
         if (!isMobile || !hasAgreedToRules || isLoading) return;
 
-        const createFaceMesh = async () => {
+        const createFaceDetector = async () => {
             try {
                 const vision = await FilesetResolver.forVisionTasks(
                     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
                 );
-                const detector = await FaceMesh.createFromOptions(vision, {
+                const detector = await FaceDetector.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.tflite`,
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite`,
                         delegate: "GPU",
                     },
                     runningMode: "VIDEO",
-                    numFaces: 1,
                 });
-                faceMeshRef.current = detector;
+                faceDetectorRef.current = detector;
             } catch (error) {
-                console.error("Error creating FaceMesh:", error);
+                console.error("Error creating FaceDetector:", error);
                 toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection.' });
             }
         };
@@ -221,33 +224,16 @@ export default function AssessmentPage() {
         };
 
         const predictWebcam = () => {
-            if (!faceMeshRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
+            if (!faceDetectorRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
                 animationFrameId.current = requestAnimationFrame(predictWebcam);
                 return;
             }
 
             const startTimeMs = performance.now();
-            const results: FaceLandmarkerResult | undefined = faceMeshRef.current.detectForVideo(videoRef.current, startTimeMs);
-
-            if (results && results.faceLandmarks.length > 0) {
-                const landmarks = results.faceLandmarks[0];
-                
-                // Key landmarks for head pose estimation
-                const nose = landmarks[1]; // Tip of the nose
-                const leftCheek = landmarks[234]; // Left cheek contour
-                const rightCheek = landmarks[454]; // Right cheek contour
-                
-                const faceWidth = Math.abs(rightCheek.x - leftCheek.x);
-                const noseToLeftDist = Math.abs(nose.x - leftCheek.x);
-                
-                // Calculate how centered the nose is. 0.5 is perfectly centered.
-                const noseCenterRatio = noseToLeftDist / faceWidth;
-
-                const isLookingAway = noseCenterRatio < 0.25 || noseCenterRatio > 0.75;
-
-                if (isLookingAway) {
-                    if (Date.now() - lastProctoringEventTime.current > 2000) {
-                        startWarning("Please look at the screen while taking the exam.");
+            faceDetectorRef.current.detectForVideo(videoRef.current, startTimeMs, (result: FaceDetectorResult) => {
+                if (result.detections.length === 0) {
+                     if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
+                        startWarning("Your face is not visible to the camera.");
                     }
                 } else {
                     lastProctoringEventTime.current = Date.now();
@@ -255,20 +241,16 @@ export default function AssessmentPage() {
                        stopWarning();
                     }
                 }
-            } else {
-                 if (Date.now() - lastProctoringEventTime.current > 2000) {
-                    startWarning("Your face is not visible to the camera.");
-                }
-            }
+            });
 
             animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
 
-        createFaceMesh().then(setupCamera);
+        createFaceDetector().then(setupCamera);
 
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            faceMeshRef.current?.close();
+            faceDetectorRef.current?.close();
             const stream = videoRef.current?.srcObject as MediaStream | null;
             stream?.getTracks().forEach(track => track.stop());
         };
@@ -656,5 +638,3 @@ export default function AssessmentPage() {
         </div>
     )
 }
-
-    
