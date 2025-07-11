@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
+import { FaceMesh, FilesetResolver, FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 
 
 interface Question {
@@ -100,19 +100,20 @@ export default function AssessmentPage() {
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const lastProctoringEventTime = useRef<number>(Date.now());
+    const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
+
 
     // --- MediaPipe State ---
-    const faceDetectorRef = useRef<FaceDetector | null>(null);
+    const faceMeshRef = useRef<FaceMesh | null>(null);
     const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastFaceDetectionTime = useRef<number>(Date.now());
-    const [isFaceVisible, setIsFaceVisible] = useState(true);
     const animationFrameId = useRef<number | null>(null);
 
     const handleExamRestart = useCallback(() => {
         toast({
             variant: "destructive",
             title: "Exam Terminated",
-            description: "You looked away from the page for too long. The attempt has been reset.",
+            description: "Proctoring rules were violated. The attempt has been reset.",
         });
         window.location.reload();
     }, [toast]);
@@ -133,14 +134,15 @@ export default function AssessmentPage() {
         };
     }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
-    const startWarning = useCallback(() => {
-        if (showFocusWarning) return; // Don't start a new warning if one is already showing
+    const startWarning = useCallback((message: string) => {
+        if (showFocusWarning) return; 
+        setProctoringMessage(message);
         setShowFocusWarning(true);
         setIsCountdownActive(true);
     }, [showFocusWarning]);
 
     const stopWarning = useCallback(() => {
-        setIsCountdownActive(false); // Stop the countdown, but don't hide the dialog
+        setIsCountdownActive(false); 
     }, []);
 
     // Effect for Proctoring Event Listeners
@@ -150,14 +152,14 @@ export default function AssessmentPage() {
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
-                startWarning();
+                startWarning("You have switched to another tab or window.");
             } else {
                 stopWarning();
             }
         };
 
         const handleMouseLeave = () => {
-            if (!isMobile) startWarning();
+            if (!isMobile) startWarning("Your mouse cursor has left the page.");
         };
 
         const handleMouseEnter = () => {
@@ -183,21 +185,22 @@ export default function AssessmentPage() {
     useEffect(() => {
         if (!isMobile || !hasAgreedToRules) return;
 
-        const createFaceDetector = async () => {
+        const createFaceMesh = async () => {
             try {
                 const vision = await FilesetResolver.forVisionTasks(
                     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
                 );
-                const detector = await FaceDetector.createFromOptions(vision, {
+                const detector = await FaceMesh.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite`,
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.tflite`,
                         delegate: "GPU",
                     },
                     runningMode: "VIDEO",
+                    numFaces: 1,
                 });
-                faceDetectorRef.current = detector;
+                faceMeshRef.current = detector;
             } catch (error) {
-                console.error("Error creating FaceDetector:", error);
+                console.error("Error creating FaceMesh:", error);
                 toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection.' });
             }
         };
@@ -215,51 +218,60 @@ export default function AssessmentPage() {
         };
 
         const predictWebcam = () => {
-            if (!faceDetectorRef.current || !videoRef.current || videoRef.current.paused) {
+            if (!faceMeshRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
                 animationFrameId.current = requestAnimationFrame(predictWebcam);
                 return;
             }
 
             const startTimeMs = performance.now();
-            const results = faceDetectorRef.current.detectForVideo(videoRef.current, startTimeMs);
+            const results: FaceLandmarkerResult | undefined = faceMeshRef.current.detectForVideo(videoRef.current, startTimeMs);
 
-            if (results.detections.length > 0) {
-                setIsFaceVisible(true);
-                lastFaceDetectionTime.current = Date.now();
+            if (results && results.faceLandmarks.length > 0) {
+                const landmarks = results.faceLandmarks[0];
+                
+                // Key landmarks for head pose estimation
+                const nose = landmarks[1]; // Tip of the nose
+                const leftCheek = landmarks[234]; // Left cheek contour
+                const rightCheek = landmarks[454]; // Right cheek contour
+                
+                const faceWidth = Math.abs(rightCheek.x - leftCheek.x);
+                const noseToLeftDist = Math.abs(nose.x - leftCheek.x);
+                const noseToRightDist = Math.abs(nose.x - rightCheek.x);
+                
+                // Calculate how centered the nose is. 0.5 is perfectly centered.
+                const noseCenterRatio = noseToLeftDist / faceWidth;
+
+                const isLookingAway = noseCenterRatio < 0.25 || noseCenterRatio > 0.75;
+
+                if (isLookingAway) {
+                    if (Date.now() - lastProctoringEventTime.current > 2000) {
+                        startWarning("Please look at the screen while taking the exam.");
+                    }
+                } else {
+                    lastProctoringEventTime.current = Date.now();
+                    if (isCountdownActive) {
+                       stopWarning();
+                    }
+                }
             } else {
-                setIsFaceVisible(false);
+                 if (Date.now() - lastProctoringEventTime.current > 2000) {
+                    startWarning("Your face is not visible to the camera.");
+                }
             }
 
             animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
 
-        createFaceDetector().then(setupCamera);
+        createFaceMesh().then(setupCamera);
 
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
             if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-            faceDetectorRef.current?.close();
+            faceMeshRef.current?.close();
             const stream = videoRef.current?.srcObject as MediaStream | null;
             stream?.getTracks().forEach(track => track.stop());
         };
-    }, [isMobile, hasAgreedToRules, toast]);
-    
-    // Check for face visibility periodically (mobile only)
-    useEffect(() => {
-        if (!isMobile || !hasAgreedToRules) return;
-
-        detectionIntervalRef.current = setInterval(() => {
-            if (Date.now() - lastFaceDetectionTime.current > 2000) { // If no face for 2 seconds
-                if (!showFocusWarning) startWarning();
-            } else {
-                if (isCountdownActive) stopWarning();
-            }
-        }, 500); // Check every half a second
-
-        return () => {
-            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-        };
-    }, [isMobile, hasAgreedToRules, isCountdownActive, showFocusWarning, startWarning, stopWarning]);
+    }, [isMobile, hasAgreedToRules, toast, isCountdownActive, startWarning, stopWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -396,14 +408,12 @@ export default function AssessmentPage() {
                             Focus Warning
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                           {isCountdownActive 
-                                ? "You have navigated away from the exam page." 
-                                : "You have returned to the exam page. Please remain focused."}
+                           {proctoringMessage}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            {isCountdownActive ? "Return to the page immediately or the exam will be terminated in:" : "Timer paused. Close this warning to continue."}
+                            {isCountdownActive ? "Return to compliance immediately or the exam will be terminated in:" : "Timer paused. Close this warning to continue."}
                         </div>
                          <div className="text-6xl font-bold text-destructive">
                             {focusCountdown}
@@ -534,8 +544,8 @@ export default function AssessmentPage() {
                             <ul className="list-disc pl-5 mt-2 space-y-1">
                                 {isMobile && (
                                   <>
-                                    <li>You must allow camera access. Your face must be visible at all times.</li>
-                                    <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
+                                    <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
+                                    <li>If you switch tabs, apps, look away, or your face is not visible, a 10-second warning will start.</li>
                                   </>
                                 )}
                                 {!isMobile && (
@@ -544,7 +554,7 @@ export default function AssessmentPage() {
                                       <li>If your mouse cursor leaves the page, a warning will start.</li>
                                   </>
                                 )}
-                                <li>If you do not return within 10 seconds, your attempt will be automatically terminated.</li>
+                                <li>If you do not comply within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
                         <p className="text-sm text-center text-muted-foreground">Please remain focused on the exam. Good luck!</p>
