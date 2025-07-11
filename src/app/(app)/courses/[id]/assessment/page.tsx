@@ -126,6 +126,31 @@ export default function AssessmentPage() {
         });
         window.location.reload();
     }, [toast]);
+    
+    const startWarning = useCallback(() => {
+        if (countdownIntervalRef.current) return;
+
+        setShowFocusWarning(true);
+        setIsCountdownActive(true);
+        countdownIntervalRef.current = setInterval(() => {
+            setFocusCountdown(prev => {
+                if (prev <= 1) {
+                    clearInterval(countdownIntervalRef.current!);
+                    handleExamRestart();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    }, [handleExamRestart]);
+
+    const stopWarning = useCallback(() => {
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+        }
+        setIsCountdownActive(false);
+    }, []);
 
     // Effect for Focus Proctoring - Refactored for reliability
     useEffect(() => {
@@ -133,41 +158,36 @@ export default function AssessmentPage() {
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
-                // User has switched tabs or minimized the window. Start the countdown.
-                if (countdownIntervalRef.current) return; // Prevent multiple timers
-
-                setShowFocusWarning(true);
-                setIsCountdownActive(true);
-                countdownIntervalRef.current = setInterval(() => {
-                    setFocusCountdown(prev => {
-                        if (prev <= 1) {
-                            clearInterval(countdownIntervalRef.current!);
-                            handleExamRestart();
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
+                startWarning();
             } else {
-                // User has returned to the page. Stop the countdown but keep the dialog open.
-                if (countdownIntervalRef.current) {
-                    clearInterval(countdownIntervalRef.current);
-                    countdownIntervalRef.current = null;
-                }
-                 setIsCountdownActive(false);
+                stopWarning();
             }
         };
+        
+        const handleMouseLeave = (e: MouseEvent) => {
+            if (!e.relatedTarget && !e.toElement) {
+                startWarning();
+            }
+        };
+        
+        const handleMouseEnter = () => {
+            stopWarning();
+        }
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.documentElement.addEventListener('mouseleave', handleMouseLeave);
+        document.documentElement.addEventListener('mouseenter', handleMouseEnter);
 
         // Cleanup function to remove the event listener
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+            document.documentElement.removeEventListener('mouseenter', handleMouseEnter);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [hasAgreedToRules, handleExamRestart]);
+    }, [hasAgreedToRules, startWarning, stopWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -311,9 +331,9 @@ export default function AssessmentPage() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
-                         <p className="text-muted-foreground text-sm mb-2">
+                         <div className="text-sm text-muted-foreground mb-2">
                             {isCountdownActive ? "Return to the page immediately or the exam will be terminated in:" : "Timer paused. Close this warning to continue."}
-                        </p>
+                        </div>
                          <div className="text-6xl font-bold text-destructive">
                             {focusCountdown}
                         </div>
@@ -414,7 +434,8 @@ export default function AssessmentPage() {
                         <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>If you switch to another browser tab, window, or app (on desktop or mobile), a 10-second warning timer will start.</li>
+                                <li>If you switch to another browser tab, window, or app, a 10-second warning timer will start.</li>
+                                <li>If your mouse cursor leaves the browser window, a 10-second warning timer will start.</li>
                                 <li>If you do not return to the exam within 10 seconds, your attempt will be automatically terminated and you will have to start over.</li>
                             </ul>
                         </div>
