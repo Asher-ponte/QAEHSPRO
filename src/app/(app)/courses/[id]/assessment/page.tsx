@@ -77,7 +77,7 @@ function AssessmentSkeleton() {
 export default function AssessmentPage() {
     const params = useParams<{ id: string }>()
     const courseId = params.id;
-    const router = useRouter();
+    router = useRouter();
     const { toast } = useToast();
     const isMobile = useIsMobile();
 
@@ -99,14 +99,12 @@ export default function AssessmentPage() {
     const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
     const lastProctoringEventTime = useRef<number>(Date.now());
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
 
 
     // --- MediaPipe State ---
     const faceMeshRef = useRef<FaceMesh | null>(null);
-    const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const animationFrameId = useRef<number | null>(null);
 
     const handleExamRestart = useCallback(() => {
@@ -135,11 +133,16 @@ export default function AssessmentPage() {
     }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
     const startWarning = useCallback((message: string) => {
-        if (showFocusWarning) return; 
+        if (showFocusWarning) {
+            if (!isCountdownActive) { // Resume countdown if it was paused
+                 setIsCountdownActive(true);
+            }
+            return;
+        }
         setProctoringMessage(message);
         setShowFocusWarning(true);
         setIsCountdownActive(true);
-    }, [showFocusWarning]);
+    }, [showFocusWarning, isCountdownActive]);
 
     const stopWarning = useCallback(() => {
         setIsCountdownActive(false); 
@@ -183,7 +186,9 @@ export default function AssessmentPage() {
 
     // --- MediaPipe Integration ---
     useEffect(() => {
-        if (!isMobile || !hasAgreedToRules) return;
+        if (!isMobile || !hasAgreedToRules || !isLoading) return;
+
+        const videoRef = React.createRef<HTMLVideoElement>();
 
         const createFaceMesh = async () => {
             try {
@@ -236,7 +241,6 @@ export default function AssessmentPage() {
                 
                 const faceWidth = Math.abs(rightCheek.x - leftCheek.x);
                 const noseToLeftDist = Math.abs(nose.x - leftCheek.x);
-                const noseToRightDist = Math.abs(nose.x - rightCheek.x);
                 
                 // Calculate how centered the nose is. 0.5 is perfectly centered.
                 const noseCenterRatio = noseToLeftDist / faceWidth;
@@ -266,12 +270,11 @@ export default function AssessmentPage() {
 
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
             faceMeshRef.current?.close();
             const stream = videoRef.current?.srcObject as MediaStream | null;
             stream?.getTracks().forEach(track => track.stop());
         };
-    }, [isMobile, hasAgreedToRules, toast, isCountdownActive, startWarning, stopWarning]);
+    }, [isMobile, hasAgreedToRules, isLoading, toast, isCountdownActive, startWarning, stopWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -595,7 +598,7 @@ export default function AssessmentPage() {
                  <div className="fixed bottom-4 right-4 z-50">
                     <Card className="p-2 w-48 h-36">
                         <CardContent className="p-0 relative h-full">
-                            <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
+                            <video ref={React.createRef<HTMLVideoElement>()} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
                                 <p className="text-white text-xs font-semibold flex items-center gap-1">
                                     <Video className="h-3 w-3"/> Proctoring Active
