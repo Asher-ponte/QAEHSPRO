@@ -135,7 +135,7 @@ export default function AssessmentPage() {
         // Do not reset focusCountdown here, so it shows the last value before stopping.
     }, []);
 
-    // Effect for Focus Proctoring (Tab switching, window blur)
+    // Effect for Proctoring (Tab switching, window blur, mouse leave)
     useEffect(() => {
         if (!hasAgreedToRules) return;
 
@@ -147,17 +147,23 @@ export default function AssessmentPage() {
             }
         };
 
-        const handleBlur = () => startWarning();
-        const handleFocus = () => stopWarning();
+        const handleMouseLeave = () => {
+            startWarning();
+        };
+
+        const handleMouseEnter = () => {
+             stopWarning();
+        };
         
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('blur', handleBlur);
-        window.addEventListener('focus', handleFocus);
+        document.documentElement.addEventListener('mouseleave', handleMouseLeave);
+        document.documentElement.addEventListener('mouseenter', handleMouseEnter);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('blur', handleBlur);
-            window.removeEventListener('focus', handleFocus);
+            document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+            document.documentElement.removeEventListener('mouseenter', handleMouseEnter);
+
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
@@ -309,7 +315,7 @@ export default function AssessmentPage() {
                         <AlertDialogTitle className="text-center text-2xl font-bold">
                             {passed ? "Assessment Passed!" : "Assessment Failed"}
                         </AlertDialogTitle>
-                        <div className="text-center !mt-4 space-y-2">
+                         <div className="text-center !mt-4 space-y-2">
                              <div className="text-sm text-muted-foreground">Your Score</div>
                              <div className="text-5xl font-bold text-foreground my-2">{score} / {total}</div>
                              <div className="text-base text-muted-foreground">{Math.round((score / total) * 100)}%</div>
@@ -366,9 +372,7 @@ export default function AssessmentPage() {
                         </div>
                     </div>
                     <AlertDialogFooter>
-                        {isCountdownActive ? (
-                            <p className="text-xs text-muted-foreground text-center w-full">This action is to ensure exam integrity.</p>
-                        ) : (
+                        {!isCountdownActive && (
                             <AlertDialogAction onClick={handleCloseWarning}>I Understand, Resume Exam</AlertDialogAction>
                         )}
                     </AlertDialogFooter>
@@ -484,7 +488,7 @@ export default function AssessmentPage() {
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
                                 <li>You must allow camera access. Your face must be visible at all times.</li>
-                                <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
+                                <li>If you switch tabs, apps, move your mouse outside the window, or move your face away from the camera, a 10-second warning will start.</li>
                                 <li>If you do not return within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
