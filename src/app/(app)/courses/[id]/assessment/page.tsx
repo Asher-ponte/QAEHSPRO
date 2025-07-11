@@ -144,17 +144,21 @@ export default function AssessmentPage() {
         // --- Event handlers ---
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') startWarning();
+             else stopWarning();
         };
         const handleMouseLeave = () => {
             if (!isMobile) startWarning();
         };
+         const handleMouseEnter = () => {
+            if (!isMobile) stopWarning();
+        };
 
-        // For mobile, this is the main trigger. For desktop, it's an additional check.
         window.addEventListener('visibilitychange', handleVisibilityChange);
         
-        // Mouse leave is only for desktop.
+        // Mouse leave/enter is only for desktop.
         if (!isMobile) {
             document.addEventListener('mouseleave', handleMouseLeave);
+            document.addEventListener('mouseenter', handleMouseEnter);
         }
         
         // --- Cleanup ---
@@ -162,6 +166,7 @@ export default function AssessmentPage() {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             if (!isMobile) {
                 document.removeEventListener('mouseleave', handleMouseLeave);
+                document.removeEventListener('mouseenter', handleMouseEnter);
             }
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
@@ -190,15 +195,16 @@ export default function AssessmentPage() {
     
     const handleFaceDetection = useCallback(() => {
         if (videoRef.current && videoRef.current.readyState >= 3) {
-            // A real implementation would use a library. Here we simulate a check.
-            // This checks if the video is playing, which would stop if the camera was covered.
             const isVideoPlaying = videoRef.current.currentTime > lastVideoTimeRef.current;
             lastVideoTimeRef.current = videoRef.current.currentTime;
-            if (!isVideoPlaying) {
+            
+            if (isVideoPlaying) {
+                 stopWarning();
+            } else {
                  startWarning();
             }
         }
-    }, [startWarning]);
+    }, [startWarning, stopWarning]);
 
 
     useEffect(() => {
@@ -331,7 +337,6 @@ export default function AssessmentPage() {
 
     const FocusWarningDialog = () => {
         const handleCloseWarning = () => {
-            stopWarning();
             setShowFocusWarning(false);
             setFocusCountdown(10); // Reset for next time
         };
