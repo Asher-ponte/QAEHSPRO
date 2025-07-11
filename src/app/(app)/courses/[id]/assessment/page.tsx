@@ -24,6 +24,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
+
 
 interface Question {
     text: string;
@@ -97,9 +99,14 @@ export default function AssessmentPage() {
     const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const lastVideoTimeRef = useRef(-1);
+
+    // --- MediaPipe State ---
+    const faceDetectorRef = useRef<FaceDetector | null>(null);
+    const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastFaceDetectionTime = useRef<number>(Date.now());
+    const [isFaceVisible, setIsFaceVisible] = useState(true);
+    const animationFrameId = useRef<number | null>(null);
 
     const handleExamRestart = useCallback(() => {
         toast({
@@ -172,45 +179,87 @@ export default function AssessmentPage() {
         };
     }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
 
-    // Effect for Camera Permission & Face Detection (Mobile Only)
+    // --- MediaPipe Integration ---
     useEffect(() => {
-        if (!isMobile || !hasAgreedToRules || isLoading) return;
+        if (!isMobile || !hasAgreedToRules) return;
 
-        const getCameraPermission = async () => {
+        const createFaceDetector = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                }
-                setHasCameraPermission(true);
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+                );
+                const detector = await FaceDetector.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite`,
+                        delegate: "GPU",
+                    },
+                    runningMode: "VIDEO",
+                });
+                faceDetectorRef.current = detector;
             } catch (error) {
-                console.error('Error accessing camera:', error);
-                setHasCameraPermission(false);
+                console.error("Error creating FaceDetector:", error);
+                toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection.' });
             }
         };
-        getCameraPermission();
-    }, [isMobile, hasAgreedToRules, isLoading]);
-    
-    const handleFaceDetection = useCallback(() => {
-        if (videoRef.current && videoRef.current.readyState >= 3) {
-            const isVideoPlaying = videoRef.current.currentTime > lastVideoTimeRef.current;
-            lastVideoTimeRef.current = videoRef.current.currentTime;
-            
-            if (isVideoPlaying) {
-                 stopWarning();
-            } else {
-                 startWarning();
+
+        const setupCamera = async () => {
+            if (!videoRef.current) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoRef.current.srcObject = stream;
+                videoRef.current.addEventListener("loadeddata", predictWebcam);
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+                toast({ variant: 'destructive', title: 'Camera Access Denied', description: 'Please enable camera permissions.' });
             }
-        }
-    }, [startWarning, stopWarning]);
+        };
 
+        const predictWebcam = () => {
+            if (!faceDetectorRef.current || !videoRef.current || videoRef.current.paused) {
+                animationFrameId.current = requestAnimationFrame(predictWebcam);
+                return;
+            }
 
+            const startTimeMs = performance.now();
+            const results = faceDetectorRef.current.detectForVideo(videoRef.current, startTimeMs);
+
+            if (results.detections.length > 0) {
+                setIsFaceVisible(true);
+                lastFaceDetectionTime.current = Date.now();
+            } else {
+                setIsFaceVisible(false);
+            }
+
+            animationFrameId.current = requestAnimationFrame(predictWebcam);
+        };
+
+        createFaceDetector().then(setupCamera);
+
+        return () => {
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+            faceDetectorRef.current?.close();
+            const stream = videoRef.current?.srcObject as MediaStream | null;
+            stream?.getTracks().forEach(track => track.stop());
+        };
+    }, [isMobile, hasAgreedToRules, toast]);
+    
+    // Check for face visibility periodically (mobile only)
     useEffect(() => {
-        if (isMobile && hasCameraPermission) {
-            const detectionInterval = setInterval(handleFaceDetection, 2000); // Check every 2 seconds
-            return () => clearInterval(detectionInterval);
-        }
-    }, [isMobile, hasCameraPermission, handleFaceDetection]);
+        if (!isMobile || !hasAgreedToRules) return;
+
+        detectionIntervalRef.current = setInterval(() => {
+            if (Date.now() - lastFaceDetectionTime.current > 2000) { // If no face for 2 seconds
+                if (!showFocusWarning) startWarning();
+            } else {
+                if (isCountdownActive) stopWarning();
+            }
+        }, 500); // Check every half a second
+
+        return () => {
+            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+        };
+    }, [isMobile, hasAgreedToRules, isCountdownActive, showFocusWarning, startWarning, stopWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
