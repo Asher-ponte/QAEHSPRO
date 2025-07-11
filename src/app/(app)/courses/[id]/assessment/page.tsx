@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react"
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -105,6 +105,7 @@ export default function AssessmentPage() {
     // --- MediaPipe State ---
     const faceMeshRef = useRef<FaceMesh | null>(null);
     const animationFrameId = useRef<number | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     const handleExamRestart = useCallback(() => {
         toast({
@@ -185,9 +186,7 @@ export default function AssessmentPage() {
 
     // --- MediaPipe Integration ---
     useEffect(() => {
-        if (!isMobile || !hasAgreedToRules || !isLoading) return;
-
-        const videoRef = React.createRef<HTMLVideoElement>();
+        if (!isMobile || !hasAgreedToRules || isLoading) return;
 
         const createFaceMesh = async () => {
             try {
@@ -597,7 +596,7 @@ export default function AssessmentPage() {
                  <div className="fixed bottom-4 right-4 z-50">
                     <Card className="p-2 w-48 h-36">
                         <CardContent className="p-0 relative h-full">
-                            <video ref={React.createRef<HTMLVideoElement>()} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
+                            <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
                                 <p className="text-white text-xs font-semibold flex items-center gap-1">
                                     <Video className="h-3 w-3"/> Proctoring Active
@@ -657,3 +656,5 @@ export default function AssessmentPage() {
         </div>
     )
 }
+
+    
