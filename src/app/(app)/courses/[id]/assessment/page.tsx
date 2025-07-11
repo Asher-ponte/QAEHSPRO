@@ -23,7 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { FaceDetector, FilesetResolver, FaceDetectorResult } from "@mediapipe/tasks-vision";
+import * as tf from '@tensorflow/tfjs';
+import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 
 
 interface Question {
@@ -102,8 +103,8 @@ export default function AssessmentPage() {
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
 
 
-    // --- MediaPipe State ---
-    const faceDetectorRef = useRef<FaceDetector | null>(null);
+    // --- TensorFlow.js State ---
+    const modelRef = useRef<faceLandmarksDetection.FaceLandmarksDetector | null>(null);
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -188,69 +189,58 @@ export default function AssessmentPage() {
         };
     }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
 
-    // --- MediaPipe Integration ---
+    // --- TensorFlow.js Integration ---
     useEffect(() => {
         if (!isMobile || !hasAgreedToRules || isLoading) return;
 
-        const createFaceDetector = async () => {
+        const loadModelAndSetup = async () => {
             try {
-                const vision = await FilesetResolver.forVisionTasks(
-                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+                // Load TFJS model
+                await tf.ready();
+                const model = await faceLandmarksDetection.load(
+                    faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
                 );
-                const detector = await FaceDetector.createFromOptions(vision, {
-                    baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite`,
-                        delegate: "GPU",
-                    },
-                    runningMode: "VIDEO",
-                });
-                faceDetectorRef.current = detector;
+                modelRef.current = model;
+
+                // Setup camera
+                if (videoRef.current) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.addEventListener("loadeddata", predictWebcam);
+                }
             } catch (error) {
-                console.error("Error creating FaceDetector:", error);
-                toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection.' });
+                console.error("Error setting up face detection:", error);
+                toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection model or camera.' });
             }
         };
 
-        const setupCamera = async () => {
-            if (!videoRef.current) return;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                videoRef.current.srcObject = stream;
-                videoRef.current.addEventListener("loadeddata", predictWebcam);
-            } catch (error) {
-                console.error("Error accessing camera:", error);
-                toast({ variant: 'destructive', title: 'Camera Access Denied', description: 'Please enable camera permissions.' });
-            }
-        };
-
-        const predictWebcam = () => {
-            if (!faceDetectorRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
+        const predictWebcam = async () => {
+            if (!modelRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
                 animationFrameId.current = requestAnimationFrame(predictWebcam);
                 return;
             }
 
-            const startTimeMs = performance.now();
-            faceDetectorRef.current.detectForVideo(videoRef.current, startTimeMs, (result: FaceDetectorResult) => {
-                if (result.detections.length === 0) {
-                     if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
-                        startWarning("Your face is not visible to the camera.");
-                    }
-                } else {
-                    lastProctoringEventTime.current = Date.now();
-                    if (isCountdownActive) {
-                       stopWarning();
-                    }
+            const predictions = await modelRef.current.estimateFaces({ input: videoRef.current });
+
+            if (predictions.length === 0) {
+                 if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
+                    startWarning("Your face is not visible to the camera.");
                 }
-            });
+            } else {
+                lastProctoringEventTime.current = Date.now();
+                if (isCountdownActive) {
+                   stopWarning();
+                }
+            }
 
             animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
 
-        createFaceDetector().then(setupCamera);
+        loadModelAndSetup();
 
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            faceDetectorRef.current?.close();
+            modelRef.current?.dispose();
             const stream = videoRef.current?.srcObject as MediaStream | null;
             stream?.getTracks().forEach(track => track.stop());
         };
