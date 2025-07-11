@@ -96,6 +96,8 @@ export default function AssessmentPage() {
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const faceNotVisibleTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastVideoTimeRef = useRef(-1);
+
 
     const handleExamRestart = useCallback(() => {
         toast({
@@ -111,6 +113,7 @@ export default function AssessmentPage() {
 
         setShowFocusWarning(true);
         setIsCountdownActive(true);
+        setFocusCountdown(10); // Reset countdown on new warning
         countdownIntervalRef.current = setInterval(() => {
             setFocusCountdown(prev => {
                 if (prev <= 1) {
@@ -129,7 +132,7 @@ export default function AssessmentPage() {
             countdownIntervalRef.current = null;
         }
         setIsCountdownActive(false);
-        setFocusCountdown(10);
+        // Do not reset focusCountdown here, so it shows the last value before stopping.
     }, []);
 
     // Effect for Focus Proctoring (Tab switching, window blur)
@@ -143,11 +146,18 @@ export default function AssessmentPage() {
                 stopWarning();
             }
         };
+
+        const handleBlur = () => startWarning();
+        const handleFocus = () => stopWarning();
         
         window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('blur', handleBlur);
+        window.addEventListener('focus', handleFocus);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleBlur);
+            window.removeEventListener('focus', handleFocus);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
@@ -173,12 +183,12 @@ export default function AssessmentPage() {
         getCameraPermission();
     }, [hasAgreedToRules]);
     
-    const handleFaceDetection = async () => {
+    const handleFaceDetection = useCallback(() => {
         if (videoRef.current && videoRef.current.readyState >= 3) {
-            // Placeholder for a lightweight face detection library if needed.
-            // For now, we simulate this to avoid heavy dependencies.
-            // In a real scenario, this would use a library to detect a face.
-            const isFaceVisible = true; // Placeholder
+            // Simulated face detection: check if video is playing.
+            // A frozen video (e.g., covered camera) will have a static currentTime.
+            const isFaceVisible = videoRef.current.currentTime > lastVideoTimeRef.current;
+            lastVideoTimeRef.current = videoRef.current.currentTime;
 
             if (!isFaceVisible) {
                 if (!faceNotVisibleTimerRef.current) {
@@ -197,14 +207,15 @@ export default function AssessmentPage() {
                 }
             }
         }
-    };
+    }, [startWarning, stopWarning]);
+
 
     useEffect(() => {
         if (hasCameraPermission) {
             const detectionInterval = setInterval(handleFaceDetection, 500);
             return () => clearInterval(detectionInterval);
         }
-    }, [hasCameraPermission, stopWarning, startWarning]);
+    }, [hasCameraPermission, handleFaceDetection]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
