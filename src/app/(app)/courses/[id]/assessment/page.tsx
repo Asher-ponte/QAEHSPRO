@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -115,7 +116,7 @@ export default function AssessmentPage() {
         setIsCountdownActive(true);
         setFocusCountdown(10); // Reset countdown on new warning
         countdownIntervalRef.current = setInterval(() => {
-            setFocusCountdown(prev => {
+            setFocusCountdown((prev) => {
                 if (prev <= 1) {
                     clearInterval(countdownIntervalRef.current!);
                     handleExamRestart();
@@ -142,8 +143,6 @@ export default function AssessmentPage() {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 startWarning();
-            } else {
-                stopWarning();
             }
         };
 
@@ -152,7 +151,7 @@ export default function AssessmentPage() {
         };
 
         const handleMouseEnter = () => {
-             stopWarning();
+             // We only stop the warning if the user has to click to close it
         };
         
         window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -207,13 +206,9 @@ export default function AssessmentPage() {
                     clearTimeout(faceNotVisibleTimerRef.current);
                     faceNotVisibleTimerRef.current = null;
                 }
-                // Only stop the warning if the window is also focused.
-                if (document.hasFocus()) {
-                    stopWarning();
-                }
             }
         }
-    }, [startWarning, stopWarning]);
+    }, [startWarning]);
 
 
     useEffect(() => {
@@ -588,3 +583,4 @@ export default function AssessmentPage() {
         </div>
     )
 }
+
