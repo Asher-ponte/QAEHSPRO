@@ -181,7 +181,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           <Tabs defaultValue="in-progress" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="in-progress">In Progress ({inProgressCourses.length})</TabsTrigger>
@@ -193,7 +193,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                   <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
                     <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
                         <div className="flex flex-grow items-center gap-4">
-                            <div className="relative h-20 w-28 flex-shrink-0">
+                            <div className="relative h-16 w-24 flex-shrink-0">
                                 <Image
                                     src={course.imagePath || 'https://placehold.co/200x150'}
                                     alt={course.title}
@@ -210,7 +210,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                 </div>
                             </div>
                         </div>
-                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                        <Separator orientation="vertical" className="h-16 mx-4 hidden md:block" />
                         <div className="flex-shrink-0 w-full md:w-48">
                            <ActionButton course={course} />
                         </div>
@@ -233,7 +233,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                   <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4">
                         <div className="flex flex-grow items-center gap-4">
-                            <div className="relative h-20 w-28 flex-shrink-0">
+                            <div className="relative h-16 w-24 flex-shrink-0">
                                 <Image
                                     src={course.imagePath || 'https://placehold.co/200x150'}
                                     alt={course.title}
@@ -247,7 +247,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                 <p className="text-sm text-muted-foreground mt-1">Completed</p>
                             </div>
                         </div>
-                        <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
+                        <Separator orientation="vertical" className="h-16 mx-4 hidden md:block" />
                         <div className="flex-shrink-0 w-full md:w-48">
                             <Button asChild variant="outline" className="w-full">
                                 <Link href={`/courses/${course.id}`}>Review Course</Link>
