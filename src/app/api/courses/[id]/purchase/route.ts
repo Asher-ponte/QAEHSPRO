@@ -91,5 +91,3 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to submit payment proof due to a server error.', details }, { status: 500 });
     }
 }
-
-    
