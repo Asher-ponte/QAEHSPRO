@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     // This is required for packages with native Node.js dependencies.
     if (isServer) {
-      config.externals.push('sqlite3', 'bcrypt');
+      config.externals.push('sqlite3', 'bcrypt', '@tensorflow/tfjs', '@tensorflow-models/face-landmarks-detection');
     }
     return config;
   },
