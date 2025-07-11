@@ -1,4 +1,5 @@
 
+
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 
@@ -25,8 +26,6 @@ export interface SessionData {
  * This version correctly handles super admin context switching.
  */
 export async function getCurrentSession(): Promise<SessionData> {
-  // Using cookies() automatically opts this function into dynamic rendering.
-  // noStore() is not needed.
   const cookieStore = cookies();
   const sessionId = cookieStore.get('session_id')?.value;
   const siteId = cookieStore.get('site_id')?.value;

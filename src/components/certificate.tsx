@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -57,6 +58,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                     <Image 
                                         src={data.companyLogoPath} 
                                         alt={`${data.companyName} Logo`} 
+                                        sizes="100vw"
                                         fill
                                         className="object-contain"
                                     />
@@ -67,6 +69,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                     <Image 
                                         src={data.companyLogo2Path} 
                                         alt={`${data.companyName} Secondary Logo`} 
+                                        sizes="100vw"
                                         fill
                                         className="object-contain"
                                     />
@@ -131,6 +134,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                         <Image 
                                             src={s.signatureImagePath} 
                                             alt={`Signature of ${s.name}`} 
+                                            sizes="100vw"
                                             fill
                                             className="object-contain invert-0 dark:invert"
                                         />

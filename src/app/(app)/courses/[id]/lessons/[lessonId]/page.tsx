@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -288,6 +289,7 @@ const LessonContent = ({
                                 <Image
                                     src={lesson.imagePath}
                                     alt={lesson.title}
+                                    sizes="100vw"
                                     fill
                                     className="object-cover"
                                 />
