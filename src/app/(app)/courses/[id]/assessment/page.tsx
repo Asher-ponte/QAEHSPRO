@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -77,7 +76,7 @@ function AssessmentSkeleton() {
 export default function AssessmentPage() {
     const params = useParams<{ id: string }>()
     const courseId = params.id;
-    router = useRouter();
+    const router = useRouter();
     const { toast } = useToast();
     const isMobile = useIsMobile();
 
