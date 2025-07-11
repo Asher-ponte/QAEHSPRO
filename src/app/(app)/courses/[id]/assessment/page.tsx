@@ -90,7 +90,7 @@ export default function AssessmentPage() {
     const [showResultDialog, setShowResultDialog] = useState(false);
     const [lastResult, setLastResult] = useState<LastResult | null>(null);
     const [isRetaking, setIsRetaking] = useState(false);
-    const [hasAgreedToRules, setHasAgreedToRules] = useState(!isMobile);
+    const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
 
     // State for proctoring
     const [showFocusWarning, setShowFocusWarning] = useState(false);
@@ -116,7 +116,6 @@ export default function AssessmentPage() {
 
         setShowFocusWarning(true);
         setIsCountdownActive(true);
-        setFocusCountdown(10); // Reset countdown on new warning
         countdownIntervalRef.current = setInterval(() => {
             setFocusCountdown((prev) => {
                 if (prev <= 1) {
@@ -136,31 +135,43 @@ export default function AssessmentPage() {
         }
         setIsCountdownActive(false);
     }, []);
-
-    // Effect for Proctoring (Tab switching, window blur, mouse leave)
+    
+    // Effect for Proctoring Logic
     useEffect(() => {
-        if (!isMobile || !hasAgreedToRules) return;
+        const proctoringActive = hasAgreedToRules && !isLoading;
+        if (!proctoringActive) return;
 
+        // --- Event handlers ---
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                startWarning();
-            }
+            if (document.visibilityState === 'hidden') startWarning();
         };
-        
+        const handleMouseLeave = () => {
+            if (!isMobile) startWarning();
+        };
+
+        // For mobile, this is the main trigger. For desktop, it's an additional check.
         window.addEventListener('visibilitychange', handleVisibilityChange);
         
+        // Mouse leave is only for desktop.
+        if (!isMobile) {
+            document.addEventListener('mouseleave', handleMouseLeave);
+        }
+        
+        // --- Cleanup ---
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-
+            if (!isMobile) {
+                document.removeEventListener('mouseleave', handleMouseLeave);
+            }
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [isMobile, hasAgreedToRules, startWarning, stopWarning]);
+    }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
 
-    // Effect for Camera Permission
+    // Effect for Camera Permission & Face Detection (Mobile Only)
     useEffect(() => {
-        if (!isMobile || !hasAgreedToRules) return;
+        if (!isMobile || !hasAgreedToRules || isLoading) return;
 
         const getCameraPermission = async () => {
             try {
@@ -175,15 +186,14 @@ export default function AssessmentPage() {
             }
         };
         getCameraPermission();
-    }, [isMobile, hasAgreedToRules]);
+    }, [isMobile, hasAgreedToRules, isLoading]);
     
     const handleFaceDetection = useCallback(() => {
-        // This is a simplified simulation. A real implementation would use a library like face-api.js
         if (videoRef.current && videoRef.current.readyState >= 3) {
-            // Check if the video's current time is advancing. A static time suggests a frozen frame (e.g., covered camera).
+            // A real implementation would use a library. Here we simulate a check.
+            // This checks if the video is playing, which would stop if the camera was covered.
             const isVideoPlaying = videoRef.current.currentTime > lastVideoTimeRef.current;
             lastVideoTimeRef.current = videoRef.current.currentTime;
-
             if (!isVideoPlaying) {
                  startWarning();
             }
@@ -290,7 +300,7 @@ export default function AssessmentPage() {
                         <AlertDialogTitle className="text-center text-2xl font-bold">
                             {passed ? "Assessment Passed!" : "Assessment Failed"}
                         </AlertDialogTitle>
-                         <div className="text-center !mt-4 space-y-2">
+                        <div className="text-center !mt-4 space-y-2">
                              <div className="text-sm text-muted-foreground">Your Score</div>
                              <div className="text-5xl font-bold text-foreground my-2">{score} / {total}</div>
                              <div className="text-base text-muted-foreground">{Math.round((score / total) * 100)}%</div>
@@ -323,6 +333,7 @@ export default function AssessmentPage() {
         const handleCloseWarning = () => {
             stopWarning();
             setShowFocusWarning(false);
+            setFocusCountdown(10); // Reset for next time
         };
         return (
             <AlertDialog open={showFocusWarning}>
@@ -383,6 +394,13 @@ export default function AssessmentPage() {
         }
         fetchAssessment();
     }, [courseId, router, toast]);
+
+    // Set hasAgreedToRules to true for desktop automatically
+    useEffect(() => {
+      if (!isLoading && !isMobile) {
+        setHasAgreedToRules(true);
+      }
+    }, [isLoading, isMobile]);
 
     if (isLoading) {
         return <AssessmentSkeleton />;
@@ -447,7 +465,7 @@ export default function AssessmentPage() {
         )
     }
 
-    if (isMobile && !hasAgreedToRules) {
+    if (!hasAgreedToRules) {
         return (
             <div className="max-w-2xl mx-auto text-center space-y-6">
                 <Card>
@@ -462,8 +480,18 @@ export default function AssessmentPage() {
                         <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>You must allow camera access. Your face must be visible at all times.</li>
-                                <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
+                                {isMobile && (
+                                  <>
+                                    <li>You must allow camera access. Your face must be visible at all times.</li>
+                                    <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
+                                  </>
+                                )}
+                                {!isMobile && (
+                                  <>
+                                      <li>If you switch to another tab or browser window, a warning will start.</li>
+                                      <li>If your mouse cursor leaves the page, a warning will start.</li>
+                                  </>
+                                )}
                                 <li>If you do not return within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
@@ -481,7 +509,7 @@ export default function AssessmentPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            {isMobile && <FocusWarningDialog />}
+            <FocusWarningDialog />
             <ResultDialog />
             <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
                 <AlertDialogContent>
