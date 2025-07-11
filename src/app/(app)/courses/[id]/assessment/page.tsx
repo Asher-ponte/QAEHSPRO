@@ -92,7 +92,7 @@ export default function AssessmentPage() {
     const [isRetaking, setIsRetaking] = useState(false);
     const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
 
-    // State for proctoring
+    // --- Proctoring State ---
     const [showFocusWarning, setShowFocusWarning] = useState(false);
     const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
@@ -100,7 +100,6 @@ export default function AssessmentPage() {
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const lastVideoTimeRef = useRef(-1);
-
 
     const handleExamRestart = useCallback(() => {
         toast({
@@ -111,66 +110,64 @@ export default function AssessmentPage() {
         window.location.reload();
     }, [toast]);
     
-    const startWarning = useCallback(() => {
-        if (countdownIntervalRef.current || showFocusWarning) return;
+     // Effect to handle the countdown logic
+    useEffect(() => {
+        if (isCountdownActive && focusCountdown > 0) {
+            countdownIntervalRef.current = setInterval(() => {
+                setFocusCountdown((prev) => prev - 1);
+            }, 1000);
+        } else if (focusCountdown <= 0) {
+            handleExamRestart();
+        }
+        return () => {
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+            }
+        };
+    }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
+    const startWarning = useCallback(() => {
+        if (showFocusWarning) return; // Don't start a new warning if one is already showing
         setShowFocusWarning(true);
         setIsCountdownActive(true);
-        
-        countdownIntervalRef.current = setInterval(() => {
-            setFocusCountdown((prev) => {
-                if (prev <= 1) {
-                    if(countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-                    handleExamRestart();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    }, [showFocusWarning, handleExamRestart]);
+    }, [showFocusWarning]);
 
     const stopWarning = useCallback(() => {
-        setIsCountdownActive(false);
-        if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-        }
+        setIsCountdownActive(false); // Stop the countdown, but don't hide the dialog
     }, []);
-    
-    // Effect for Proctoring Logic
+
+    // Effect for Proctoring Event Listeners
     useEffect(() => {
         const proctoringActive = hasAgreedToRules && !isLoading;
         if (!proctoringActive) return;
 
-        // --- Event handlers ---
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') startWarning();
-             else stopWarning();
+            if (document.visibilityState === 'hidden') {
+                startWarning();
+            } else {
+                stopWarning();
+            }
         };
+
         const handleMouseLeave = () => {
             if (!isMobile) startWarning();
         };
-         const handleMouseEnter = () => {
+
+        const handleMouseEnter = () => {
             if (!isMobile) stopWarning();
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        
-        // Mouse leave/enter is only for desktop.
         if (!isMobile) {
             document.addEventListener('mouseleave', handleMouseLeave);
             document.addEventListener('mouseenter', handleMouseEnter);
         }
-        
-        // --- Cleanup ---
+
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             if (!isMobile) {
                 document.removeEventListener('mouseleave', handleMouseLeave);
                 document.removeEventListener('mouseenter', handleMouseEnter);
-            }
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
             }
         };
     }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
