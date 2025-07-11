@@ -107,7 +107,7 @@ export default function AssessmentPage() {
     }, [toast]);
     
     const startWarning = useCallback(() => {
-        if (countdownIntervalRef.current) return;
+        if (countdownIntervalRef.current || showFocusWarning) return;
 
         setShowFocusWarning(true);
         setIsCountdownActive(true);
@@ -121,7 +121,7 @@ export default function AssessmentPage() {
                 return prev - 1;
             });
         }, 1000);
-    }, [handleExamRestart]);
+    }, [handleExamRestart, showFocusWarning]);
 
     const stopWarning = useCallback(() => {
         if (countdownIntervalRef.current) {
@@ -132,7 +132,7 @@ export default function AssessmentPage() {
         setFocusCountdown(10);
     }, []);
 
-    // Effect for Focus Proctoring
+    // Effect for Focus Proctoring (Tab switching, window blur)
     useEffect(() => {
         if (!hasAgreedToRules) return;
 
@@ -143,31 +143,18 @@ export default function AssessmentPage() {
                 stopWarning();
             }
         };
-
-        const handleBlur = () => {
-            startWarning();
-        }
-
-        const handleFocus = () => {
-             stopWarning();
-             setShowFocusWarning(false);
-        }
         
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('blur', handleBlur);
-        window.addEventListener('focus', handleFocus);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('blur', handleBlur);
-            window.removeEventListener('focus', handleFocus);
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
     }, [hasAgreedToRules, startWarning, stopWarning]);
 
-    // Effect for Camera Permission and Face Detection
+    // Effect for Camera Permission
     useEffect(() => {
         if (!hasAgreedToRules) return;
 
@@ -204,9 +191,10 @@ export default function AssessmentPage() {
                     clearTimeout(faceNotVisibleTimerRef.current);
                     faceNotVisibleTimerRef.current = null;
                 }
-                if (!document.hasFocus()) return; // Don't stop warning if window is not focused
-                stopWarning();
-                setShowFocusWarning(false);
+                // Only stop the warning if the window is also focused.
+                if (document.hasFocus()) {
+                    stopWarning();
+                }
             }
         }
     };
