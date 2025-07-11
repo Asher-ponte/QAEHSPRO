@@ -197,9 +197,7 @@ export default function AssessmentPage() {
             try {
                 // Load TFJS model
                 await tf.ready();
-                const model = await faceLandmarksDetection.load(
-                    faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
-                );
+                const model = await faceLandmarksDetection.load();
                 modelRef.current = model;
 
                 // Setup camera
@@ -220,18 +218,24 @@ export default function AssessmentPage() {
                 return;
             }
 
-            const predictions = await modelRef.current.estimateFaces({ input: videoRef.current });
+            try {
+                const predictions = await modelRef.current.estimateFaces({ input: videoRef.current });
 
-            if (predictions.length === 0) {
-                 if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
-                    startWarning("Your face is not visible to the camera.");
+                if (predictions.length === 0) {
+                     if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
+                        startWarning("Your face is not visible to the camera.");
+                    }
+                } else {
+                    lastProctoringEventTime.current = Date.now();
+                    if (isCountdownActive) {
+                       stopWarning();
+                    }
                 }
-            } else {
-                lastProctoringEventTime.current = Date.now();
-                if (isCountdownActive) {
-                   stopWarning();
-                }
+            } catch (error) {
+                console.error("Error during face prediction:", error);
+                // Optionally stop proctoring if it consistently fails
             }
+
 
             animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
