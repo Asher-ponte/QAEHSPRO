@@ -141,7 +141,6 @@ export default function AssessmentPage() {
                 startWarning();
             } else {
                 stopWarning();
-                setShowFocusWarning(false);
             }
         };
 
@@ -217,7 +216,7 @@ export default function AssessmentPage() {
             const detectionInterval = setInterval(handleFaceDetection, 500);
             return () => clearInterval(detectionInterval);
         }
-    }, [hasCameraPermission]);
+    }, [hasCameraPermission, stopWarning, startWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -510,9 +509,9 @@ export default function AssessmentPage() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Final Submission</AlertDialogTitle>
-                        <div className="text-sm text-muted-foreground">
+                        <AlertDialogDescription>
                            Please double check your answer before final submission.
-                        </div>
+                        </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
