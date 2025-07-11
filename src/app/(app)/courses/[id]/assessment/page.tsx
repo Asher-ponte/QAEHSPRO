@@ -90,6 +90,7 @@ export default function AssessmentPage() {
 
     // State for focus tracking proctoring
     const [showFocusWarning, setShowFocusWarning] = useState(false);
+    const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -136,6 +137,7 @@ export default function AssessmentPage() {
                 if (countdownIntervalRef.current) return; // Prevent multiple timers
 
                 setShowFocusWarning(true);
+                setIsCountdownActive(true);
                 countdownIntervalRef.current = setInterval(() => {
                     setFocusCountdown(prev => {
                         if (prev <= 1) {
@@ -147,13 +149,12 @@ export default function AssessmentPage() {
                     });
                 }, 1000);
             } else {
-                // User has returned to the page. Stop the countdown.
+                // User has returned to the page. Stop the countdown but keep the dialog open.
                 if (countdownIntervalRef.current) {
                     clearInterval(countdownIntervalRef.current);
                     countdownIntervalRef.current = null;
                 }
-                setShowFocusWarning(false);
-                setFocusCountdown(10);
+                 setIsCountdownActive(false);
             }
         };
 
@@ -290,30 +291,44 @@ export default function AssessmentPage() {
         );
     };
 
-    const FocusWarningDialog = () => (
-        <AlertDialog open={showFocusWarning}>
-            <AlertDialogContent>
-                <AlertDialogHeader className="text-center">
-                    <AlertDialogTitle className="justify-center flex items-center gap-2">
-                        <ShieldAlert className="h-6 w-6 text-destructive" />
-                        Focus Warning
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                        You have navigated away from the exam page.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="bg-destructive/10 p-6 rounded-lg text-center">
-                     <p className="text-muted-foreground text-sm mb-2">Return to the page immediately or the exam will be terminated in:</p>
-                     <div className="text-6xl font-bold text-destructive">
-                        {focusCountdown}
+    const FocusWarningDialog = () => {
+        const handleCloseWarning = () => {
+            setShowFocusWarning(false);
+            setFocusCountdown(10);
+        };
+        return (
+            <AlertDialog open={showFocusWarning}>
+                <AlertDialogContent>
+                    <AlertDialogHeader className="text-center">
+                        <AlertDialogTitle className="justify-center flex items-center gap-2">
+                            <ShieldAlert className="h-6 w-6 text-destructive" />
+                            Focus Warning
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                           {isCountdownActive 
+                                ? "You have navigated away from the exam page." 
+                                : "You have returned to the exam page. Please remain focused."}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="bg-destructive/10 p-6 rounded-lg text-center">
+                         <p className="text-muted-foreground text-sm mb-2">
+                            {isCountdownActive ? "Return to the page immediately or the exam will be terminated in:" : "Timer paused. Close this warning to continue."}
+                        </p>
+                         <div className="text-6xl font-bold text-destructive">
+                            {focusCountdown}
+                        </div>
                     </div>
-                </div>
-                <AlertDialogFooter>
-                    <p className="text-xs text-muted-foreground text-center w-full">This action is to ensure exam integrity.</p>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
+                    <AlertDialogFooter>
+                        {isCountdownActive ? (
+                            <p className="text-xs text-muted-foreground text-center w-full">This action is to ensure exam integrity.</p>
+                        ) : (
+                            <AlertDialogAction onClick={handleCloseWarning}>I Understand, Resume Exam</AlertDialogAction>
+                        )}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )
+    };
 
     const canSubmit = useMemo(() => {
         if (!assessmentData) return false;
@@ -353,16 +368,16 @@ export default function AssessmentPage() {
     if (hasReachedMaxAttempts) {
         return (
             <div className="max-w-4xl mx-auto text-center space-y-6">
-                <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
-                <h1 className="text-3xl font-bold font-headline">Maximum Attempts Reached</h1>
-                <p className="text-muted-foreground">
-                    You have used all {maxAttempts} attempts for the final assessment of "{courseTitle}".
-                    You must retake the course to try again.
-                </p>
-                <Button onClick={() => setShowRetakeConfirm(true)} disabled={isRetaking}>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Retake Full Course
-                </Button>
+                 <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
+                 <h1 className="text-3xl font-bold font-headline">Maximum Attempts Reached</h1>
+                 <p className="text-muted-foreground">
+                     You have used all {maxAttempts} attempts for the final assessment of "{courseTitle}".
+                     You must retake the course to try again.
+                 </p>
+                 <Button onClick={() => setShowRetakeConfirm(true)} disabled={isRetaking}>
+                     <RefreshCw className="mr-2 h-4 w-4" />
+                     Retake Full Course
+                 </Button>
                  <AlertDialog open={showRetakeConfirm} onOpenChange={setShowRetakeConfirm}>
                     <AlertDialogContent>
                     <AlertDialogHeader>
@@ -380,7 +395,7 @@ export default function AssessmentPage() {
                     </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-            </div>
+             </div>
         )
     }
 
