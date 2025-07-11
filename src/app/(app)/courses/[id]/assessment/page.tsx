@@ -116,24 +116,25 @@ export default function AssessmentPage() {
 
         setShowFocusWarning(true);
         setIsCountdownActive(true);
+        
         countdownIntervalRef.current = setInterval(() => {
             setFocusCountdown((prev) => {
                 if (prev <= 1) {
-                    clearInterval(countdownIntervalRef.current!);
+                    if(countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
                     handleExamRestart();
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
-    }, [handleExamRestart, showFocusWarning]);
+    }, [showFocusWarning, handleExamRestart]);
 
     const stopWarning = useCallback(() => {
+        setIsCountdownActive(false);
         if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;
         }
-        setIsCountdownActive(false);
     }, []);
     
     // Effect for Proctoring Logic
