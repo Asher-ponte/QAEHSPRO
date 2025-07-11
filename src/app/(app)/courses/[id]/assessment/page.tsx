@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface Question {
     text: string;
@@ -76,6 +77,8 @@ export default function AssessmentPage() {
     const courseId = params.id;
     const router = useRouter();
     const { toast } = useToast();
+    const isMobile = useIsMobile();
+
     const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,16 +90,15 @@ export default function AssessmentPage() {
     const [showResultDialog, setShowResultDialog] = useState(false);
     const [lastResult, setLastResult] = useState<LastResult | null>(null);
     const [isRetaking, setIsRetaking] = useState(false);
-    const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
+    const [hasAgreedToRules, setHasAgreedToRules] = useState(!isMobile);
 
-    // State for focus tracking proctoring
+    // State for proctoring
     const [showFocusWarning, setShowFocusWarning] = useState(false);
     const [isCountdownActive, setIsCountdownActive] = useState(false);
     const [focusCountdown, setFocusCountdown] = useState(10);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const faceNotVisibleTimerRef = useRef<NodeJS.Timeout | null>(null);
     const lastVideoTimeRef = useRef(-1);
 
 
@@ -133,45 +135,32 @@ export default function AssessmentPage() {
             countdownIntervalRef.current = null;
         }
         setIsCountdownActive(false);
-        // Do not reset focusCountdown here, so it shows the last value before stopping.
     }, []);
 
     // Effect for Proctoring (Tab switching, window blur, mouse leave)
     useEffect(() => {
-        if (!hasAgreedToRules) return;
+        if (!isMobile || !hasAgreedToRules) return;
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 startWarning();
             }
         };
-
-        const handleMouseLeave = () => {
-            startWarning();
-        };
-
-        const handleMouseEnter = () => {
-             // We only stop the warning if the user has to click to close it
-        };
         
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        document.documentElement.addEventListener('mouseleave', handleMouseLeave);
-        document.documentElement.addEventListener('mouseenter', handleMouseEnter);
-
+        
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
-            document.documentElement.removeEventListener('mouseenter', handleMouseEnter);
 
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [hasAgreedToRules, startWarning, stopWarning]);
+    }, [isMobile, hasAgreedToRules, startWarning, stopWarning]);
 
     // Effect for Camera Permission
     useEffect(() => {
-        if (!hasAgreedToRules) return;
+        if (!isMobile || !hasAgreedToRules) return;
 
         const getCameraPermission = async () => {
             try {
@@ -186,37 +175,28 @@ export default function AssessmentPage() {
             }
         };
         getCameraPermission();
-    }, [hasAgreedToRules]);
+    }, [isMobile, hasAgreedToRules]);
     
     const handleFaceDetection = useCallback(() => {
+        // This is a simplified simulation. A real implementation would use a library like face-api.js
         if (videoRef.current && videoRef.current.readyState >= 3) {
-            // Simulated face detection: check if video is playing.
-            // A frozen video (e.g., covered camera) will have a static currentTime.
-            const isFaceVisible = videoRef.current.currentTime > lastVideoTimeRef.current;
+            // Check if the video's current time is advancing. A static time suggests a frozen frame (e.g., covered camera).
+            const isVideoPlaying = videoRef.current.currentTime > lastVideoTimeRef.current;
             lastVideoTimeRef.current = videoRef.current.currentTime;
 
-            if (!isFaceVisible) {
-                if (!faceNotVisibleTimerRef.current) {
-                    faceNotVisibleTimerRef.current = setTimeout(() => {
-                        startWarning();
-                    }, 2000); // 2-second grace period
-                }
-            } else {
-                if (faceNotVisibleTimerRef.current) {
-                    clearTimeout(faceNotVisibleTimerRef.current);
-                    faceNotVisibleTimerRef.current = null;
-                }
+            if (!isVideoPlaying) {
+                 startWarning();
             }
         }
     }, [startWarning]);
 
 
     useEffect(() => {
-        if (hasCameraPermission) {
-            const detectionInterval = setInterval(handleFaceDetection, 500);
+        if (isMobile && hasCameraPermission) {
+            const detectionInterval = setInterval(handleFaceDetection, 2000); // Check every 2 seconds
             return () => clearInterval(detectionInterval);
         }
-    }, [hasCameraPermission, handleFaceDetection]);
+    }, [isMobile, hasCameraPermission, handleFaceDetection]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -403,7 +383,7 @@ export default function AssessmentPage() {
         }
         fetchAssessment();
     }, [courseId, router, toast]);
-    
+
     if (isLoading) {
         return <AssessmentSkeleton />;
     }
@@ -467,7 +447,7 @@ export default function AssessmentPage() {
         )
     }
 
-    if (!hasAgreedToRules) {
+    if (isMobile && !hasAgreedToRules) {
         return (
             <div className="max-w-2xl mx-auto text-center space-y-6">
                 <Card>
@@ -483,7 +463,7 @@ export default function AssessmentPage() {
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
                                 <li>You must allow camera access. Your face must be visible at all times.</li>
-                                <li>If you switch tabs, apps, move your mouse outside the window, or move your face away from the camera, a 10-second warning will start.</li>
+                                <li>If you switch tabs, apps, or move your face away from the camera, a 10-second warning will start.</li>
                                 <li>If you do not return within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
@@ -501,7 +481,7 @@ export default function AssessmentPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <FocusWarningDialog />
+            {isMobile && <FocusWarningDialog />}
             <ResultDialog />
             <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
                 <AlertDialogContent>
@@ -521,18 +501,20 @@ export default function AssessmentPage() {
                 </AlertDialogContent>
             </AlertDialog>
             
-            <div className="fixed bottom-4 right-4 z-50">
-                <Card className="p-2 w-48 h-36">
-                    <CardContent className="p-0 relative h-full">
-                         <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
-                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
-                            <p className="text-white text-xs font-semibold flex items-center gap-1">
-                                <Video className="h-3 w-3"/> Proctoring Active
-                            </p>
-                         </div>
-                    </CardContent>
-                </Card>
-            </div>
+            {isMobile && hasAgreedToRules && (
+                 <div className="fixed bottom-4 right-4 z-50">
+                    <Card className="p-2 w-48 h-36">
+                        <CardContent className="p-0 relative h-full">
+                            <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
+                                <p className="text-white text-xs font-semibold flex items-center gap-1">
+                                    <Video className="h-3 w-3"/> Proctoring Active
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
 
             <div>
@@ -583,4 +565,3 @@ export default function AssessmentPage() {
         </div>
     )
 }
-
