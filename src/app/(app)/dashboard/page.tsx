@@ -30,19 +30,19 @@ async function getDashboardData() {
       'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
       [userId, 'completion']
     );
-    const totalTrainingsAttended = totalTrainingsResult.count;
+    const totalTrainingsAttended = totalTrainingsResult?.count ?? 0;
 
     const totalRecognitionsResult = await db.get(
       'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
       [userId, 'recognition']
     );
-    const totalRecognitions = totalRecognitionsResult.count;
+    const totalRecognitions = totalRecognitionsResult?.count ?? 0;
 
 
     const acquiredSkillsResult = await db.all(
         `SELECT DISTINCT c.category FROM certificates cert
          JOIN courses c ON cert.course_id = c.id
-         WHERE cert.user_id = ?`,
+         WHERE cert.user_id = ? AND cert.type = 'completion'`,
         [userId]
     );
     const skillsAcquiredCount = acquiredSkillsResult.length;
@@ -76,6 +76,13 @@ async function getDashboardData() {
     `, [userId, ...courseIds]);
     const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
 
+    const passedAssessmentResult = await db.all(`
+        SELECT course_id FROM final_assessment_attempts
+        WHERE user_id = ? AND passed = 1 AND course_id IN (${courseIdsPlaceholder})
+    `, [userId, ...courseIds]);
+    const passedAssessmentIds = new Set(passedAssessmentResult.map(r => r.course_id));
+
+
     // 5. Process the data in memory for course list.
     const lessonsByCourse = allLessons.reduce((acc, l) => {
         if (!acc[l.course_id]) acc[l.course_id] = [];
@@ -86,15 +93,27 @@ async function getDashboardData() {
     const myCourses = enrolledCourses.map(course => {
         const courseLessons = lessonsByCourse[course.id] || [];
         const totalLessons = courseLessons.length;
-        const completedCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+        const completedLessonsCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+        const hasFinalAssessment = !!course.final_assessment_content;
 
         let progress = 0;
         if (totalLessons > 0) {
-            progress = Math.floor((completedCount / totalLessons) * 100);
+            progress = Math.floor((completedLessonsCount / totalLessons) * 100);
         }
         
+        // If course has an assessment, progress is not 100% unless it's passed.
+        // Cap progress at 99% if lessons are done but assessment is not.
+        if (hasFinalAssessment && progress === 100 && !passedAssessmentIds.has(course.id)) {
+            progress = 99;
+        }
+
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
-        const continueLessonId = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+        let continueLessonId: number | null = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+        
+        // If all lessons are complete and there's an assessment, link should point to assessment page.
+        if (hasFinalAssessment && completedLessonsCount === totalLessons) {
+            continueLessonId = null; // Special value to indicate going to assessment page
+        }
 
         return {
             id: course.id,

@@ -10,7 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Lightbulb, Target, Award, BookOpen, Ribbon } from "lucide-react"
+import { Lightbulb, Target, Award, BookOpen, Ribbon, ClipboardCheck } from "lucide-react"
 import Link from 'next/link'
 import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -67,6 +67,27 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
 
   const inProgressCourses = courses.filter(course => course.progress < 100);
   const completedCourses = courses.filter(course => course.progress === 100);
+  
+  const ActionButton = ({ course }: { course: Course }) => {
+    // Case 1: All lessons complete, ready for assessment.
+    if (course.progress === 99 && course.continueLessonId === null) {
+      return (
+        <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+          <Link href={`/courses/${course.id}/assessment`}>
+            <ClipboardCheck className="mr-2 h-4 w-4" />
+            Final Assessment
+          </Link>
+        </Button>
+      );
+    }
+    
+    // Case 2: In the middle of lessons.
+    return (
+      <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+        <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
+      </Button>
+    );
+  };
 
   if (isUserLoading) {
     return (
@@ -191,9 +212,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                         </div>
                         <Separator orientation="vertical" className="h-20 mx-4 hidden md:block" />
                         <div className="flex-shrink-0 w-full md:w-48">
-                            <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                                <Link href={`/courses/${course.id}/lessons/${course.continueLessonId}`}>Continue Learning</Link>
-                            </Button>
+                           <ActionButton course={course} />
                         </div>
                     </div>
                   </Card>
