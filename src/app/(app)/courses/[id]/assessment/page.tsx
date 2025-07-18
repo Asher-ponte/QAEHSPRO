@@ -23,8 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
-import * as tf from '@tensorflow/tfjs';
-import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
+import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 
 
 interface Question {
@@ -103,8 +102,8 @@ export default function AssessmentPage() {
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
 
 
-    // --- TensorFlow.js State ---
-    const modelRef = useRef<faceLandmarksDetection.FaceLandmarksDetector | null>(null);
+    // --- MediaPipe State ---
+    const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -189,67 +188,90 @@ export default function AssessmentPage() {
         };
     }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
 
-    // --- TensorFlow.js Integration ---
+    // --- MediaPipe FaceDetector Integration ---
     useEffect(() => {
+        // Only run on mobile, after rules are agreed to, and not during loading.
         if (!isMobile || !hasAgreedToRules || isLoading) return;
 
-        const loadModelAndSetup = async () => {
+        const createFaceDetector = async () => {
             try {
-                // Load TFJS model
-                await tf.ready();
-                const model = await faceLandmarksDetection.load();
-                modelRef.current = model;
-
-                // Setup camera
-                if (videoRef.current) {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.addEventListener("loadeddata", predictWebcam);
-                }
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+                );
+                const detector = await FaceDetector.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+                        delegate: "GPU",
+                    },
+                    runningMode: 'VIDEO',
+                });
+                setFaceDetector(detector);
             } catch (error) {
-                console.error("Error setting up face detection:", error);
-                toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection model or camera.' });
+                console.error("Error creating FaceDetector:", error);
+                toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection model.' });
             }
         };
+        createFaceDetector();
+    }, [isMobile, hasAgreedToRules, isLoading, toast]);
+    
+    // This effect sets up the camera and starts the prediction loop once the detector is ready.
+    useEffect(() => {
+        if (!faceDetector || !videoRef.current) return;
 
-        const predictWebcam = async () => {
-            if (!modelRef.current || !videoRef.current || videoRef.current.paused || !videoRef.current.srcObject) {
-                animationFrameId.current = requestAnimationFrame(predictWebcam);
+        const setupCameraAndPredict = async () => {
+            try {
+                if (videoRef.current && !videoRef.current.srcObject) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoRef.current.srcObject = stream;
+                }
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+                toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the camera for proctoring.' });
                 return;
             }
 
-            try {
-                const predictions = await modelRef.current.estimateFaces({ input: videoRef.current });
-
-                if (predictions.length === 0) {
-                     if (Date.now() - lastProctoringEventTime.current > 2000) { // Add a small buffer
-                        startWarning("Your face is not visible to the camera.");
-                    }
-                } else {
-                    lastProctoringEventTime.current = Date.now();
-                    if (isCountdownActive) {
-                       stopWarning();
-                    }
+            let lastTime = -1;
+            const predictWebcam = async (now: number) => {
+                if (!videoRef.current || videoRef.current.paused) {
+                    animationFrameId.current = requestAnimationFrame(predictWebcam);
+                    return;
                 }
-            } catch (error) {
-                console.error("Error during face prediction:", error);
-                // Optionally stop proctoring if it consistently fails
-            }
 
+                if (now > lastTime) {
+                    const result = faceDetector.detectForVideo(videoRef.current, now);
+                    if (result.detections.length === 0) {
+                        if (Date.now() - lastProctoringEventTime.current > 2000) {
+                            startWarning("Your face is not visible to the camera.");
+                        }
+                    } else {
+                        lastProctoringEventTime.current = Date.now();
+                        if (isCountdownActive) {
+                            stopWarning();
+                        }
+                    }
+                    lastTime = now;
+                }
+                animationFrameId.current = requestAnimationFrame(predictWebcam);
+            };
 
-            animationFrameId.current = requestAnimationFrame(predictWebcam);
+            const video = videoRef.current;
+            const handleLoadedData = () => {
+                animationFrameId.current = requestAnimationFrame(predictWebcam);
+            };
+
+            video.addEventListener("loadeddata", handleLoadedData);
+
+            return () => {
+                video.removeEventListener("loadeddata", handleLoadedData);
+                if (animationFrameId.current) {
+                    cancelAnimationFrame(animationFrameId.current);
+                }
+            };
         };
 
-        loadModelAndSetup();
+        setupCameraAndPredict();
 
-        return () => {
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            modelRef.current?.dispose();
-            const stream = videoRef.current?.srcObject as MediaStream | null;
-            stream?.getTracks().forEach(track => track.stop());
-        };
-    }, [isMobile, hasAgreedToRules, isLoading, toast, isCountdownActive, startWarning, stopWarning]);
-
+    }, [faceDetector, toast, startWarning, stopWarning, isCountdownActive]);
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
