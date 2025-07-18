@@ -22,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 
 
@@ -78,7 +77,6 @@ export default function AssessmentPage() {
     const courseId = params.id;
     const router = useRouter();
     const { toast } = useToast();
-    const isMobile = useIsMobile();
 
     const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -133,22 +131,17 @@ export default function AssessmentPage() {
     }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
     const startWarning = useCallback((message: string) => {
-        // Prevent showing a new warning if one is already active but paused
-        if (showFocusWarning) {
-            // If the warning is shown but countdown paused, just resume it
-            if (!isCountdownActive) {
-                 setIsCountdownActive(true);
-            }
-            return;
-        }
+        if (Date.now() - lastProctoringEventTime.current < 2000) return; // Debounce
+        lastProctoringEventTime.current = Date.now();
+        
+        if (showFocusWarning && isCountdownActive) return;
+
         setProctoringMessage(message);
         setShowFocusWarning(true);
         setIsCountdownActive(true);
     }, [showFocusWarning, isCountdownActive]);
 
     const stopWarning = useCallback(() => {
-        // This function will now PAUSE the countdown instead of hiding the dialog.
-        // The dialog is hidden by the user's explicit action.
         setIsCountdownActive(false); 
     }, []);
 
@@ -174,19 +167,15 @@ export default function AssessmentPage() {
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        if (!isMobile) {
-            document.addEventListener('mouseleave', handleMouseLeave);
-            document.addEventListener('mouseenter', handleMouseEnter);
-        }
+        document.addEventListener('mouseleave', handleMouseLeave);
+        document.addEventListener('mouseenter', handleMouseEnter);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            if (!isMobile) {
-                document.removeEventListener('mouseleave', handleMouseLeave);
-                document.removeEventListener('mouseenter', handleMouseEnter);
-            }
+            document.removeEventListener('mouseleave', handleMouseLeave);
+            document.removeEventListener('mouseenter', handleMouseEnter);
         };
-    }, [hasAgreedToRules, isLoading, isMobile, startWarning, stopWarning]);
+    }, [hasAgreedToRules, isLoading, startWarning, stopWarning]);
 
     // --- MediaPipe FaceDetector Integration ---
     useEffect(() => {
@@ -230,49 +219,50 @@ export default function AssessmentPage() {
             }
 
             let lastTime = -1;
-            const predictWebcam = async (now: number) => {
-                if (!videoRef.current || videoRef.current.paused || !faceDetector) {
-                    animationFrameId.current = requestAnimationFrame(predictWebcam);
+            const predictWebcam = async () => {
+                if (!faceDetector || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth === 0) {
+                     if (animationFrameId.current) {
+                        animationFrameId.current = requestAnimationFrame(predictWebcam);
+                    }
                     return;
                 }
-
-                if (now > lastTime) {
-                    const result = faceDetector.detectForVideo(videoRef.current, now);
+                
+                const startTimeMs = performance.now();
+                if (startTimeMs > lastTime) {
+                    const result = faceDetector.detectForVideo(videoRef.current, startTimeMs);
                     if (result.detections.length === 0) {
-                        if (Date.now() - lastProctoringEventTime.current > 2000) {
-                            startWarning("Your face is not visible to the camera.");
-                        }
+                        startWarning("Your face is not visible to the camera.");
                     } else {
-                        lastProctoringEventTime.current = Date.now();
-                        if (isCountdownActive && !isMobile) { // On desktop, stop warning if face is visible again
-                            // but keep mouse/visibility warnings active
-                        } else if (isCountdownActive) {
-                            stopWarning();
-                        }
+                        // Resetting the general "stop" will pause the countdown
+                        // but not hide the dialog. This is intended.
+                        stopWarning();
                     }
-                    lastTime = now;
+                    lastTime = startTimeMs;
                 }
                 animationFrameId.current = requestAnimationFrame(predictWebcam);
             };
-
+            
             const video = videoRef.current;
-            const handleLoadedData = () => {
+            const handleCanPlay = () => {
                 animationFrameId.current = requestAnimationFrame(predictWebcam);
             };
 
-            video.addEventListener("loadeddata", handleLoadedData);
+            video.addEventListener("canplay", handleCanPlay);
 
             return () => {
-                video.removeEventListener("loadeddata", handleLoadedData);
+                video.removeEventListener("canplay", handleCanPlay);
                 if (animationFrameId.current) {
                     cancelAnimationFrame(animationFrameId.current);
+                }
+                 if(video.srcObject){
+                    (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
                 }
             };
         };
 
         setupCameraAndPredict();
 
-    }, [faceDetector, toast, startWarning, stopWarning, isCountdownActive, isMobile]);
+    }, [faceDetector, toast, startWarning, stopWarning]);
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
@@ -537,11 +527,7 @@ export default function AssessmentPage() {
                             <ul className="list-disc pl-5 mt-2 space-y-1">
                                 <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
                                 <li>If you switch tabs, apps, look away, or your face is not visible, a 10-second warning will start.</li>
-                                {!isMobile && (
-                                  <>
-                                      <li>If your mouse cursor leaves the page, a warning will also be triggered.</li>
-                                  </>
-                                )}
+                                <li>If your mouse cursor leaves the page, a warning will also be triggered.</li>
                                 <li>If you do not comply within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
                         </div>
@@ -643,3 +629,4 @@ export default function AssessmentPage() {
         </div>
     )
 }
+
