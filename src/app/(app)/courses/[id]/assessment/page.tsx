@@ -114,7 +114,7 @@ export default function AssessmentPage() {
         window.location.reload();
     }, [toast]);
     
-     // Effect to handle the countdown logic
+    // This is the single source of truth for the countdown timer interval.
     useEffect(() => {
         if (isCountdownActive && focusCountdown > 0) {
             countdownIntervalRef.current = setInterval(() => {
@@ -123,6 +123,7 @@ export default function AssessmentPage() {
         } else if (focusCountdown <= 0) {
             handleExamRestart();
         }
+
         return () => {
             if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
@@ -130,22 +131,26 @@ export default function AssessmentPage() {
         };
     }, [isCountdownActive, focusCountdown, handleExamRestart]);
 
+
     const startWarning = useCallback((message: string) => {
-        if (Date.now() - lastProctoringEventTime.current < 2000) return; // Debounce
+        // Debounce to prevent rapid firing of warnings
+        if (Date.now() - lastProctoringEventTime.current < 2000) return; 
         lastProctoringEventTime.current = Date.now();
         
         if (showFocusWarning && isCountdownActive) return;
 
         setProctoringMessage(message);
         setShowFocusWarning(true);
-        setIsCountdownActive(true);
+        setIsCountdownActive(true); // This will trigger the useEffect above to start the timer
     }, [showFocusWarning, isCountdownActive]);
 
     const stopWarning = useCallback(() => {
-        setIsCountdownActive(false); 
-    }, []);
+        if (isCountdownActive) {
+            setIsCountdownActive(false); // This will stop the timer via the useEffect cleanup
+        }
+    }, [isCountdownActive]);
 
-    // Effect for Proctoring Event Listeners
+    // Effect for Proctoring Event Listeners (visibility and mouse)
     useEffect(() => {
         const proctoringActive = hasAgreedToRules && !isLoading;
         if (!proctoringActive) return;
@@ -177,7 +182,7 @@ export default function AssessmentPage() {
         };
     }, [hasAgreedToRules, isLoading, startWarning, stopWarning]);
 
-    // --- MediaPipe FaceDetector Integration ---
+    // --- MediaPipe FaceDetector Initialization ---
     useEffect(() => {
         if (!hasAgreedToRules || isLoading) return;
 
@@ -202,15 +207,19 @@ export default function AssessmentPage() {
         createFaceDetector();
     }, [hasAgreedToRules, isLoading, toast]);
     
-    // This effect sets up the camera and starts the prediction loop once the detector is ready.
+    // --- Camera Setup & Prediction Loop ---
     useEffect(() => {
         if (!faceDetector || !videoRef.current) return;
+
+        let isMounted = true; // Flag to check if component is still mounted
 
         const setupCameraAndPredict = async () => {
             try {
                 if (videoRef.current && !videoRef.current.srcObject) {
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    videoRef.current.srcObject = stream;
+                    if (isMounted && videoRef.current) {
+                        videoRef.current.srcObject = stream;
+                    }
                 }
             } catch (error) {
                 console.error("Error accessing camera:", error);
@@ -220,10 +229,8 @@ export default function AssessmentPage() {
 
             let lastTime = -1;
             const predictWebcam = async () => {
-                if (!faceDetector || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth === 0) {
-                     if (animationFrameId.current) {
-                        animationFrameId.current = requestAnimationFrame(predictWebcam);
-                    }
+                if (!isMounted || !faceDetector || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth === 0) {
+                     if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
                     return;
                 }
                 
@@ -233,34 +240,33 @@ export default function AssessmentPage() {
                     if (result.detections.length === 0) {
                         startWarning("Your face is not visible to the camera.");
                     } else {
-                        // Resetting the general "stop" will pause the countdown
-                        // but not hide the dialog. This is intended.
                         stopWarning();
                     }
                     lastTime = startTimeMs;
                 }
-                animationFrameId.current = requestAnimationFrame(predictWebcam);
+                if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
             };
             
             const video = videoRef.current;
             const handleCanPlay = () => {
-                animationFrameId.current = requestAnimationFrame(predictWebcam);
+                if(isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
             };
 
             video.addEventListener("canplay", handleCanPlay);
 
             return () => {
                 video.removeEventListener("canplay", handleCanPlay);
-                if (animationFrameId.current) {
-                    cancelAnimationFrame(animationFrameId.current);
-                }
-                 if(video.srcObject){
-                    (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-                }
+                isMounted = false;
+                if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+                if (video.srcObject) (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
             };
         };
 
-        setupCameraAndPredict();
+        const cleanup = setupCameraAndPredict();
+
+        return () => {
+            cleanup.then(c => c && c());
+        };
 
     }, [faceDetector, toast, startWarning, stopWarning]);
 
@@ -629,4 +635,3 @@ export default function AssessmentPage() {
         </div>
     )
 }
-
