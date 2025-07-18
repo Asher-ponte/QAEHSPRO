@@ -166,11 +166,11 @@ export default function AssessmentPage() {
         };
 
         const handleMouseLeave = () => {
-            if (!isMobile) startWarning("Your mouse cursor has left the page.");
+            startWarning("Your mouse cursor has left the page.");
         };
 
         const handleMouseEnter = () => {
-            if (!isMobile) stopWarning();
+            stopWarning();
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -190,8 +190,7 @@ export default function AssessmentPage() {
 
     // --- MediaPipe FaceDetector Integration ---
     useEffect(() => {
-        // Only run on mobile, after rules are agreed to, and not during loading.
-        if (!isMobile || !hasAgreedToRules || isLoading) return;
+        if (!hasAgreedToRules || isLoading) return;
 
         const createFaceDetector = async () => {
             try {
@@ -212,7 +211,7 @@ export default function AssessmentPage() {
             }
         };
         createFaceDetector();
-    }, [isMobile, hasAgreedToRules, isLoading, toast]);
+    }, [hasAgreedToRules, isLoading, toast]);
     
     // This effect sets up the camera and starts the prediction loop once the detector is ready.
     useEffect(() => {
@@ -232,7 +231,7 @@ export default function AssessmentPage() {
 
             let lastTime = -1;
             const predictWebcam = async (now: number) => {
-                if (!videoRef.current || videoRef.current.paused) {
+                if (!videoRef.current || videoRef.current.paused || !faceDetector) {
                     animationFrameId.current = requestAnimationFrame(predictWebcam);
                     return;
                 }
@@ -245,7 +244,9 @@ export default function AssessmentPage() {
                         }
                     } else {
                         lastProctoringEventTime.current = Date.now();
-                        if (isCountdownActive) {
+                        if (isCountdownActive && !isMobile) { // On desktop, stop warning if face is visible again
+                            // but keep mouse/visibility warnings active
+                        } else if (isCountdownActive) {
                             stopWarning();
                         }
                     }
@@ -271,7 +272,7 @@ export default function AssessmentPage() {
 
         setupCameraAndPredict();
 
-    }, [faceDetector, toast, startWarning, stopWarning, isCountdownActive]);
+    }, [faceDetector, toast, startWarning, stopWarning, isCountdownActive, isMobile]);
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
@@ -456,13 +457,6 @@ export default function AssessmentPage() {
         fetchAssessment();
     }, [courseId, router, toast]);
 
-    // Set hasAgreedToRules to true for desktop automatically
-    useEffect(() => {
-      if (!isLoading && !isMobile) {
-        setHasAgreedToRules(true);
-      }
-    }, [isLoading, isMobile]);
-
     if (isLoading) {
         return <AssessmentSkeleton />;
     }
@@ -541,16 +535,11 @@ export default function AssessmentPage() {
                         <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
-                                {isMobile && (
-                                  <>
-                                    <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
-                                    <li>If you switch tabs, apps, look away, or your face is not visible, a 10-second warning will start.</li>
-                                  </>
-                                )}
+                                <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
+                                <li>If you switch tabs, apps, look away, or your face is not visible, a 10-second warning will start.</li>
                                 {!isMobile && (
                                   <>
-                                      <li>If you switch to another tab or browser window, a warning will start.</li>
-                                      <li>If your mouse cursor leaves the page, a warning will start.</li>
+                                      <li>If your mouse cursor leaves the page, a warning will also be triggered.</li>
                                   </>
                                 )}
                                 <li>If you do not comply within 10 seconds, your attempt will be automatically terminated.</li>
@@ -590,7 +579,7 @@ export default function AssessmentPage() {
                 </AlertDialogContent>
             </AlertDialog>
             
-            {isMobile && hasAgreedToRules && (
+            {hasAgreedToRules && (
                  <div className="fixed bottom-4 right-4 z-50">
                     <Card className="p-2 w-48 h-36">
                         <CardContent className="p-0 relative h-full">
