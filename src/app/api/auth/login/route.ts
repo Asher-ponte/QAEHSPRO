@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     
     // Iterate through potential users and check password for each.
     for (const user of users) {
-        if (user.password) {
+        if (user && user.password) {
             const passwordMatch = await bcrypt.compare(password, user.password);
             if (passwordMatch) {
                 authenticatedUser = user;
