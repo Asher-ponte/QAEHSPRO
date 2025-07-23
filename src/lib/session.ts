@@ -1,4 +1,5 @@
 
+'use server';
 
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
@@ -23,14 +24,14 @@ export interface SessionData {
 
 /**
  * Gets the current user and their active site from the session cookies.
- * This version correctly handles super admin context switching.
+ * This version is updated for MySQL and checks across all sites for a user.
  */
 export async function getCurrentSession(): Promise<SessionData> {
   const cookieStore = cookies();
   const sessionId = cookieStore.get('session_id')?.value;
-  const siteId = cookieStore.get('site_id')?.value;
+  const siteIdFromCookie = cookieStore.get('site_id')?.value; // The site the user is currently "viewing"
 
-  if (!sessionId || !siteId) {
+  if (!sessionId || !siteIdFromCookie) {
     return { user: null, siteId: null, isSuperAdmin: false };
   }
 
@@ -40,28 +41,28 @@ export async function getCurrentSession(): Promise<SessionData> {
   }
 
   try {
-    // A super admin is defined as an 'Admin' role user in the 'main' database.
-    // We must always check this first to correctly identify the user.
-    const mainDb = await getDb('main');
-    const potentialSuperAdmin = await mainDb.get<User>('SELECT * FROM users WHERE id = ? AND role = "Admin"', userId);
+    const db = await getDb();
+    
+    // First, find the user's "home" site and determine if they are a super admin.
+    const [userRows]: any = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = userRows[0] as User | undefined;
 
-    if (potentialSuperAdmin) {
-        // The user IS a super admin. Return their identity, but respect the siteId they are currently viewing.
-        return { user: potentialSuperAdmin, siteId: siteId, isSuperAdmin: true };
+    if (!user) {
+        return { user: null, siteId: null, isSuperAdmin: false };
     }
     
-    // If not a super admin, they must be a user within their own branch context.
-    // Branch users cannot switch contexts, so siteId will be their home branch.
-    const siteDb = await getDb(siteId);
-    const userInContext = await siteDb.get<User>('SELECT * FROM users WHERE id = ?', userId);
+    // A user's home site is where their record lives.
+    const userHomeSiteId = (user as any).site_id;
+    const isSuperAdmin = user.role === 'Admin' && userHomeSiteId === 'main';
 
-    if (userInContext) {
-        // This is a branch user or branch admin.
-        return { user: userInContext, siteId: siteId, isSuperAdmin: false };
+    if (isSuperAdmin) {
+        // A super admin can view any site. We trust the siteId from the cookie.
+        return { user: user, siteId: siteIdFromCookie, isSuperAdmin: true };
+    } else {
+        // A regular user or branch admin is always scoped to their own site.
+        // We ignore the cookie and return their home site ID.
+        return { user: user, siteId: userHomeSiteId, isSuperAdmin: false };
     }
-
-    // If user is not found as a super admin or a user in the current context, the session is invalid.
-    return { user: null, siteId: null, isSuperAdmin: false };
     
   } catch (error) {
     console.error("Failed to get current session from DB:", error);

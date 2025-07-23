@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import bcrypt from 'bcrypt';
-import { getAllSites } from '@/lib/sites';
+import type { ResultSetHeader } from 'mysql2';
 
 const registerSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
@@ -25,18 +25,16 @@ export async function POST(request: NextRequest) {
 
     const { fullName, username, password, email, phone } = parsedData.data;
 
-    // External users are always created in the 'external' site database
+    // External users are always created in the 'external' site.
     const siteId = 'external';
-    const allSites = await getAllSites();
-    if (!allSites.some(s => s.id === siteId)) {
-        return NextResponse.json({ error: 'The external user site is not configured correctly.' }, { status: 500 });
-    }
+    const db = await getDb();
 
-    const db = await getDb(siteId);
-
-    // Check if username already exists
-    const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', username);
-    if (existingUser) {
+    // Check if username already exists in the external site
+    const [existingUserRows]: any = await db.query(
+        'SELECT id FROM users WHERE username = ? AND site_id = ?', 
+        [username, siteId]
+    );
+    if (existingUserRows.length > 0) {
         return NextResponse.json({ error: 'Username already exists.' }, { status: 409 });
     }
     
@@ -45,13 +43,13 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     
     // Create the user
-    const result = await db.run(
-        `INSERT INTO users (username, password, fullName, department, position, role, type, email, phone) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [username, hashedPassword, fullName, null, null, 'Employee', 'External', email || null, phone || null]
+    const [result] = await db.query<ResultSetHeader>(
+        `INSERT INTO users (site_id, username, password, fullName, department, position, role, type, email, phone) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [siteId, username, hashedPassword, fullName, null, null, 'Employee', 'External', email || null, phone || null]
     );
 
-    const newUserId = result.lastID;
+    const newUserId = result.insertId;
     if (!newUserId) {
         throw new Error("Failed to create user record.");
     }

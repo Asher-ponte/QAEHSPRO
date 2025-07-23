@@ -1,9 +1,10 @@
 
+'use server'
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { getAllSites } from '@/lib/sites';
 import bcrypt from 'bcrypt';
 
 const loginSchema = z.object({
@@ -22,38 +23,31 @@ export async function POST(request: NextRequest) {
 
     const { username, password } = parsedData.data;
 
-    let loggedInUser = null;
-    let loggedInSiteId = null;
-
-    const allSites = await getAllSites();
+    const db = await getDb();
+    // In a single-DB setup, we can just search for the user directly across all sites.
+    const [rows]: any = await db.query('SELECT * FROM users WHERE username = ?', [username]);
     
-    // Create a specific search order. 'main' is checked first to correctly establish super admin status.
-    const sortedSites = allSites.sort((a, b) => {
-        if (a.id === 'main') return -1;
-        if (b.id === 'main') return 1;
-        return 0;
-    });
+    let loggedInUser = null;
+    let siteIdOfUser = null;
 
-    // Iterate over all sites to find the user
-    for (const site of sortedSites) {
-        const db = await getDb(site.id);
-        const user = await db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', username);
-
-        if (user && user.password) {
+    // Iterate through potential matches (in case of same username across sites, though this should be rare)
+    for (const user of rows) {
+       if (user && user.password) {
             try {
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
                     loggedInUser = user;
-                    loggedInSiteId = site.id;
+                    siteIdOfUser = user.site_id;
                     break; // Exit loop once user is found and authenticated
                 }
             } catch (e) {
-                 console.warn(`Bcrypt error for user '${username}' on site '${site.id}'. Hash might be invalid. Skipping. Error: ${e instanceof Error ? e.message : String(e)}`);
+                 console.warn(`Bcrypt error for user '${username}'. Hash might be invalid. Skipping. Error: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
     }
 
-    if (!loggedInUser || !loggedInSiteId) {
+
+    if (!loggedInUser || !siteIdOfUser) {
       return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
     }
 
@@ -64,7 +58,7 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/',
     });
-    cookies().set('site_id', loggedInSiteId, {
+    cookies().set('site_id', siteIdOfUser, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -75,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       message: 'Login successful',
-      siteId: loggedInSiteId 
+      siteId: siteIdOfUser 
     });
   } catch (error) {
     console.error('Login error:', error);

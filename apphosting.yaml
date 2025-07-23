@@ -9,3 +9,15 @@ runConfig:
 env:
   - variable: NEXT_PUBLIC_APP_URL
     secret: NEXT_PUBLIC_APP_URL
+  - variable: DB_HOST
+    secret: DB_HOST
+  - variable: DB_USER
+    secret: DB_USER
+  - variable: DB_PASSWORD
+    secret: DB_PASSWORD
+  - variable: DB_NAME
+    secret: DB_NAME
+  - variable: DB_PORT
+    secret: DB_PORT
+  - variable: DB_SOCKET_PATH
+    secret: DB_SOCKET_PATH

@@ -1,39 +1,34 @@
 
+'use server';
+
 import { getDb } from './db';
+import type { RowDataPacket } from 'mysql2';
 
 export interface Site {
     id: string;
     name: string;
 }
 
-// This remains the source for the core, un-deletable sites.
-export const CORE_SITES: Site[] = [
-    { id: 'main', name: 'QAEHS Main Site' },
-    { id: 'branch-one', name: 'Branch One' },
-    { id: 'branch-two', name: 'Branch Two' },
-    { id: 'external', name: 'External Users' },
-];
-
+// Since sites are now stored in the database, this becomes a function to query them.
 export async function getAllSites(): Promise<Site[]> {
-    const db = await getDb('main');
-    // The table might not exist on first run, so handle errors gracefully.
-    const customSites = await db.all<Site[]>('SELECT * FROM custom_sites ORDER BY name').catch(() => []);
-    
-    const allSitesMap = new Map<string, Site>();
-
-    // Add core sites first
-    for (const site of CORE_SITES) {
-        allSitesMap.set(site.id, site);
+    try {
+        const db = await getDb();
+        const [rows] = await db.query<RowDataPacket[]>('SELECT id, name FROM sites ORDER BY name');
+        return rows as Site[];
+    } catch (error) {
+        console.error("Failed to fetch sites from database. Returning empty array.", error);
+        // In case of DB connection error, prevent the app from crashing.
+        return [];
     }
-    // Add custom sites, overwriting if an ID somehow conflicts (though this shouldn't happen with validation)
-    for (const customSite of customSites) {
-        allSitesMap.set(customSite.id, customSite);
-    }
-    
-    return Array.from(allSitesMap.values());
 }
 
 export async function getSiteById(id: string): Promise<Site | undefined> {
-    const sites = await getAllSites();
-    return sites.find(site => site.id === id);
+    try {
+        const db = await getDb();
+        const [rows] = await db.query<RowDataPacket[]>('SELECT id, name FROM sites WHERE id = ?', [id]);
+        return rows[0] as Site | undefined;
+    } catch (error) {
+        console.error(`Failed to fetch site by ID ${id}.`, error);
+        return undefined;
+    }
 }
