@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    let db;
+    let connection;
     let actionForErrorMessage = 'process';
 
     try {
@@ -38,37 +38,45 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
         
-        db = await getDb(effectiveSiteId);
+        const pool = await getDb();
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
 
         if (userIds.length === 0) {
+            await connection.commit();
+            connection.release();
             return NextResponse.json({ success: true, message: 'No users to update.' });
         }
-
-        await db.run('BEGIN TRANSACTION');
-
+        
         if (action === 'enroll') {
-            const stmt = await db.prepare('INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)');
-            for (const userId of userIds) {
-                await stmt.run(userId, courseId);
-            }
-            await stmt.finalize();
+            // For enrolling, we need to ensure the course exists in the target site
+             const [courseRows]: any = await connection.query('SELECT id FROM courses WHERE id = ? AND site_id = ?', [courseId, effectiveSiteId]);
+             if (courseRows.length === 0) {
+                 throw new Error("Course does not exist in the specified branch.");
+             }
+            // Prepare a query for batch insert, ignoring duplicates
+            const values = userIds.map(userId => [userId, courseId]);
+            await connection.query('INSERT IGNORE INTO enrollments (user_id, course_id) VALUES ?', [values]);
         } else if (action === 'unenroll') {
             const placeholders = userIds.map(() => '?').join(',');
-            await db.run(
+            await connection.query(
                 `DELETE FROM enrollments WHERE course_id = ? AND user_id IN (${placeholders})`,
                 [courseId, ...userIds]
             );
         }
 
-        await db.run('COMMIT');
+        await connection.commit();
+        connection.release();
 
         return NextResponse.json({ success: true, message: `Bulk ${action} successful.` }, { status: 200 });
 
     } catch (error) {
-        if (db) {
-            await db.run('ROLLBACK').catch(console.error);
+        if (connection) {
+            await connection.rollback();
+            connection.release();
         }
         console.error(`Failed to bulk ${actionForErrorMessage} users:`, error);
-        return NextResponse.json({ error: `Failed to bulk ${actionForErrorMessage} users` }, { status: 500 });
+        const details = error instanceof Error ? error.message : "An unknown error occurred.";
+        return NextResponse.json({ error: `Failed to bulk ${actionForErrorMessage} users`, details }, { status: 500 });
     }
 }
