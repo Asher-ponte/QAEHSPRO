@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -26,9 +27,8 @@ export async function POST(
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    let db;
+    const db = await getDb();
     try {
-        db = await getDb();
         const { lessonId: lessonIdStr, id: courseIdStr } = params;
         const lessonId = parseInt(lessonIdStr, 10);
         const courseId = parseInt(courseIdStr, 10);
@@ -131,7 +131,6 @@ export async function POST(
                     const existingCertificate = existingCertRows[0];
                     if (!existingCertificate) {
                         const today = new Date();
-                        const datePrefix = format(today, 'yyyyMMdd');
                         
                         const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
@@ -144,11 +143,12 @@ export async function POST(
                         }
 
                         // Use the newly inserted ID to generate the unique certificate number
+                        const datePrefix = format(today, 'yyyyMMdd');
                         const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
                         await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
 
-                        if (certificateId) {
+                        if (certificateId && courseInfoRows[0]) {
                             const [signatoryRows] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
                             if (signatoryRows.length > 0) {
                                 for (const sig of signatoryRows) {
@@ -187,7 +187,7 @@ export async function POST(
         });
 
     } catch (error) {
-        if (db) await db.query('ROLLBACK').catch(e => console.error("Rollback failed", e));
+        await db.query('ROLLBACK').catch(e => console.error("Rollback failed", e));
         
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error("Failed to process quiz submission. Error: ", errorMessage, error);
