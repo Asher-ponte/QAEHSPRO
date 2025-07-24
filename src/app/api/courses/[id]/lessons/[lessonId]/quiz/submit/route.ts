@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -23,8 +24,8 @@ export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
-    const { user } = await getCurrentSession();
-    if (!user) {
+    const { user, siteId } = await getCurrentSession();
+    if (!user || !siteId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -92,17 +93,9 @@ export async function POST(
             }
         });
         
-        // CRITICAL FIX: Get the site_id from the course itself.
-        const [courseSiteRows] = await db.query<RowDataPacket[]>("SELECT site_id FROM courses WHERE id = ?", [courseId]);
-        const courseSiteId = courseSiteRows[0]?.site_id;
-        if (!courseSiteId) {
-            await db.query('ROLLBACK');
-            throw new Error(`Could not determine site_id for course ${courseId}.`);
-        }
-
         await db.query(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, courseSiteId, score, dbQuestions.length, new Date().toISOString()]
+            [userId, lessonId, courseId, siteId, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
@@ -130,20 +123,20 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ? AND site_id = ?', [courseId, courseSiteId]);
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
                 const hasFinalAssessment = !!courseInfoRows[0]?.final_assessment_content;
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
                 } else {
-                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND site_id = ?', [userId, courseId, courseSiteId]);
+                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
                     const existingCertificate = existingCertRows[0];
                     if (!existingCertificate) {
                         const today = new Date();
                         
-                        const [certInsertResult] = await db.query<ResultSetHeader>(
+                         const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, courseSiteId, today.toISOString(), '']
+                            [userId, courseId, siteId, today.toISOString(), '']
                         );
                         certificateId = certInsertResult.insertId;
 
@@ -161,7 +154,7 @@ export async function POST(
                                 `SELECT cs.signatory_id FROM course_signatories cs
                                  JOIN signatories s ON cs.signatory_id = s.id
                                  WHERE cs.course_id = ? AND s.site_id = ?`, 
-                                [courseId, courseSiteId]
+                                [courseId, siteId]
                             );
                             if (signatoryRows.length > 0) {
                                 for (const sig of signatoryRows) {

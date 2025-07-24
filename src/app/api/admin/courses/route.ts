@@ -87,15 +87,17 @@ export async function GET() {
 
         for (const site of allSites) {
             try {
-                const [courses] = await db.query<RowDataPacket[]>(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses WHERE site_id = ? ORDER BY title ASC`, [site.id]);
+                 const [courses] = await db.query<RowDataPacket[]>(`
+                    SELECT c.id, c.title, c.category, c.startDate, c.endDate, c.is_internal, c.is_public, c.price, s.id as siteId, s.name as siteName
+                    FROM courses c
+                    JOIN sites s ON c.site_id = s.id
+                    WHERE c.site_id = ?
+                    ORDER BY c.title ASC
+                `, [site.id]);
+
                 if (courses.length > 0) {
                     const coursesWithStats = await getCourseStats(db, courses);
-                    const coursesWithSiteInfo = coursesWithStats.map(c => ({
-                        ...c,
-                        siteId: site.id,
-                        siteName: site.name,
-                    }));
-                    allCoursesWithStats.push(...coursesWithSiteInfo);
+                    allCoursesWithStats.push(...coursesWithStats);
                 }
             } catch (e) {
                 console.error(`Could not fetch courses for site ${site.id}:`, e);
