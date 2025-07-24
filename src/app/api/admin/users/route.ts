@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import bcrypt from 'bcrypt';
 import { getAllSites } from '@/lib/sites';
 
 const userSchema = z.object({
@@ -32,8 +31,8 @@ export async function GET(request: NextRequest) {
     if (isSuperAdmin) {
       // If a specific site is requested by a super admin, fetch users for that site.
       if (requestedSiteId) {
-        const db = await getDb(requestedSiteId);
-        const users = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
+        const db = await getDb();
+        const [users] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [requestedSiteId]);
         return NextResponse.json(users);
       }
 
@@ -45,10 +44,10 @@ export async function GET(request: NextRequest) {
         // Exclude the 'main' (super admin) site from this management view.
         if (site.id === 'main') continue;
           
-        const db = await getDb(site.id);
-        const siteUsers = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
+        const db = await getDb();
+        const [siteUsers] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [site.id]);
         
-        allUsers.push(...siteUsers.map(u => ({
+        allUsers.push(...(siteUsers as any[]).map(u => ({
           ...u,
           siteId: site.id,
           siteName: site.name,
@@ -57,8 +56,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(allUsers);
     } else {
       // Client admin gets users from their own branch, ignoring any requestedSiteId param
-      const db = await getDb(sessionSiteId);
-      const users = await db.all('SELECT id, username, fullName, department, position, role, type, email, phone FROM users ORDER BY username');
+      const db = await getDb();
+      const [users] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [sessionSiteId]);
       return NextResponse.json(users);
     }
   } catch (error) {
@@ -99,23 +98,20 @@ export async function POST(request: NextRequest) {
     }
     
     // Connect to the database of the selected site
-    const db = await getDb(siteId);
+    const db = await getDb();
 
     // Check for existing username (case-insensitive) in the target database
-    const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', username);
-    if (existingUser) {
+    const [existingUser]: any = await db.query('SELECT id FROM users WHERE username = ? AND site_id = ?', [username, siteId]);
+    if (existingUser.length > 0) {
         const targetSiteName = allSites.find(s => s.id === siteId)?.name || siteId;
         return NextResponse.json({ error: `Username already exists in the branch '${targetSiteName}'.` }, { status: 409 });
     }
 
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const result = await db.run(
-      'INSERT INTO users (username, password, fullName, department, position, role, type, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-      [username, hashedPassword, fullName, department, position, role, type, email || null, phone || null]
+    const [result]: any = await db.query(
+      'INSERT INTO users (site_id, username, password, fullName, department, position, role, type, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+      [siteId, username, password, fullName, department, position, role, type, email || null, phone || null]
     );
-    const newUser = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', result.lastID);
+    const [[newUser]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', [result.insertId]);
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {

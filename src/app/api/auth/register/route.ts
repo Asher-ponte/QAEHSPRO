@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import bcrypt from 'bcrypt';
 import type { ResultSetHeader } from 'mysql2';
 
 const registerSchema = z.object({
@@ -38,15 +37,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Username already exists.' }, { status: 409 });
     }
     
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-    
     // Create the user
     const [result] = await db.query<ResultSetHeader>(
         `INSERT INTO users (site_id, username, password, fullName, department, position, role, type, email, phone) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [siteId, username, hashedPassword, fullName, null, null, 'Employee', 'External', email || null, phone || null]
+        [siteId, username, password, fullName, null, null, 'Employee', 'External', email || null, phone || null]
     );
 
     const newUserId = result.insertId;

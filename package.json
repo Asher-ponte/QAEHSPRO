@@ -37,7 +37,6 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@tiptap/react": "^2.5.5",
     "@tiptap/starter-kit": "^2.5.5",
-    "bcrypt": "^5.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -64,7 +63,6 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",
-    "@types/bcrypt": "^5.0.2",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18",

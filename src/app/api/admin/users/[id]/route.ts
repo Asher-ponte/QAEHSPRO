@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import bcrypt from 'bcrypt';
 
 const userUpdateSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -41,7 +40,7 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized or invalid site context' }, { status: 403 });
     }
     
-    const db = await getDb(effectiveSiteId);
+    const db = await getDb();
     const { id: userId } = params;
 
     if (!userId) {
@@ -49,7 +48,7 @@ export async function GET(
     }
 
     try {
-        const user = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
+        const [[user]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
@@ -75,10 +74,10 @@ export async function PUT(
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const db = await getDb(effectiveSiteId);
+    const db = await getDb();
     
     // Globally protected user
-    const userToEdit = await db.get('SELECT username from users WHERE id = ?', userId);
+    const [[userToEdit]]: any = await db.query('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
     if (userToEdit?.username === 'florante') {
          return NextResponse.json({ error: 'The Super Admin user cannot be edited.' }, { status: 403 });
     }
@@ -93,26 +92,24 @@ export async function PUT(
 
         const { username, fullName, password, department, position, role, type, email, phone } = parsedData.data;
         
-        const existingUser = await db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?', [username, userId]);
-        if (existingUser) {
+        const [existingUser]: any = await db.query('SELECT id FROM users WHERE username = ? AND site_id = ? AND id != ?', [username, effectiveSiteId, userId]);
+        if (existingUser.length > 0) {
             return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
         }
 
         if (password) {
-            const saltRounds = 10;
-            const hashedPassword = await bcrypt.hash(password, saltRounds);
-            await db.run(
-                'UPDATE users SET username = ?, fullName = ?, password = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ?',
-                [username, fullName, hashedPassword, department, position, role, type, email || null, phone || null, userId]
+            await db.query(
+                'UPDATE users SET username = ?, fullName = ?, password = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ? AND site_id = ?',
+                [username, fullName, password, department, position, role, type, email || null, phone || null, userId, effectiveSiteId]
             );
         } else {
-            await db.run(
-                'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ?',
-                [username, fullName, department, position, role, type, email || null, phone || null, userId]
+            await db.query(
+                'UPDATE users SET username = ?, fullName = ?, department = ?, position = ?, role = ?, type = ?, email = ?, phone = ? WHERE id = ? AND site_id = ?',
+                [username, fullName, department, position, role, type, email || null, phone || null, userId, effectiveSiteId]
             );
         }
         
-        const updatedUser = await db.get('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
+        const [[updatedUser]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
         return NextResponse.json(updatedUser, { status: 200 });
 
     } catch (error) {
@@ -137,16 +134,16 @@ export async function DELETE(
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const db = await getDb(effectiveSiteId);
+    const db = await getDb();
 
-    const userToDelete = await db.get('SELECT username from users WHERE id = ?', userId);
+    const [[userToDelete]]: any = await db.query('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
     if (userToDelete?.username === 'florante') {
          return NextResponse.json({ error: 'The Super Admin user cannot be deleted.' }, { status: 403 });
     }
 
     try {
-        const result = await db.run('DELETE FROM users WHERE id = ?', userId);
-        if (result.changes === 0) {
+        const [result]: any = await db.query('DELETE FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+        if (result.affectedRows === 0) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
         return NextResponse.json({ success: true, message: `User ${userId} deleted.` });

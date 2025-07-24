@@ -5,7 +5,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import bcrypt from 'bcrypt';
 import type { RowDataPacket } from 'mysql2';
 
 const loginSchema = z.object({
@@ -48,12 +47,9 @@ export async function POST(request: NextRequest) {
     // We need to find the one where the password matches.
     let authenticatedUser: UserWithPassword | null = null;
     for (const user of users) {
-        if (user && user.password) {
-            const passwordMatch = await bcrypt.compare(password, user.password);
-            if (passwordMatch) {
-                authenticatedUser = user;
-                break; // Found our user, exit the loop.
-            }
+        if (user && user.password && password === user.password) {
+            authenticatedUser = user;
+            break; // Found our user, exit the loop.
         }
     }
     
