@@ -8,6 +8,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
+    if (!questions || !Array.isArray(questions)) return null;
     return JSON.stringify(questions.map(q => ({
         text: q.text,
         options: q.options.map((opt: { text: string }, index: number) => ({
@@ -133,17 +134,17 @@ export async function GET() {
 }
 
 // Helper function to contain the course creation logic for a single DB.
-const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForSignatories: string, siteIdForPricing: string) => {
+const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForCourse: string, siteIdForSignatories: string) => {
     await db.query('START TRANSACTION');
     try {
-        const coursePriceForThisBranch = siteIdForPricing === 'external' ? payload.price : null;
+        const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
         const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
             ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
             : null;
 
         const [courseResult] = await db.query<ResultSetHeader>(
             'INSERT INTO courses (site_id, title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, final_assessment_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [siteIdForSignatories, payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch, payload.passing_rate, payload.max_attempts, finalAssessmentContent]
+            [siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch, payload.passing_rate, payload.max_attempts, finalAssessmentContent]
         );
         const courseId = courseResult.insertId;
         if (!courseId) throw new Error('Failed to create course');
@@ -161,10 +162,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                let contentToStore = lessonData.content ?? null;
-                if (lessonData.type === 'quiz' && lessonData.questions) {
-                    contentToStore = transformQuestionsToDbFormat(lessonData.questions);
-                }
+                const contentToStore = lessonData.type === 'quiz' ? transformQuestionsToDbFormat(lessonData.questions || []) : lessonData.content ?? null;
                 await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
@@ -225,7 +223,8 @@ export async function POST(request: NextRequest) {
     for (const targetSiteId of effectiveTargetSites) {
         if (targetSiteId === 'main') continue;
         try {
-            await createCourseInDb(db, coursePayload, targetSiteId, targetSiteId);
+            // Use the target site ID for the course record, but use the main branch's signatories.
+            await createCourseInDb(db, coursePayload, targetSiteId, 'main');
         } catch (error) {
             const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
             console.error(errorMessage);

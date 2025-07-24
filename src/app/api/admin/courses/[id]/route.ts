@@ -8,6 +8,7 @@ import type { ResultSetHeader } from 'mysql2';
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
+    if (!questions || !Array.isArray(questions)) return null;
     return JSON.stringify(questions.map(q => ({
         text: q.text,
         options: q.options.map((opt: { text: string }, index: number) => ({
@@ -18,16 +19,19 @@ function transformQuestionsToDbFormat(questions: any[]) {
 }
 
 // Helper to transform DB quiz data to form format
-function transformDbToQuestionsFormat(content: string | null) {
+function transformDbToQuestionsFormat(content: string | null): any[] {
     if (!content) return [];
     try {
         const dbQuestions = JSON.parse(content);
+        if (!Array.isArray(dbQuestions)) return [];
+        
         return dbQuestions.map((q: any) => ({
             text: q.text,
             options: q.options.map((opt: any) => ({ text: opt.text })),
             correctOptionIndex: q.options.findIndex((opt: any) => opt.isCorrect),
         }));
     } catch (e) {
+        console.error("Failed to parse DB questions format:", e);
         return []; // Return empty array if JSON is invalid
     }
 }
@@ -277,8 +281,7 @@ export async function PUT(
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                let contentToStore = lessonData.content ?? null;
-                if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
+                const contentToStore = lessonData.type === 'quiz' ? transformQuestionsToDbFormat(lessonData.questions || []) : lessonData.content ?? null;
                 
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
                      await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
