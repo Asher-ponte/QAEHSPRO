@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(
     request: NextRequest, 
@@ -13,7 +14,7 @@ export async function GET(
   }
 
   try {
-    const db = await getDb(siteId);
+    const db = await getDb();
     const { id: courseIdStr, lessonId: currentLessonIdStr } = params
     const currentLessonId = parseInt(currentLessonIdStr, 10);
     const courseId = parseInt(courseIdStr, 10);
@@ -28,21 +29,16 @@ export async function GET(
     if (user.role !== 'Admin') {
         let hasAccess = false;
         // 1. Check for direct enrollment
-        const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-        if (enrollment) {
-            hasAccess = true;
-        }
+        const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        if (enrollmentRows.length > 0) hasAccess = true;
 
-        // 2. For external users, also check if they have a valid transaction, as this also grants access.
-        // This is the key fix for the "Not Enrolled" bug after purchase.
+        // 2. For external users, also check if they have a valid transaction
         if (!hasAccess && user.type === 'External') {
-            const transaction = await db.get(
+            const [transactionRows] = await db.query<RowDataPacket[]>(
                 `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
                 [userId, courseId]
             );
-            if (transaction) {
-                hasAccess = true;
-            }
+            if (transactionRows.length > 0) hasAccess = true;
         }
 
         if (!hasAccess) {
@@ -51,51 +47,49 @@ export async function GET(
     }
     // --- END ACCESS CONTROL ---
 
-    // When a user views a lesson, create a progress entry if it doesn't exist.
-    await db.run(
-      `INSERT INTO user_progress (user_id, lesson_id, completed)
-       VALUES (?, ?, 0)
-       ON CONFLICT(user_id, lesson_id) DO NOTHING`,
+    await db.query(
+      'INSERT IGNORE INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 0)',
       [userId, currentLessonId]
     );
 
     // Get current lesson data
-    const lesson = await db.get(
+    const [lessonRows] = await db.query<RowDataPacket[]>(
         `SELECT 
             l.id, l.title, l.type, l.content, l.imagePath, l.documentPath,
             c.id as course_id, c.title as course_title,
-            CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
+            (SELECT COUNT(*) > 0 FROM user_progress up WHERE up.lesson_id = l.id AND up.user_id = ? AND up.completed = 1) as completed
          FROM lessons l
          JOIN modules m ON l.module_id = m.id
          JOIN courses c ON m.course_id = c.id
-         LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
-         WHERE l.id = ?`,
-        [userId, currentLessonId]
+         WHERE l.id = ? AND c.site_id = ?`,
+        [userId, currentLessonId, siteId]
     );
+    const lesson = lessonRows[0];
     
     if (!lesson) {
         return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
     }
 
     // Get full course structure
-    const courseData = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+    const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
+    const courseData = courseRows[0];
+
     if (!courseData) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
-    const modulesAndLessons = await db.all(
+    const [modulesAndLessons] = await db.query<RowDataPacket[]>(
         `SELECT 
             m.id as module_id, 
             m.title as module_title, 
-            m."order" as module_order,
+            m.order as module_order,
             l.id as lesson_id, 
             l.title as lesson_title, 
             l.type as lesson_type, 
-            CASE WHEN up.completed = 1 THEN 1 ELSE 0 END as completed
+            (SELECT COUNT(*) > 0 FROM user_progress up WHERE up.lesson_id = l.id AND up.user_id = ? AND up.completed = 1) as completed
         FROM modules m
         LEFT JOIN lessons l ON m.id = l.module_id
-        LEFT JOIN user_progress up ON l.id = up.lesson_id AND up.user_id = ?
         WHERE m.course_id = ? 
-        ORDER BY m."order" ASC, l."order" ASC`,
+        ORDER BY m.order ASC, l.order ASC`,
         [userId, courseId]
     );
 

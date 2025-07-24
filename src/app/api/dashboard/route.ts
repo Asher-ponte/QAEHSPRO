@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET() {
   const { user, siteId } = await getCurrentSession();
@@ -11,35 +12,35 @@ export async function GET() {
   const userId = user.id;
 
   try {
-    const db = await getDb(siteId);
+    const db = await getDb();
 
     // 1. Get all courses the user is enrolled in.
-    const enrolledCourses = await db.all(`
+    const [enrolledCourses] = await db.query<RowDataPacket[]>(`
         SELECT 
             c.*
         FROM enrollments e
         JOIN courses c ON e.course_id = c.id
-        WHERE e.user_id = ?
-    `, [userId]);
+        WHERE e.user_id = ? AND c.site_id = ?
+    `, [userId, siteId]);
 
     // 2. Get stats
-    const totalTrainingsResult = await db.get(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
-      [userId, 'completion']
+    const [totalTrainingsResult] = await db.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
+      [userId, 'completion', siteId]
     );
-    const totalTrainingsAttended = totalTrainingsResult.count;
+    const totalTrainingsAttended = totalTrainingsResult[0].count;
 
-    const totalRecognitionsResult = await db.get(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
-      [userId, 'recognition']
+    const [totalRecognitionsResult] = await db.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
+      [userId, 'recognition', siteId]
     );
-    const totalRecognitions = totalRecognitionsResult.count;
+    const totalRecognitions = totalRecognitionsResult[0].count;
 
-    const acquiredSkillsResult = await db.all(
+    const [acquiredSkillsResult] = await db.query<RowDataPacket[]>(
         `SELECT DISTINCT c.category FROM certificates cert
          JOIN courses c ON cert.course_id = c.id
-         WHERE cert.user_id = ?`,
-        [userId]
+         WHERE cert.user_id = ? AND c.site_id = ?`,
+        [userId, siteId]
     );
     const skillsAcquiredCount = acquiredSkillsResult.length;
 
@@ -55,15 +56,15 @@ export async function GET() {
     const courseIds = enrolledCourses.map(c => c.id);
     const courseIdsPlaceholder = courseIds.map(() => '?').join(',');
 
-    const allLessons = await db.all(`
-        SELECT l.id, m.course_id, m."order" as module_order, l."order" as lesson_order
+    const [allLessons] = await db.query<RowDataPacket[]>(`
+        SELECT l.id, m.course_id, m.order as module_order, l.order as lesson_order
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
         WHERE m.course_id IN (${courseIdsPlaceholder})
-        ORDER BY m.course_id, m."order", l."order"
+        ORDER BY m.course_id, m.order, l.order
     `, courseIds);
 
-    const completedLessonIdsResult = await db.all(`
+    const [completedLessonIdsResult] = await db.query<RowDataPacket[]>(`
         SELECT up.lesson_id
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id

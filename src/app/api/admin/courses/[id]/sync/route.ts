@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const syncRequestSchema = z.object({
   targetSiteIds: z.array(z.string()).min(1, "At least one branch must be selected for sync."),
@@ -11,26 +12,28 @@ const syncRequestSchema = z.object({
 
 // Helper to get the complete, raw data for a course from the main DB.
 async function getFullCourseDataFromMain(mainDb: any, courseId: number) {
-    const course = await mainDb.get('SELECT * FROM courses WHERE id = ?', courseId);
+    const [courseRows] = await mainDb.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ?', courseId);
+    const course = courseRows[0];
     if (!course) {
         throw new Error('Master course not found in main branch.');
     }
 
-    const modulesAndLessons = await mainDb.all(`
+    const [modulesAndLessons] = await mainDb.query<RowDataPacket[]>(`
         SELECT 
             m.id as module_id, 
             m.title as module_title, 
-            m."order" as module_order,
+            m.order as module_order,
             l.id as lesson_id,
             l.title as lesson_title,
             l.type as lesson_type,
             l.content as lesson_content,
             l.imagePath as lesson_imagePath,
-            l."order" as lesson_order
+            l.documentPath as lesson_documentPath,
+            l.order as lesson_order
         FROM modules m
         LEFT JOIN lessons l ON m.id = l.module_id
         WHERE m.course_id = ?
-        ORDER BY m."order" ASC, l."order" ASC
+        ORDER BY m.order ASC, l.order ASC
     `, courseId);
     
     const modulesMap = new Map<number, any>();
@@ -48,31 +51,34 @@ async function getFullCourseDataFromMain(mainDb: any, courseId: number) {
                 title: row.lesson_title,
                 type: row.lesson_type,
                 content: row.lesson_content ?? null, 
-                imagePath: row.lesson_imagePath ?? null
+                imagePath: row.lesson_imagePath ?? null,
+                documentPath: row.lesson_documentPath ?? null
             });
         }
     }
     course.modules = Array.from(modulesMap.values());
     
-    const assignedSignatories = await mainDb.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
+    const [assignedSignatories] = await mainDb.query<RowDataPacket[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
     course.signatoryIds = assignedSignatories.map((s: any) => s.signatory_id);
     
     return course;
 }
 
 // Helper to apply the master course data to a target branch's DB.
-async function syncCourseToDb(targetSiteId: string, masterCourseData: any) {
-    const targetDb = await getDb(targetSiteId);
-    
-    const targetCourse = await targetDb.get('SELECT id, price FROM courses WHERE title = ?', masterCourseData.title);
+async function syncCourseToDb(db: any, targetSiteId: string, masterCourseData: any) {
+    const [targetCourseRows] = await db.query<RowDataPacket[]>('SELECT id, price FROM courses WHERE title = ? AND site_id = ?', [masterCourseData.title, targetSiteId]);
+    const targetCourse = targetCourseRows[0];
+
     if (!targetCourse) {
         throw new Error(`Course "${masterCourseData.title}" not found in branch "${targetSiteId}".`);
     }
     const targetCourseId = targetCourse.id;
     
-    await targetDb.run('BEGIN TRANSACTION');
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
     try {
-        await targetDb.run(
+        await connection.query(
             `UPDATE courses SET 
                 description = ?, category = ?, imagePath = ?, venue = ?, 
                 startDate = ?, endDate = ?, is_internal = ?, is_public = ?
@@ -84,37 +90,37 @@ async function syncCourseToDb(targetSiteId: string, masterCourseData: any) {
             ]
         );
 
-        const existingModules = await targetDb.all('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
-        if (existingModules.length > 0) {
-            const existingModuleIds = existingModules.map((m: any) => m.id);
+        const [existingModuleRows] = await connection.query<RowDataPacket[]>('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
+        if (existingModuleRows.length > 0) {
+            const existingModuleIds = existingModuleRows.map((m: any) => m.id);
             const moduleIdsPlaceholder = existingModuleIds.map(() => '?').join(',');
-            await targetDb.run(`DELETE FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, existingModuleIds);
-            await targetDb.run('DELETE FROM modules WHERE course_id = ?', targetCourseId);
+            await connection.query(`DELETE FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, existingModuleIds);
+            await connection.query('DELETE FROM modules WHERE course_id = ?', targetCourseId);
         }
         
         for (const [moduleIndex, moduleData] of masterCourseData.modules.entries()) {
-            const moduleResult = await targetDb.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
-            const moduleId = moduleResult.lastID;
+            const [moduleResult] = await connection.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
+            const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                await targetDb.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath) VALUES (?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath]);
+                await connection.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
 
-        await targetDb.run('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
+        await connection.query('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
         if (masterCourseData.signatoryIds && masterCourseData.signatoryIds.length > 0) {
-            const stmt = await targetDb.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
             for (const signatoryId of masterCourseData.signatoryIds) {
-                await stmt.run(targetCourseId, signatoryId);
+                await connection.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [targetCourseId, signatoryId]);
             }
-            await stmt.finalize();
         }
         
-        await targetDb.run('COMMIT');
+        await connection.commit();
     } catch (e) {
-        await targetDb.run('ROLLBACK');
+        await connection.rollback();
         throw e;
+    } finally {
+        connection.release();
     }
 }
 
@@ -137,8 +143,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         }
         const { targetSiteIds } = parsedBody.data;
         
-        const mainDb = await getDb('main');
-        const masterCourseData = await getFullCourseDataFromMain(mainDb, masterCourseId);
+        const db = await getDb();
+        const masterCourseData = await getFullCourseDataFromMain(db, masterCourseId);
         
         const results = {
             success: [] as string[],
@@ -147,7 +153,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
         for (const siteId of targetSiteIds) {
             try {
-                await syncCourseToDb(siteId, masterCourseData);
+                await syncCourseToDb(db, siteId, masterCourseData);
                 results.success.push(siteId);
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Unknown error';
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
         if (results.failed.length > 0) {
             const message = `Sync completed with ${results.success.length} success(es) and ${results.failed.length} failure(s). Failures: ${results.failed.join(', ')}`;
-            return NextResponse.json({ success: false, message }, { status: 207 }); // Multi-Status
+            return NextResponse.json({ success: true, message: message, details: results.failed }, { status: 207 });
         }
 
         return NextResponse.json({ success: true, message: `Successfully synced course content to ${results.success.length} branch(es).` });

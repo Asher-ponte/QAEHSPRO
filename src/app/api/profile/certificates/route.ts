@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(request: NextRequest) {
     const { user, siteId } = await getCurrentSession();
@@ -10,8 +11,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const db = await getDb(siteId);
-        const certificates = await db.all(
+        const db = await getDb();
+        const [certificates] = await db.query<RowDataPacket[]>(
             `SELECT 
                 c.id, 
                 c.user_id, 

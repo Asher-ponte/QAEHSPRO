@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 // This is an internal type, not exposed to the client.
 interface DbQuizQuestion {
@@ -14,18 +15,18 @@ async function hasAccess(db: any, user: any, courseId: number) {
     if (user.role === 'Admin') return true;
     
     // Check for direct enrollment
-    const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
-    if (enrollment) {
+    const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
+    if (enrollmentRows.length > 0) {
         return true;
     }
     
     // For external users, also check for a valid transaction
     if (user.type === 'External') {
-        const transaction = await db.get(
+        const [transactionRows] = await db.query<RowDataPacket[]>(
             `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
             [user.id, courseId]
         );
-        if (transaction) {
+        if (transactionRows.length > 0) {
             return true;
         }
     }
@@ -44,7 +45,7 @@ export async function GET(
     }
 
     try {
-        const db = await getDb(siteId);
+        const db = await getDb();
         const courseId = parseInt(params.id, 10);
         
         if (isNaN(courseId)) {
@@ -58,7 +59,9 @@ export async function GET(
         }
         // --- END ACCESS CONTROL ---
 
-        const course = await db.get('SELECT title, passing_rate, max_attempts, final_assessment_content FROM courses WHERE id = ?', courseId);
+        const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, passing_rate, max_attempts, final_assessment_content FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const course = courseRows[0];
+        
         if (!course || !course.final_assessment_content) {
             return NextResponse.json({ error: 'Final assessment not found for this course.' }, { status: 404 });
         }
@@ -74,9 +77,9 @@ export async function GET(
              return NextResponse.json({ error: 'Failed to parse assessment questions.' }, { status: 500 });
         }
         
-        const attempts = await db.all(
-            'SELECT * FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? ORDER BY attempt_date DESC',
-            [user.id, courseId]
+        const [attempts] = await db.query<RowDataPacket[]>(
+            'SELECT * FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? AND site_id = ? ORDER BY attempt_date DESC',
+            [user.id, courseId, siteId]
         );
 
         return NextResponse.json({

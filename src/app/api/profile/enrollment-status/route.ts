@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(request: NextRequest) {
     const { user, siteId } = await getCurrentSession();
@@ -10,9 +11,9 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const db = await getDb(siteId);
+        const db = await getDb();
         
-        const enrolledCourses = await db.all(
+        const [enrolledCourses] = await db.query<RowDataPacket[]>(
             `SELECT course_id FROM enrollments WHERE user_id = ?`,
             [user.id]
         );
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
 
         let pendingCourseIds: number[] = [];
         if (user.type === 'External') {
-             const pendingTransactions = await db.all(
+             const [pendingTransactions] = await db.query<RowDataPacket[]>(
                 `SELECT course_id FROM transactions WHERE user_id = ? AND status IN ('pending', 'completed')`,
                 [user.id]
             );

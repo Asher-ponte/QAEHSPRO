@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getAllSites } from "@/lib/sites";
+import type { RowDataPacket } from 'mysql2';
 
 interface CertificateData {
   id: number;
@@ -33,42 +34,54 @@ export async function GET(request: NextRequest): Promise<NextResponse<Certificat
     }
     
     try {
-        const db = await getDb(siteId);
+        const db = await getDb();
         
-        const certificate = await db.get(
-            `SELECT * FROM certificates WHERE certificate_number = ?`,
-            [number]
+        const [certificateRows] = await db.query<RowDataPacket[]>(
+            `SELECT * FROM certificates WHERE certificate_number = ? AND site_id = ?`,
+            [number, siteId]
         );
+        const certificate = certificateRows[0];
 
         if (!certificate) {
             return NextResponse.json({ error: 'Certificate not found.' }, { status: 404 });
         }
         
-        const user = await db.get('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
+        const [userRows] = await db.query<RowDataPacket[]>('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
+        const user = userRows[0];
         
         let course = null;
         if (certificate.course_id) {
-            course = await db.get('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+            course = courseRows[0];
         }
 
-        const signatoryIdsResult = await db.all('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
-        const signatoryIds = signatoryIdsResult.map(s => s.signatory_id);
+        const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
+        const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
         let signatories = [];
         if (signatoryIds.length > 0) {
             const placeholders = signatoryIds.map(() => '?').join(',');
-            signatories = await db.all(`
+            const [signatoryRows] = await db.query<RowDataPacket[]>(`
                 SELECT s.name, s.position, s.signatureImagePath
                 FROM signatories s
                 WHERE s.id IN (${placeholders})
             `, signatoryIds);
+            signatories = signatoryRows;
         }
         
-        const settings = await db.all("SELECT key, value FROM app_settings WHERE key IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')");
+        const [settingsRows] = await db.query<RowDataPacket[]>(
+            "SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')",
+            [siteId]
+        );
         
-        const companyName = settings.find(s => s.key === 'company_name')?.value || 'Your Company Name';
-        const companyLogoPath = settings.find(s => s.key === 'company_logo_path')?.value || null;
-        const companyLogo2Path = settings.find(s => s.key === 'company_logo_2_path')?.value || null;
-        const companyAddress = settings.find(s => s.key === 'company_address')?.value || null;
+        const settingsMap = settingsRows.reduce((acc, s) => {
+            acc[s.key] = s.value;
+            return acc;
+        }, {} as Record<string, string>);
+
+        const companyName = settingsMap.company_name || 'Your Company Name';
+        const companyLogoPath = settingsMap.company_logo_path || null;
+        const companyLogo2Path = settingsMap.company_logo_2_path || null;
+        const companyAddress = settingsMap.company_address || null;
 
         const responseData = {
             id: certificate.id,
@@ -84,11 +97,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<Certificat
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null,
             },
-            course: course,
+            course: course ? {
+                title: course?.title,
+                venue: course?.venue,
+            } : null,
             signatories: signatories,
         };
 
-        return NextResponse.json(responseData);
+        return NextResponse.json(responseData as CertificateData);
 
     } catch (error) {
         console.error("Failed to validate certificate:", error);

@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
@@ -50,8 +51,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const db = await getDb(effectiveSiteId);
-        const settings = await db.all(`SELECT key, value FROM app_settings WHERE key IN (${settingKeys.map(k => `'${k}'`).join(',')})`);
+        const db = await getDb();
+        const [settings] = await db.query<RowDataPacket[]>(`SELECT \`key\`, value FROM app_settings WHERE site_id = ? AND \`key\` IN (?)`, [effectiveSiteId, settingKeys]);
         
         const settingsMap = settings.reduce((acc, s) => {
             acc[s.key] = s.value;
@@ -84,7 +85,9 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     
-    let db;
+    const db = await getDb();
+    const connection = await db.getConnection();
+
     try {
         const data = await request.json();
         const parsedData = settingsSchema.safeParse(data);
@@ -105,9 +108,7 @@ export async function PUT(request: NextRequest) {
             }
         }
         
-        db = await getDb(effectiveSiteId);
-        
-        await db.run('BEGIN TRANSACTION');
+        await connection.beginTransaction();
         
         const dbValues = {
             company_name: values.companyName,
@@ -124,20 +125,21 @@ export async function PUT(request: NextRequest) {
             qr_code_4_path: values.qrCode4Path,
         };
 
-        const stmt = await db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)");
         for (const [key, value] of Object.entries(dbValues)) {
-            await stmt.run(key, value || '');
+            await connection.query(
+                "INSERT INTO app_settings (site_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = ?",
+                [effectiveSiteId, key, value || '', value || '']
+            );
         }
-        await stmt.finalize();
         
-        await db.run('COMMIT');
-
+        await connection.commit();
+        
         return NextResponse.json({ success: true, message: "Settings updated" });
     } catch (error) {
-        if (db) {
-            await db.run('ROLLBACK').catch(console.error);
-        }
+        await connection.rollback();
         console.error("Failed to update settings:", error);
         return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
+    } finally {
+        connection.release();
     }
 }

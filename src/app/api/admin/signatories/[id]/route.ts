@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import { getAllSites } from '@/lib/sites';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const signatoryUpdateSchema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -36,11 +37,11 @@ export async function PUT(
 ) {
     const siteId = request.nextUrl.searchParams.get('siteId');
     const permCheck = await checkPermissions(siteId);
-    if (!permCheck.authorized) {
+    if (!permCheck.authorized || !permCheck.effectiveSiteId) {
         return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
     }
 
-    const db = await getDb(permCheck.effectiveSiteId!);
+    const db = await getDb();
     const { id } = params;
 
     if (!id) {
@@ -55,13 +56,13 @@ export async function PUT(
         }
         const { name, position, signatureImagePath } = parsedData.data;
 
-        await db.run(
-            'UPDATE signatories SET name = ?, position = ?, signatureImagePath = ? WHERE id = ?',
-            [name, position, signatureImagePath, id]
+        await db.query(
+            'UPDATE signatories SET name = ?, position = ?, signatureImagePath = ? WHERE id = ? AND site_id = ?',
+            [name, position, signatureImagePath, id, permCheck.effectiveSiteId]
         );
 
-        const updatedSignatory = await db.get('SELECT * FROM signatories WHERE id = ?', id);
-        return NextResponse.json(updatedSignatory);
+        const [updatedSignatoryRows] = await db.query<RowDataPacket[]>('SELECT * FROM signatories WHERE id = ?', id);
+        return NextResponse.json(updatedSignatoryRows[0]);
     } catch (error) {
         console.error(`Failed to update signatory ${id}:`, error);
         return NextResponse.json({ error: 'Failed to update signatory' }, { status: 500 });
@@ -75,11 +76,11 @@ export async function DELETE(
 ) {
     const siteId = request.nextUrl.searchParams.get('siteId');
     const permCheck = await checkPermissions(siteId);
-    if (!permCheck.authorized) {
+    if (!permCheck.authorized || !permCheck.effectiveSiteId) {
         return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
     }
     
-    const db = await getDb(permCheck.effectiveSiteId!);
+    const db = await getDb();
     const { id } = params;
 
     if (!id) {
@@ -87,8 +88,8 @@ export async function DELETE(
     }
 
     try {
-        const result = await db.run('DELETE FROM signatories WHERE id = ?', id);
-        if (result.changes === 0) {
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM signatories WHERE id = ? AND site_id = ?', [id, permCheck.effectiveSiteId]);
+        if (result.affectedRows === 0) {
             return NextResponse.json({ error: 'Signatory not found' }, { status: 404 });
         }
         return NextResponse.json({ success: true, message: `Signatory ${id} deleted.` });

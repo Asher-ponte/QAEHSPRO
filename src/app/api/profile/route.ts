@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
+import type { RowDataPacket } from 'mysql2';
 
 const profileSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
@@ -14,9 +15,8 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     
-    let db;
     try {
-        db = await getDb(siteId);
+        const db = await getDb();
         const data = await request.json();
         const parsedData = profileSchema.safeParse(data);
 
@@ -26,12 +26,13 @@ export async function PUT(request: NextRequest) {
         
         const { fullName } = parsedData.data;
         
-        await db.run(
-            "UPDATE users SET fullName = ? WHERE id = ?",
-            [fullName, user.id]
+        await db.query(
+            "UPDATE users SET fullName = ? WHERE id = ? AND site_id = ?",
+            [fullName, user.id, siteId]
         );
 
-        const updatedUser = await db.get("SELECT id, username, fullName, department, position, role FROM users WHERE id = ?", user.id);
+        const [updatedUserRows] = await db.query<RowDataPacket[]>("SELECT id, username, fullName, department, position, role FROM users WHERE id = ?", user.id);
+        const updatedUser = updatedUserRows[0];
 
         return NextResponse.json(updatedUser);
     } catch (error) {

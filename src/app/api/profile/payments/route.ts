@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(request: NextRequest) {
     const { user, siteId } = await getCurrentSession();
@@ -9,14 +10,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     
-    // Payment history is only relevant for external users in the external DB.
-    if (siteId !== 'external') {
+    // Payment history is only relevant for external users.
+    if (user.type !== 'External') {
         return NextResponse.json([]);
     }
 
     try {
-        const db = await getDb(siteId);
-        const transactions = await db.all(
+        const db = await getDb();
+        const [transactions] = await db.query<RowDataPacket[]>(
             `SELECT 
                 t.id, 
                 t.course_id as courseId,

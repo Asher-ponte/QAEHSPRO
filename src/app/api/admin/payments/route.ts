@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET() {
     const { user, isSuperAdmin } = await getCurrentSession();
@@ -10,9 +11,8 @@ export async function GET() {
     }
 
     try {
-        // Manual payments are only handled for the 'external' user database.
-        const db = await getDb('external');
-        const transactions = await db.all(`
+        const db = await getDb();
+        const [transactions] = await db.query<RowDataPacket[]>(`
             SELECT
                 t.id,
                 t.amount,

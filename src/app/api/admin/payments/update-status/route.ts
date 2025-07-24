@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const updateStatusSchema = z.object({
   transactionId: z.number(),
@@ -16,9 +17,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized: Super Admin access required' }, { status: 403 });
     }
 
-    let db;
+    const db = await getDb();
+    const connection = await db.getConnection();
     let transactionIdForError: number | null = null;
     let statusForError: string | null = null;
+    
     try {
         const body = await request.json();
         const parsedData = updateStatusSchema.safeParse(body);
@@ -31,68 +34,59 @@ export async function POST(request: NextRequest) {
         transactionIdForError = transactionId;
         statusForError = status;
 
-        // All manual payments are in the 'external' DB
-        db = await getDb('external');
-        
         console.log(`[Admin Action] Attempting to update transaction ${transactionId} to status: ${status}`);
 
-        const transaction = await db.get('SELECT * FROM transactions WHERE id = ?', transactionId);
+        await connection.beginTransaction();
+
+        const [transactionRows] = await connection.query<RowDataPacket[]>('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [transactionId]);
+        const transaction = transactionRows[0];
+
         if (!transaction) {
             console.error(`Transaction with ID ${transactionId} not found.`);
+            await connection.rollback();
             return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
         }
         
         if (transaction.status !== 'pending') {
              console.warn(`Attempted to process an already-processed transaction. ID: ${transactionId}, Status: ${transaction.status}`);
+             await connection.rollback();
              return NextResponse.json({ error: 'This transaction has already been processed.' }, { status: 409 });
         }
         
-        await db.run('BEGIN TRANSACTION');
-
         if (status === 'completed') {
-            // Use COALESCE to patch the gateway if it's NULL, preventing NOT NULL constraint errors on older records.
-            await db.run("UPDATE transactions SET status = ?, gateway = COALESCE(gateway, 'manual_upload') WHERE id = ?", ['completed', transactionId]);
+            await connection.query("UPDATE transactions SET status = 'completed' WHERE id = ?", [transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'completed'.`);
-
         } else if (status === 'rejected') {
             if (!rejectionReason || rejectionReason.trim() === "") {
-                await db.run('ROLLBACK');
+                await connection.rollback();
                 console.error("Rejection attempt failed: Reason is required.");
                 return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
             }
             
-            await db.run("UPDATE transactions SET status = ?, rejection_reason = ?, gateway = COALESCE(gateway, 'manual_upload') WHERE id = ?", ['rejected', rejectionReason, transactionId]);
+            await connection.query("UPDATE transactions SET status = 'rejected', rejection_reason = ? WHERE id = ?", [rejectionReason, transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'rejected'.`);
             
-            // Un-enroll the user from the course upon rejection.
             const { user_id, course_id } = transaction;
             if (!user_id || !course_id) {
-                // This should not happen due to NOT NULL constraints, but it's a good safeguard.
                 throw new Error(`Transaction ${transactionId} is missing user_id or course_id.`);
             }
 
             console.log(`Attempting to un-enroll user ${user_id} from course ${course_id}.`);
-            const deleteResult = await db.run('DELETE FROM enrollments WHERE user_id = ? AND course_id = ?', [user_id, course_id]);
-            
-            if (deleteResult.changes > 0) {
-                 console.log(`Successfully un-enrolled user ${user_id} from course ${course_id}.`);
-            } else {
-                 console.warn(`No enrollment record found to delete for user ${user_id} and course ${course_id}. This may be okay if already removed.`);
-            }
+            await connection.query('DELETE FROM enrollments WHERE user_id = ? AND course_id = ?', [user_id, course_id]);
+            console.log(`Successfully un-enrolled user ${user_id} from course ${course_id}.`);
         }
         
-        await db.run('COMMIT');
+        await connection.commit();
         console.log("Transaction committed successfully.");
 
         return NextResponse.json({ success: true, message: `Transaction status updated to ${status}.` });
 
     } catch (error) {
-        if (db) {
-            console.error("An error occurred, rolling back transaction.");
-            await db.run('ROLLBACK').catch(console.error);
-        }
+        await connection.rollback();
         const message = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error(`Failed to update transaction status for ID: ${transactionIdForError}, intended status: ${statusForError}. Error:`, message, error);
         return NextResponse.json({ error: 'Failed to update transaction status.', details: message }, { status: 500 });
+    } finally {
+        connection.release();
     }
 }

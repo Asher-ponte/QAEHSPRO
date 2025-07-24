@@ -3,9 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import { CORE_SITES } from '@/lib/sites';
-import fs from 'fs/promises';
-import path from 'path';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const editBranchSchema = z.object({
   name: z.string().min(3, "Branch name must be at least 3 characters."),
@@ -16,9 +14,10 @@ async function checkPermissions(branchId: string) {
     if (!user || !isSuperAdmin) {
         return { authorized: false, error: 'Unauthorized: Super Admin access required', status: 403 };
     }
-
-    const isCoreSite = CORE_SITES.some(site => site.id === branchId);
-    if (isCoreSite) {
+    
+    // Core site IDs that cannot be modified.
+    const coreSiteIds = ['main', 'external'];
+    if (coreSiteIds.includes(branchId)) {
         return { authorized: false, error: 'Core branches cannot be modified or deleted.', status: 403 };
     }
 
@@ -32,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
     }
 
-    const mainDb = await getDb('main');
+    const db = await getDb();
     
     try {
         const data = await request.json();
@@ -45,12 +44,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         const { name } = parsedData.data;
 
         // Check if the new name conflicts with another existing branch name.
-        const existingName = await mainDb.get('SELECT * FROM custom_sites WHERE name = ? AND id != ?', [name, id]);
-        if (existingName) {
+        const [existingNameRows] = await db.query<RowDataPacket[]>('SELECT * FROM sites WHERE name = ? AND id != ?', [name, id]);
+        if (existingNameRows.length > 0) {
             return NextResponse.json({ error: 'A branch with this name already exists.' }, { status: 409 });
         }
 
-        await mainDb.run('UPDATE custom_sites SET name = ? WHERE id = ?', [name, id]);
+        await db.query('UPDATE sites SET name = ? WHERE id = ?', [name, id]);
 
         return NextResponse.json({ success: true, updatedBranch: { id, name } });
 
@@ -69,20 +68,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         return NextResponse.json({ error: permCheck.error }, { status: permCheck.status as number });
     }
 
-    const mainDb = await getDb('main');
+    const db = await getDb();
 
     try {
-        const result = await mainDb.run('DELETE FROM custom_sites WHERE id = ?', id);
-        if (result.changes === 0) {
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM sites WHERE id = ?', [id]);
+        if (result.affectedRows === 0) {
             return NextResponse.json({ error: 'Branch not found or already deleted' }, { status: 404 });
         }
-
-        // After successfully deleting from the database, delete the file.
-        const dbPath = path.join(process.cwd(), 'data', `${id}.sqlite`);
-        await fs.unlink(dbPath).catch(err => {
-            // Log the error but don't fail the request if the file was already gone.
-            console.warn(`Could not delete database file for branch '${id}'. It might have been already removed. Error: ${err.message}`);
-        });
 
         return NextResponse.json({ success: true, message: `Branch '${id}' deleted successfully.` });
 
