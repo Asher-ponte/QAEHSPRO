@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
@@ -1016,7 +1017,7 @@ export default function ManageCoursesPage() {
                          <TableCell>
                           {course.is_public ? (
                             <span className="font-semibold">
-                              {course.price && course.price > 0 ? `₱${course.price.toFixed(2)}` : 'Free'}
+                              {typeof course.price === 'number' && course.price > 0 ? `₱${course.price.toFixed(2)}` : 'Free'}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -1137,3 +1138,6 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
+
+
+    
