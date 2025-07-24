@@ -6,7 +6,7 @@ import mysql from 'mysql2/promise';
 
 let pool: mysql.Pool | null = null;
 
-const initializePool = () => {
+const initializePool = (): mysql.Pool => {
     if (pool) {
         return pool;
     }
