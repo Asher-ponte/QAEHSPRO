@@ -35,7 +35,8 @@ export default async function AdminPage() {
     let totalRevenue = 0;
     if (isSuperAdmin) {
         try {
-            const [revenueRows] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT SUM(amount) as total FROM transactions WHERE status = 'completed' AND site_id = ?`, ['external']);
+            // The transactions table does not have a site_id, they are all implicitly 'external'
+            const [revenueRows] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT SUM(amount) as total FROM transactions WHERE status = 'completed'`);
             const revenueResult = revenueRows[0];
             totalRevenue = revenueResult?.total ?? 0;
         } catch(e) {
