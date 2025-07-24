@@ -132,14 +132,18 @@ export async function POST(
                     if (!existingCertificate) {
                         const today = new Date();
                         const datePrefix = format(today, 'yyyyMMdd');
-                        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                        const nextSerial = (countRows[0]?.count ?? 0) + 1;
                         
                         const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
                             [userId, courseId, siteId, today.toISOString(), '']
                         );
                         certificateId = certInsertResult.insertId;
+
+                        if (!certificateId) {
+                            throw new Error("Failed to retrieve new certificate ID after insertion.");
+                        }
+
+                        // Use the newly inserted ID to generate the unique certificate number
                         const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
                         await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
