@@ -18,23 +18,24 @@ async function getDashboardData() {
     const db = await getDb();
 
     // 1. Get stats which are independent of course enrollment.
+    // The certificates table is now global, so we don't filter by site_id here.
     const [totalTrainingsRows] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
-      [userId, 'completion', siteId]
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'completion']
     );
     const totalTrainingsAttended = totalTrainingsRows[0]?.count ?? 0;
 
     const [totalRecognitionsRows] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
-      [userId, 'recognition', siteId]
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'recognition']
     );
     const totalRecognitions = totalRecognitionsRows[0]?.count ?? 0;
 
     const [acquiredSkillsRows] = await db.query<RowDataPacket[]>(
         `SELECT DISTINCT c.category FROM certificates cert
          JOIN courses c ON cert.course_id = c.id
-         WHERE cert.user_id = ? AND cert.type = 'completion' AND cert.site_id = ?`,
-        [userId, siteId]
+         WHERE cert.user_id = ? AND cert.type = 'completion'`,
+        [userId]
     );
     const skillsAcquiredCount = acquiredSkillsRows.length;
     
@@ -44,7 +45,7 @@ async function getDashboardData() {
         skillsAcquired: skillsAcquiredCount,
     };
 
-    // 2. Get all courses the user is enrolled in.
+    // 2. Get all courses the user is enrolled in for their specific site context.
     const [enrolledCourses] = await db.query<RowDataPacket[]>(`
         SELECT 
             c.*
