@@ -115,14 +115,6 @@ export default async function AdminPage() {
         disabled: false,
         superAdminOnly: true,
       },
-       {
-        title: "System Check",
-        description: "Validate the database schema and system health.",
-        icon: <HardDrive className="h-8 w-8 text-primary" />,
-        href: "/admin/system-check",
-        disabled: false,
-        superAdminOnly: true,
-      },
     ].filter(action => !action.superAdminOnly || isSuperAdmin);
     
   return (
