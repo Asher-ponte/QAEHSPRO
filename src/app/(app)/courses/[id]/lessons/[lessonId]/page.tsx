@@ -380,6 +380,7 @@ export default function LessonPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
     const [isQuizSubmitting, setIsQuizSubmitting] = useState(false);
+    const [isQuizPassed, setIsQuizPassed] = useState(false);
     
     const fetchPageData = useCallback(async (options: { invalidateCache?: boolean } = {}) => {
         if (!params.id || !params.lessonId) return;
@@ -412,7 +413,8 @@ export default function LessonPage() {
                     data.lesson.content = '[]';
                 }
             }
-
+            
+            setIsQuizPassed(data.lesson.completed);
             setPageData(data);
         } catch (error) {
             console.error(error);
@@ -427,29 +429,32 @@ export default function LessonPage() {
     }, [params.id, params.lessonId, toast]);
 
     useEffect(() => {
-        // Use a key based on lessonId to force re-render when navigating between lessons
-        // This ensures the page data is always fresh for the current lesson
         fetchPageData();
     }, [params.lessonId, fetchPageData]);
 
     const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number, redirectToAssessment?: boolean }) => {
-        // Refetch to update UI state (e.g., show lesson as completed in sidebar)
-        // Pass invalidateCache to ensure we get the latest progress state.
-        fetchPageData({ invalidateCache: true });
-
         if (data.redirectToAssessment) {
             toast({
                 title: "All Lessons Completed!",
                 description: "Proceeding to the final assessment.",
             });
             router.push(`/courses/${params.id}/assessment`);
-        } else if (data.certificateId) {
+            return;
+        }
+
+        if (pageData?.lesson.type === 'quiz') {
+            setIsQuizPassed(true); // Explicitly set quiz as passed on successful API call
+        }
+        
+        // This is now redundant as we set isQuizPassed directly, but keep for non-quiz lessons.
+        fetchPageData({ invalidateCache: true });
+
+        if (data.certificateId) {
             toast({
                 title: "Congratulations! Course Completed!",
                 description: "Redirecting to your new certificate...",
                 duration: 5000,
             });
-            // Redirect to the certificate page
             setTimeout(() => {
                 router.push(`/profile/certificates/${data.certificateId}`);
             }, 2000);
@@ -495,11 +500,11 @@ export default function LessonPage() {
                  router.push(`/courses/${pageData.course.id}/assessment`);
             }
         } else if (!pageData.lesson.completed) {
-            handleCompleteLesson(); // This will handle the redirect via handlePostCompletion
+            handleCompleteLesson();
         }
     };
 
-    if (isLoading && !pageData) { // Only show full-page skeleton on initial load
+    if (isLoading && !pageData) {
         return <LessonPageSkeleton />
     }
 
@@ -553,7 +558,7 @@ export default function LessonPage() {
         if (isQuizSubmitting) {
             return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</Button>;
         }
-        if (!lesson.completed) {
+        if (!isQuizPassed) {
             return <Button disabled>Pass Quiz to Continue</Button>;
         }
         
