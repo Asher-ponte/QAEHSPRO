@@ -5,8 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
-import { format } from 'date-fns';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { RowDataPacket } from 'mysql2';
 
 const quizSubmissionSchema = z.object({
   answers: z.record(z.coerce.number()),
@@ -23,8 +22,8 @@ export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
-    const { user, siteId: sessionSiteId } = await getCurrentSession();
-    if (!user || !sessionSiteId) {
+    const { user } = await getCurrentSession();
+    if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -67,7 +66,7 @@ export async function POST(
 
         await db.query('START TRANSACTION');
 
-        const [lessonRows] = await db.query<any[]>('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', [lessonId]);
+        const [lessonRows] = await db.query<any[]>('SELECT l.content, c.site_id FROM lessons l JOIN modules m ON l.module_id = m.id JOIN courses c ON m.course_id = c.id WHERE l.id = ? AND l.type = "quiz"', [lessonId]);
         const lesson = lessonRows[0];
         if (!lesson || !lesson.content) {
             await db.query('ROLLBACK');
@@ -93,13 +92,12 @@ export async function POST(
         });
         
         await db.query(
-            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
+            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, lessonId, courseId, lesson.site_id, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
         let nextLessonId: number | null = null;
-        let certificateId: number | null = null;
         let redirectToAssessment = false;
         
         if (passed) {
@@ -128,41 +126,8 @@ export async function POST(
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
-                } else {
-                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-                    const existingCertificate = existingCertRows[0];
-                    if (!existingCertificate) {
-                        const today = new Date();
-                        
-                         const [certInsertResult] = await db.query<ResultSetHeader>(
-                            `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, sessionSiteId, today.toISOString(), '']
-                        );
-                        certificateId = certInsertResult.insertId;
-
-                        if (!certificateId) {
-                            throw new Error("Failed to retrieve new certificate ID after insertion.");
-                        }
-
-                        const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
-                        await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
-
-                        const [signatoryRows] = await db.query<any[]>(
-                           `SELECT s.id as signatory_id FROM course_signatories cs
-                            JOIN signatories s ON cs.signatory_id = s.id
-                            WHERE cs.course_id = ? AND s.site_id = ?`, 
-                           [courseId, sessionSiteId]
-                        );
-
-                        if (signatoryRows.length > 0) {
-                            for (const sig of signatoryRows) {
-                                await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
-                            }
-                        }
-                    } else {
-                        certificateId = existingCertificate.id;
-                    }
-                }
+                } 
+                // NOTE: Certificate logic is removed. It only happens after final assessment.
             }
 
             const [allLessonsRows] = await db.query<any[]>(
@@ -185,7 +150,6 @@ export async function POST(
             passed,
             correctlyAnsweredIndices,
             nextLessonId,
-            certificateId,
             redirectToAssessment,
         });
 

@@ -4,15 +4,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
-import { format } from 'date-fns';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { RowDataPacket } from 'mysql2';
 
 export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
-    if (!user || !siteId) {
+    const { user } = await getCurrentSession();
+    if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -22,8 +21,6 @@ export async function POST(
         const lessonId = parseInt(params.lessonId, 10);
         const courseId = parseInt(params.id, 10);
         
-        const today = new Date(); // Use a single timestamp
-
         if (isNaN(lessonId) || isNaN(courseId)) {
              return NextResponse.json({ error: 'Invalid course or lesson ID' }, { status: 400 });
         }
@@ -66,7 +63,6 @@ export async function POST(
         const totalLessons = totalLessonsRows[0]?.count ?? 0;
 
         let nextLessonId: number | null = null;
-        let certificateId: number | null = null;
         let redirectToAssessment = false;
 
         if (totalLessons > 0) {
@@ -90,44 +86,14 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
             
             if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content, site_id FROM courses WHERE id = ?', [courseId]);
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
                 const courseInfo = courseInfoRows[0];
                 const hasFinalAssessment = !!courseInfo?.final_assessment_content;
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
-                } else {
-                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-                    const existingCertificate = existingCertRows[0];
-                    if (!existingCertificate) {
-                        
-                        const [certResult] = await db.query<ResultSetHeader>(
-                            `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, courseInfo.site_id, today.toISOString(), '']
-                        );
-                        certificateId = certResult.insertId;
-
-                        const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
-                        await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
-
-
-                        if (certificateId) {
-                           const [signatoryRows] = await db.query<any[]>(
-                               `SELECT s.id as signatory_id FROM course_signatories cs
-                                JOIN signatories s ON cs.signatory_id = s.id
-                                WHERE cs.course_id = ? AND s.site_id = ?`, 
-                               [courseId, courseInfo.site_id]
-                            );
-                            if (signatoryRows.length > 0) {
-                                for (const sig of signatoryRows) {
-                                    await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
-                                }
-                            }
-                        }
-                    } else {
-                        certificateId = existingCertificate.id;
-                    }
                 }
+                // NOTE: Certificate logic is removed from here. It now only lives in the final assessment API.
             }
 
             const [allLessonsOrderedRows] = await db.query<any[]>(
@@ -143,7 +109,8 @@ export async function POST(
         }
 
         await db.query('COMMIT');
-        return NextResponse.json({ success: true, nextLessonId, certificateId, redirectToAssessment });
+        // Certificate ID is no longer returned from this endpoint
+        return NextResponse.json({ success: true, nextLessonId, redirectToAssessment });
 
     } catch (error) {
         if (db) await db.query('ROLLBACK').catch(console.error);
