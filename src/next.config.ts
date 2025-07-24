@@ -16,8 +16,8 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     // This is required for packages with native Node.js dependencies.
     if (isServer) {
-      // bcrypt is a native dependency, keep it here.
-      config.externals.push('bcrypt', '@tensorflow/tfjs-core', '@tensorflow/tfjs-backend-webgl', '@tensorflow-models/face-landmarks-detection', '@mediapipe/tasks-vision');
+      // Add all necessary native dependencies here.
+      config.externals.push('@tensorflow/tfjs', '@tensorflow-models/face-landmarks-detection', '@mediapipe/tasks-vision');
     }
     return config;
   },
