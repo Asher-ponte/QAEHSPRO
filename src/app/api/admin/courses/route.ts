@@ -1,12 +1,11 @@
 
-
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
 import type { RowDataPacket } from 'mysql2';
 
-// Helper function to compute statistics for a list of courses against a specific database.
+// Helper function to compute statistics for a list of courses against the database.
 async function getCourseStats(db: any, courses: any[]) {
     if (courses.length === 0) {
         return [];
@@ -80,28 +79,23 @@ export async function GET() {
 
   try {
     const db = await getDb();
-    // If super admin, fetch from all sites.
+    
     if (isSuperAdmin) {
         const allSites = await getAllSites();
         let allCoursesWithStats = [];
 
         for (const site of allSites) {
-            try {
-                 const [courses] = await db.query<RowDataPacket[]>(`
-                    SELECT c.id, c.title, c.category, c.startDate, c.endDate, c.is_internal, c.is_public, c.price, s.id as siteId, s.name as siteName
-                    FROM courses c
-                    JOIN sites s ON c.site_id = s.id
-                    WHERE c.site_id = ?
-                    ORDER BY c.title ASC
-                `, [site.id]);
+             const [courses] = await db.query<RowDataPacket[]>(`
+                SELECT c.id, c.title, c.category, c.startDate, c.endDate, c.is_internal, c.is_public, c.price, c.site_id as siteId, s.name as siteName
+                FROM courses c
+                JOIN sites s ON c.site_id = s.id
+                WHERE c.site_id = ?
+                ORDER BY c.title ASC
+            `, [site.id]);
 
-                if (courses.length > 0) {
-                    const coursesWithStats = await getCourseStats(db, courses);
-                    allCoursesWithStats.push(...coursesWithStats);
-                }
-            } catch (e) {
-                console.error(`Could not fetch courses for site ${site.id}:`, e);
-                // Continue to next site if one fails
+            if (courses.length > 0) {
+                const coursesWithStats = await getCourseStats(db, courses);
+                allCoursesWithStats.push(...coursesWithStats);
             }
         }
         return NextResponse.json(allCoursesWithStats);

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -24,8 +23,8 @@ export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
-    if (!user || !siteId) {
+    const { user, siteId: sessionSiteId } = await getCurrentSession();
+    if (!user || !sessionSiteId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -92,10 +91,16 @@ export async function POST(
                 correctlyAnsweredIndices.push(index);
             }
         });
+
+        const [courseInfoRowsForAttempt] = await db.query<any[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
+        const courseSiteId = courseInfoRowsForAttempt[0]?.site_id;
+        if (!courseSiteId) {
+            throw new Error(`Could not determine site for course ${courseId}.`);
+        }
         
         await db.query(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, siteId, score, dbQuestions.length, new Date().toISOString()]
+            [userId, lessonId, courseId, courseSiteId, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
@@ -123,8 +128,9 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
-                const hasFinalAssessment = !!courseInfoRows[0]?.final_assessment_content;
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content, site_id FROM courses WHERE id = ?', [courseId]);
+                const courseInfo = courseInfoRows[0];
+                const hasFinalAssessment = !!courseInfo?.final_assessment_content;
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
@@ -136,7 +142,7 @@ export async function POST(
                         
                          const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, siteId, today.toISOString(), '']
+                            [userId, courseId, courseInfo.site_id, today.toISOString(), '']
                         );
                         certificateId = certInsertResult.insertId;
 
@@ -144,22 +150,20 @@ export async function POST(
                             throw new Error("Failed to retrieve new certificate ID after insertion.");
                         }
 
-                        const datePrefix = format(today, 'yyyyMMdd');
-                        const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
+                        const [countRows] = await db.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM certificates WHERE id <= ?', [certificateId]);
+                        const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(countRows[0].count).padStart(4, '0')}`;
                         await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
+                        const [signatoryRows] = await db.query<any[]>(
+                           `SELECT s.id as signatory_id FROM course_signatories cs
+                            JOIN signatories s ON cs.signatory_id = s.id
+                            WHERE cs.course_id = ? AND s.site_id = ?`, 
+                           [courseId, courseInfo.site_id]
+                        );
 
-                        if (certificateId && courseInfoRows[0]) {
-                             const [signatoryRows] = await db.query<any[]>(
-                                `SELECT cs.signatory_id FROM course_signatories cs
-                                 JOIN signatories s ON cs.signatory_id = s.id
-                                 WHERE cs.course_id = ? AND s.site_id = ?`, 
-                                [courseId, siteId]
-                            );
-                            if (signatoryRows.length > 0) {
-                                for (const sig of signatoryRows) {
-                                    await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
-                                }
+                        if (signatoryRows.length > 0) {
+                            for (const sig of signatoryRows) {
+                                await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
                             }
                         }
                     } else {
