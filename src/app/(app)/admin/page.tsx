@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building, HardDrive } from "lucide-react"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
@@ -112,6 +112,14 @@ export default async function AdminPage() {
         description: "View all transactions and manage gateways.",
         icon: <CreditCard className="h-8 w-8 text-primary" />,
         href: "/admin/payments",
+        disabled: false,
+        superAdminOnly: true,
+      },
+       {
+        title: "System Check",
+        description: "Validate the database schema and system health.",
+        icon: <HardDrive className="h-8 w-8 text-primary" />,
+        href: "/admin/system-check",
         disabled: false,
         superAdminOnly: true,
       },
