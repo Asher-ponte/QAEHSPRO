@@ -1,6 +1,6 @@
-
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,5 +14,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const storage = getStorage(app);
+const auth = getAuth(app);
 
-export { storage };
+// Sign in anonymously to satisfy storage rules for authenticated users.
+// This is a common pattern for allowing uploads from your app while still securing the bucket.
+signInAnonymously(auth).catch((error) => {
+  console.error("Anonymous sign-in failed:", error);
+});
+
+
+export { storage, auth };
