@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import { format } from 'date-fns';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const quizSubmissionSchema = z.object({
   answers: z.record(z.coerce.number()),
@@ -27,7 +28,7 @@ export async function POST(
 
     let db;
     try {
-        db = await getDb(siteId);
+        db = await getDb();
         const { lessonId: lessonIdStr, id: courseIdStr } = params;
         const lessonId = parseInt(lessonIdStr, 10);
         const courseId = parseInt(courseIdStr, 10);
@@ -38,29 +39,23 @@ export async function POST(
 
         const userId = user.id;
         
-        // --- ACCESS CONTROL ---
         if (user.role !== 'Admin') {
             let hasAccess = false;
-            const enrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-            if (enrollment) {
-                hasAccess = true;
-            }
+            const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+            if (enrollmentRows.length > 0) hasAccess = true;
 
             if (!hasAccess && user.type === 'External') {
-                const transaction = await db.get(
+                const [transactionRows] = await db.query<RowDataPacket[]>(
                     `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
                     [userId, courseId]
                 );
-                if (transaction) {
-                    hasAccess = true;
-                }
+                if (transactionRows.length > 0) hasAccess = true;
             }
 
             if (!hasAccess) {
                 return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
             }
         }
-        // --- END ACCESS CONTROL ---
         
         const body = await request.json();
         const parsedBody = quizSubmissionSchema.safeParse(body);
@@ -69,9 +64,10 @@ export async function POST(
         }
         const { answers } = parsedBody.data;
 
-        await db.run('BEGIN TRANSACTION');
+        await db.query('START TRANSACTION');
 
-        const lesson = await db.get('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', lessonId);
+        const [lessonRows] = await db.query<any[]>('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', [lessonId]);
+        const lesson = lessonRows[0];
         if (!lesson || !lesson.content) {
             return NextResponse.json({ error: 'Quiz not found or has no content.' }, { status: 404 });
         }
@@ -93,8 +89,7 @@ export async function POST(
             }
         });
 
-        // Log the quiz attempt for analytics.
-        await db.run(
+        await db.query(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
             [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
         );
@@ -105,53 +100,52 @@ export async function POST(
         let redirectToAssessment = false;
         
         if (passed) {
-            const totalLessonsResult = await db.get(
+            const [totalLessonsRows] = await db.query<RowDataPacket[]>(
                 `SELECT COUNT(l.id) as count FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
-                courseId
+                [courseId]
             );
-            const totalLessons = totalLessonsResult?.count ?? 0;
-            const wasAlreadyCompleted = (await db.get(`SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`, [userId, lessonId]))?.completed === 1;
-            const oldCompletedCount = (await db.get(`SELECT COUNT(up.lesson_id) as count FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`, [userId, courseId]))?.count ?? 0;
+            const totalLessons = totalLessonsRows[0]?.count ?? 0;
+            const [progressRows] = await db.query<any[]>(`SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`, [userId, lessonId]);
+            const wasAlreadyCompleted = progressRows[0]?.completed === 1;
             
-            await db.run(
-                'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = 1',
+            const [completedCountRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(up.lesson_id) as count FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`, [userId, courseId]);
+            const oldCompletedCount = completedCountRows[0]?.count ?? 0;
+            
+            await db.query(
+                'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE completed = 1',
                 [userId, lessonId]
             );
 
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const courseInfo = await db.get('SELECT final_assessment_content FROM courses WHERE id = ?', courseId);
-                const hasFinalAssessment = !!courseInfo?.final_assessment_content;
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
+                const hasFinalAssessment = !!courseInfoRows[0]?.final_assessment_content;
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
                 } else {
-                    const existingCertificate = await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+                    const existingCertificate = existingCertRows[0];
                     if (!existingCertificate) {
                         const today = new Date();
                         const datePrefix = format(today, 'yyyyMMdd');
-                        const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                        const nextSerial = (countResult?.count ?? 0) + 1;
+                        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+                        const nextSerial = (countRows[0]?.count ?? 0) + 1;
                         const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                         
-                        const certResult = await db.run(
-                            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, today.toISOString(), certificateNumber]
+                        const [certResult] = await db.query<ResultSetHeader>(
+                            `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
+                            [userId, courseId, siteId, today.toISOString(), certificateNumber]
                         );
-                        certificateId = certResult.lastID ?? null;
+                        certificateId = certResult.insertId;
 
                         if (certificateId) {
-                            const courseSignatories = await db.all(
-                                'SELECT signatory_id FROM course_signatories WHERE course_id = ?',
-                                courseId
-                            );
-                            if (courseSignatories.length > 0) {
-                                const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
-                                for (const sig of courseSignatories) {
-                                    await stmt.run(certificateId, sig.signatory_id);
+                            const [signatoryRows] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
+                            if (signatoryRows.length > 0) {
+                                for (const sig of signatoryRows) {
+                                    await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
                                 }
-                                await stmt.finalize();
                             }
                         }
                     } else {
@@ -160,11 +154,11 @@ export async function POST(
                 }
             }
 
-            const allLessonsOrderedResult = await db.all(
-                `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m."order" ASC, l."order" ASC`,
-                courseId
+            const [allLessonsRows] = await db.query<any[]>(
+                `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m.\`order\` ASC, l.\`order\` ASC`,
+                [courseId]
             );
-            const allLessonsOrdered = allLessonsOrderedResult.map(l => l.id);
+            const allLessonsOrdered = allLessonsRows.map(l => l.id);
             const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === lessonId);
             
             if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
@@ -172,7 +166,7 @@ export async function POST(
             }
         }
         
-        await db.run('COMMIT');
+        await db.query('COMMIT');
 
         return NextResponse.json({
             score,
@@ -185,7 +179,7 @@ export async function POST(
         });
 
     } catch (error) {
-        if (db) await db.run('ROLLBACK').catch(e => console.error("Rollback failed", e));
+        if (db) await db.query('ROLLBACK').catch(e => console.error("Rollback failed", e));
         
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error("Failed to process quiz submission. Error: ", errorMessage, error);

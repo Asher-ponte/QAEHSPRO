@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
 import { getCurrentSession } from '@/lib/session'
-import type { RowDataPacket } from 'mysql2'
+import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
@@ -141,7 +141,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
             ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
             : null;
 
-        const [courseResult] = await db.query<import('mysql2').ResultSetHeader>(
+        const [courseResult] = await db.query<ResultSetHeader>(
             'INSERT INTO courses (site_id, title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, final_assessment_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [siteIdForSignatories, payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch, payload.passing_rate, payload.max_attempts, finalAssessmentContent]
         );
@@ -156,7 +156,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
         }
 
         for (const [moduleIndex, moduleData] of payload.modules.entries()) {
-            const [moduleResult] = await db.query<import('mysql2').ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 

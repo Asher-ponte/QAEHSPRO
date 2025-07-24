@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import type { ResultSetHeader } from 'mysql2';
 
 // Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
@@ -124,19 +125,20 @@ export async function GET(
     }
 
     try {
-        const db = await getDb(siteId);
+        const db = await getDb();
         const { id: courseId } = params;
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
 
-        const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
+        const [courseRows] = await db.query<any[]>('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const course = courseRows[0];
         if (!course) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
 
-        const modulesAndLessons = await db.all(`
+        const [modulesAndLessons] = await db.query<any[]>(`
             SELECT 
                 m.id as module_id, 
                 m.title as module_title, 
@@ -149,8 +151,8 @@ export async function GET(
             FROM modules m
             LEFT JOIN lessons l ON m.id = l.module_id
             WHERE m.course_id = ?
-            ORDER BY m."order" ASC, l."order" ASC
-        `, courseId);
+            ORDER BY m.\`order\` ASC, l.\`order\` ASC
+        `, [courseId]);
         
         const modulesMap = new Map<number, any>();
         for (const row of modulesAndLessons) {
@@ -181,7 +183,7 @@ export async function GET(
         }
         course.modules = Array.from(modulesMap.values());
         
-        const assignedSignatories = await db.all('SELECT signatory_id FROM course_signatories WHERE course_id = ?', courseId);
+        const [assignedSignatories] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
         const signatoryIds = assignedSignatories.map(s => s.signatory_id);
         
         const finalAssessmentQuestions = transformDbToQuestionsFormat(course.final_assessment_content);
@@ -232,44 +234,46 @@ export async function PUT(
             ? transformQuestionsToDbFormat(final_assessment_questions)
             : null;
 
-        // An edit action only ever applies to the current site context.
-        // This preserves branch-specific overrides.
-        db = await getDb(siteId);
-        await db.run('BEGIN TRANSACTION');
+        db = await getDb();
+        await db.query('START TRANSACTION');
 
-        await db.run(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ?, passing_rate = ?, max_attempts = ?, final_assessment_content = ? WHERE id = ?',
-            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, finalAssessmentContent, courseId]
+        await db.query(
+            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ?, passing_rate = ?, max_attempts = ?, final_assessment_content = ? WHERE id = ? AND site_id = ?',
+            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, finalAssessmentContent, courseId, siteId]
         );
-        await db.run('DELETE FROM course_signatories WHERE course_id = ?', courseId);
+        
+        await db.query('DELETE FROM course_signatories WHERE course_id = ?', [courseId]);
         if (signatoryIds && signatoryIds.length > 0) {
-            const stmt = await db.prepare('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)');
-            for (const signatoryId of signatoryIds) { await stmt.run(courseId, signatoryId); }
-            await stmt.finalize();
+            for (const signatoryId of signatoryIds) { 
+                await db.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [courseId, signatoryId]);
+            }
         }
 
-        const existingModules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
-        const existingModuleIds = new Set(existingModules.map(m => m.id));
+        const [existingModuleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
+        const existingModuleIds = new Set(existingModuleRows.map(m => m.id));
         const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id as number));
         for (const existingId of existingModuleIds) {
-            if (!payloadModuleIds.has(existingId)) { await db.run('DELETE FROM modules WHERE id = ?', existingId); }
+            if (!payloadModuleIds.has(existingId)) { 
+                await db.query('DELETE FROM lessons WHERE module_id = ?', [existingId]);
+                await db.query('DELETE FROM modules WHERE id = ?', [existingId]); 
+            }
         }
 
         for (const [moduleIndex, moduleData] of modules.entries()) {
             let moduleId = moduleData.id;
             if (moduleId && existingModuleIds.has(moduleId)) {
-                await db.run('UPDATE modules SET title = ?, "order" = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
+                await db.query('UPDATE modules SET title = ?, `order` = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
             } else {
-                const moduleResult = await db.run('INSERT INTO modules (course_id, title, "order") VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
-                moduleId = moduleResult.lastID;
+                const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+                moduleId = moduleResult.insertId;
                 if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
             }
 
-            const existingLessons = await db.all('SELECT id FROM lessons WHERE module_id = ?', moduleId);
-            const existingLessonIds = new Set(existingLessons.map(l => l.id));
+            const [existingLessonRows] = await db.query<any[]>('SELECT id FROM lessons WHERE module_id = ?', [moduleId]);
+            const existingLessonIds = new Set(existingLessonRows.map(l => l.id));
             const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
             for (const existingId of existingLessonIds) {
-                if (!payloadLessonIds.has(existingId)) { await db.run('DELETE FROM lessons WHERE id = ?', existingId); }
+                if (!payloadLessonIds.has(existingId)) { await db.query('DELETE FROM lessons WHERE id = ?', [existingId]); }
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
@@ -277,20 +281,20 @@ export async function PUT(
                 if (lessonData.type === 'quiz' && lessonData.questions) { contentToStore = transformQuestionsToDbFormat(lessonData.questions); }
                 
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.run('UPDATE lessons SET title = ?, type = ?, content = ?, "order" = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
+                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
                 } else {
-                    await db.run('INSERT INTO lessons (module_id, title, type, content, "order", imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
                 }
             }
         }
-        await db.run('COMMIT');
+        await db.query('COMMIT');
        
-        const updatedCourse = await db.get('SELECT * FROM courses WHERE id = ?', courseId);
-        return NextResponse.json(updatedCourse, { status: 200 });
+        const [updatedCourseRows] = await db.query<any[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
+        return NextResponse.json(updatedCourseRows[0], { status: 200 });
 
     } catch (error) {
         if (db) {
-            await db.run('ROLLBACK').catch(console.error);
+            await db.query('ROLLBACK').catch(console.error);
         }
         console.error("Failed to update course:", error);
         return NextResponse.json({ error: 'Failed to update course due to a server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
@@ -309,56 +313,45 @@ export async function DELETE(
 
     let db;
     try {
-        db = await getDb(siteId);
+        db = await getDb();
         const { id: courseId } = params;
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
         
-        await db.run('BEGIN TRANSACTION');
-
-        // Manual cascade delete to ensure it works even if the DB schema was created without ON DELETE CASCADE.
+        await db.query('START TRANSACTION');
         
-        // 1. Find all modules for the course
-        const modules = await db.all('SELECT id FROM modules WHERE course_id = ?', courseId);
-        const moduleIds = modules.map(m => m.id);
+        const [moduleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
+        const moduleIds = moduleRows.map(m => m.id);
 
         if (moduleIds.length > 0) {
-            const moduleIdsPlaceholder = moduleIds.map(() => '?').join(',');
+            const [lessonRows] = await db.query<any[]>(`SELECT id FROM lessons WHERE module_id IN (?)`, [moduleIds]);
+            const lessonIds = lessonRows.map(l => l.id);
 
-            // 2. Find all lessons for those modules
-            const lessons = await db.all(`SELECT id FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, moduleIds);
-            const lessonIds = lessons.map(l => l.id);
-
-            // 3. Delete from user_progress for those lessons
             if (lessonIds.length > 0) {
-                const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
-                await db.run(`DELETE FROM user_progress WHERE lesson_id IN (${lessonIdsPlaceholder})`, lessonIds);
+                await db.query(`DELETE FROM user_progress WHERE lesson_id IN (?)`, [lessonIds]);
             }
-
-            // 4. Delete from lessons for those modules
-            await db.run(`DELETE FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, moduleIds);
+            
+            await db.query(`DELETE FROM lessons WHERE module_id IN (?)`, [moduleIds]);
         }
+        
+        await db.query('DELETE FROM modules WHERE course_id = ?', [courseId]);
+        
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
 
-        // 5. Delete from modules for the course
-        await db.run('DELETE FROM modules WHERE course_id = ?', courseId);
-
-        // 6. Finally, delete the course
-        const result = await db.run('DELETE FROM courses WHERE id = ?', [courseId]);
-
-        if (result.changes === 0) {
-             await db.run('ROLLBACK');
+        if (result.affectedRows === 0) {
+             await db.query('ROLLBACK');
              return NextResponse.json({ error: 'Course not found or already deleted' }, { status: 404 });
         }
         
-        await db.run('COMMIT');
+        await db.query('COMMIT');
 
         return NextResponse.json({ success: true, message: `Course ${courseId} deleted successfully.` });
 
     } catch (error) {
         if (db) {
-            await db.run('ROLLBACK').catch(console.error);
+            await db.query('ROLLBACK').catch(console.error);
         }
         console.error("Failed to delete course:", error);
         const details = error instanceof Error ? error.message : "An unknown error occurred.";

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { format } from 'date-fns';
 import { getAllSites } from '@/lib/sites';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const recognitionCertificateSchema = z.object({
   userId: z.coerce.number({ invalid_type_error: "Please select a user." }),
@@ -50,45 +51,39 @@ export async function POST(request: NextRequest) {
             effectiveSiteId = targetSiteId;
         }
 
-        db = await getDb(effectiveSiteId);
+        db = await getDb();
 
-        await db.run('BEGIN TRANSACTION');
+        await db.query('START TRANSACTION');
         
-        // Generate certificate number
         const datePrefix = format(date, 'yyyyMMdd');
-        const countResult = await db.get(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-        const nextSerial = (countResult?.count ?? 0) + 1;
+        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+        const count = countRows[0]?.count ?? 0;
+        const nextSerial = count + 1;
         const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
 
-        // Create the certificate record
-        const certResult = await db.run(
-            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason) VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, null, date.toISOString(), certificateNumber, 'recognition', reason]
+        const [certResult] = await db.query<ResultSetHeader>(
+            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, null, date.toISOString(), certificateNumber, 'recognition', reason, effectiveSiteId]
         );
-        const certificateId = certResult.lastID;
+        const certificateId = certResult.insertId;
         if (!certificateId) {
             throw new Error("Failed to create certificate record.");
         }
         
-        // Link signatories to this certificate
-        const stmt = await db.prepare('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)');
         for (const signatoryId of signatoryIds) {
-            await stmt.run(certificateId, signatoryId);
+            await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, signatoryId]);
         }
-        await stmt.finalize();
-
-        await db.run('COMMIT');
+        
+        await db.query('COMMIT');
 
         return NextResponse.json({ success: true, certificateId: certificateId }, { status: 201 });
 
     } catch (error) {
         if (db) {
-            await db.run('ROLLBACK').catch(console.error);
+            await db.query('ROLLBACK').catch(console.error);
         }
         console.error("Failed to create recognition certificate:", error);
         const details = error instanceof Error ? error.message : 'Unknown server error';
         return NextResponse.json({ error: 'Failed to create certificate', details }, { status: 500 });
     }
 }
-
-    

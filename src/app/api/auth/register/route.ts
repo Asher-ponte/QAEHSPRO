@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import type { ResultSetHeader } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 const registerSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
 
     // Check if username already exists in the external site
-    const [existingUserRows]: any = await db.query(
+    const [existingUserRows] = await db.query<RowDataPacket[]>(
         'SELECT id FROM users WHERE username = ? AND site_id = ?', 
         [username, siteId]
     );

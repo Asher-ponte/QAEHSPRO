@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
+import type { ResultSetHeader } from 'mysql2';
 
 const createBranchSchema = z.object({
   name: z.string().min(3, "Branch name must be at least 3 characters."),
@@ -46,16 +47,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'A branch with this name or a similar ID already exists.' }, { status: 409 });
         }
 
-        const mainDb = await getDb('main');
+        const db = await getDb();
 
-        await mainDb.run(
-            'INSERT INTO custom_sites (id, name) VALUES (?, ?)',
+        const [result] = await db.query<ResultSetHeader>(
+            'INSERT INTO sites (id, name) VALUES (?, ?)',
             [id, name]
         );
-        
-        // Initialize the database for the new site
-        await getDb(id);
 
+        if (result.affectedRows === 0) {
+            throw new Error("Failed to create the new site record.");
+        }
+        
         return NextResponse.json({ success: true, newBranch: { id, name } }, { status: 201 });
 
     } catch (error) {
