@@ -17,7 +17,7 @@ interface ImageUploadProps {
     uploadPath?: string; // e.g. "logos/"
 }
 
-export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPath = 'uploads/' }: ImageUploadProps) {
+export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPath = 'Upload/' }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);

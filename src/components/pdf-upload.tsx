@@ -32,7 +32,7 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
         setIsUploading(true);
         
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const fileName = `pdfs/${uniqueSuffix}-${file.name.replace(/\s+/g, '_')}`;
+        const fileName = `Upload/${uniqueSuffix}-${file.name.replace(/\s+/g, '_')}`;
         const storageRef = ref(storage, fileName);
 
         try {
