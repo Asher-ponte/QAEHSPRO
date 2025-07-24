@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
 
     const db = await getDb();
     
-    // Step 1: Find a user with the given username.
+    // Step 1: Find all users with the given username. In a multi-tenant system,
+    // the same username might exist for different sites.
     const [users] = await db.query<UserWithPassword[]>(
       'SELECT id, password, site_id, role FROM users WHERE username = ?', 
       [username]
