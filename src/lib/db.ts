@@ -31,7 +31,8 @@ const initializePool = () => {
     };
 
     // Use socketPath for Unix socket connections (common in GCP App Engine, Cloud Run)
-    if (process.env.DB_SOCKET_PATH) {
+    // Only add it if it's a real path and not a placeholder.
+    if (process.env.DB_SOCKET_PATH && !process.env.DB_SOCKET_PATH.includes('your_db_socket_path')) {
         config.socketPath = process.env.DB_SOCKET_PATH;
     }
     
