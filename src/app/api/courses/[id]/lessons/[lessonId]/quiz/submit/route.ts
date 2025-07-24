@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -93,8 +94,8 @@ export async function POST(
         });
 
         await db.query(
-            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
+            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, lessonId, courseId, siteId, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
@@ -122,13 +123,13 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
                 const hasFinalAssessment = !!courseInfoRows[0]?.final_assessment_content;
 
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
                 } else {
-                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+                    const [existingCertRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND site_id = ?', [userId, courseId, siteId]);
                     const existingCertificate = existingCertRows[0];
                     if (!existingCertificate) {
                         const today = new Date();
@@ -143,7 +144,6 @@ export async function POST(
                             throw new Error("Failed to retrieve new certificate ID after insertion.");
                         }
 
-                        // Use the newly inserted ID to generate the unique certificate number
                         const datePrefix = format(today, 'yyyyMMdd');
                         const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
                         await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
