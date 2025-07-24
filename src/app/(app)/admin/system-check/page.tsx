@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, CheckCircle, XCircle, Database } from "lucide-react"
+import { ArrowLeft, Loader2, CheckCircle, XCircle, Database, Copy } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,6 +32,30 @@ interface TableResult {
 }
 
 function SchemaResultCard({ result }: { result: TableResult }) {
+    const { toast } = useToast();
+
+    const handleCopySql = () => {
+        if (result.missingColumns.length === 0) return;
+
+        const sqlCommands = result.missingColumns.map(
+            col => `ALTER TABLE \`${result.tableName}\` ADD COLUMN \`${col}\` VARCHAR(255) NULL;`
+        ).join('\n');
+        
+        navigator.clipboard.writeText(sqlCommands).then(() => {
+            toast({
+                title: "Copied to Clipboard",
+                description: `SQL commands for table "${result.tableName}" have been copied.`,
+            });
+        }).catch(err => {
+            console.error("Failed to copy SQL:", err);
+            toast({
+                variant: "destructive",
+                title: "Copy Failed",
+                description: "Could not copy SQL commands to clipboard.",
+            });
+        });
+    };
+
     return (
         <Card className={cn(result.ok ? "border-green-500/50" : "border-destructive/50")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -46,13 +70,19 @@ function SchemaResultCard({ result }: { result: TableResult }) {
                 {!result.exists ? (
                     <p className="text-sm text-destructive">Table does not exist.</p>
                 ) : result.missingColumns.length > 0 ? (
-                    <div className="text-sm">
-                        <p className="font-semibold text-destructive">Missing columns:</p>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                            {result.missingColumns.map(col => (
-                                <Badge key={col} variant="destructive" className="font-mono">{col}</Badge>
-                            ))}
+                    <div className="space-y-3">
+                        <div className="text-sm">
+                            <p className="font-semibold text-destructive">Missing columns:</p>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {result.missingColumns.map(col => (
+                                    <Badge key={col} variant="destructive" className="font-mono">{col}</Badge>
+                                ))}
+                            </div>
                         </div>
+                        <Button variant="outline" size="sm" onClick={handleCopySql}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy SQL
+                        </Button>
                     </div>
                 ) : (
                      <p className="text-sm text-muted-foreground">All expected columns are present.</p>
@@ -125,7 +155,7 @@ export default function SystemCheckPage() {
 
             {isLoading && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                   {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+                   {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
                 </div>
             )}
             
@@ -136,7 +166,7 @@ export default function SystemCheckPage() {
                              {summary.ok ? <CheckCircle className="h-6 w-6 text-green-600" /> : <XCircle className="h-6 w-6 text-destructive" />}
                              Validation {summary.ok ? 'Passed' : 'Failed'}
                         </CardTitle>
-                         <CardDescription className={cn(summary.ok ? "text-green-800" : "text-destructive/80")}>
+                         <CardDescription className={cn(summary.ok ? "text-green-800" : "text-destructive/80", "dark:text-inherit")}>
                             {summary.correctTables} of {summary.totalTables} tables are configured correctly.
                         </CardDescription>
                     </CardHeader>
