@@ -54,7 +54,7 @@ async function getDashboardData() {
         WHERE e.user_id = ? AND c.site_id = ?
     `, [userId, siteId]);
 
-    // 3. CRITICAL FIX: If no courses, return early to prevent invalid queries later.
+    // 3. If no courses, return early to prevent invalid queries later.
     if (enrolledCourses.length === 0) {
       return {
         stats: stats,
@@ -101,15 +101,19 @@ async function getDashboardData() {
         const totalLessons = courseLessons.length;
         const completedLessonsCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
         const hasFinalAssessment = !!course.final_assessment_content;
+        const hasPassedAssessment = passedAssessmentIds.has(course.id);
 
         let progress = 0;
         if (totalLessons > 0) {
             progress = Math.floor((completedLessonsCount / totalLessons) * 100);
         }
         
-        // If course has an assessment, progress is not 100% unless it's passed.
-        // Cap progress at 99% if lessons are done but assessment is not.
-        if (hasFinalAssessment && progress === 100 && !passedAssessmentIds.has(course.id)) {
+        // If course has an assessment and it's passed, it's 100% complete.
+        if (hasFinalAssessment && hasPassedAssessment) {
+            progress = 100;
+        } 
+        // If all lessons are done, but the assessment isn't passed yet, cap at 99%.
+        else if (hasFinalAssessment && progress === 100 && !hasPassedAssessment) {
             progress = 99;
         }
 
