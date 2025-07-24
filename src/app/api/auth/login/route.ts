@@ -17,6 +17,7 @@ interface UserWithPassword extends RowDataPacket {
     id: number;
     site_id: string;
     password?: string;
+    role: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -32,9 +33,9 @@ export async function POST(request: NextRequest) {
 
     const db = await getDb();
     
-    // Fetch the user by username first. There could be multiple users with the same username across different sites.
+    // Step 1: Find a user with the given username.
     const [users] = await db.query<UserWithPassword[]>(
-      'SELECT id, password, site_id FROM users WHERE username = ?', 
+      'SELECT id, password, site_id, role FROM users WHERE username = ?', 
       [username]
     );
 
@@ -42,9 +43,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
     }
 
+    // Step 2: Since usernames are unique per site, we might have multiple.
+    // We need to find the one where the password matches.
     let authenticatedUser: UserWithPassword | null = null;
-    
-    // Iterate through potential users and check the password for each.
     for (const user of users) {
         if (user && user.password) {
             const passwordMatch = await bcrypt.compare(password, user.password);
@@ -54,18 +55,22 @@ export async function POST(request: NextRequest) {
             }
         }
     }
-
+    
     if (!authenticatedUser) {
         return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
     }
-
-    // Set session cookies
+    
+    // Step 3: Set session cookies.
     cookies().set('session_id', authenticatedUser.id.toString(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/',
     });
+    
+    // The `site_id` cookie determines which "tenant" the user is viewing.
+    // For a super admin ('main' site), they start by viewing their own 'main' dashboard.
+    // For any other user, they are scoped to their own site.
     cookies().set('site_id', authenticatedUser.site_id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -76,7 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       message: 'Login successful',
-      siteId: authenticatedUser.site_id
+      siteId: authenticatedUser.site_id // Return siteId to help client-side routing if needed
     });
   } catch (error) {
     console.error('Login error:', error);
