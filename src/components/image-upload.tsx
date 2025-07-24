@@ -7,24 +7,24 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Trash2, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface ImageUploadProps {
     onUploadComplete: (path: string) => void;
     initialPath?: string | null;
     onRemove?: () => void;
-    uploadUrl?: string;
+    uploadPath?: string; // e.g. "logos/"
 }
 
-export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadUrl = '/api/upload' }: ImageUploadProps) {
+export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPath = 'uploads/' }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     
     useEffect(() => {
-        // Use a key with the path to force React to re-render the image if the path changes
-        // This is useful for the main logo uploader which always shows the same path
-        setImagePreview(initialPath ? `${initialPath}?${new Date().getTime()}` : null);
+        setImagePreview(initialPath ? `${initialPath}` : null);
     }, [initialPath]);
     
     const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -33,23 +33,16 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadUrl
 
         setIsUploading(true);
         
-        const formData = new FormData();
-        formData.append("file", file);
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const fileName = `${uploadPath}${uniqueSuffix}-${file.name.replace(/\s+/g, '_')}`;
+        const storageRef = ref(storage, fileName);
 
         try {
-            const response = await fetch(uploadUrl, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || "Upload failed");
-            }
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
             
-            onUploadComplete(result.path);
-            setImagePreview(`${result.path}?${new Date().getTime()}`);
+            onUploadComplete(downloadURL);
+            setImagePreview(downloadURL);
 
             toast({
                 title: "Upload Successful",
@@ -57,6 +50,7 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadUrl
             });
 
         } catch (error) {
+            console.error("Firebase upload error:", error);
             toast({
                 variant: "destructive",
                 title: "Upload Failed",
@@ -92,7 +86,6 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadUrl
                             alt="Image preview"
                             fill
                             className="object-contain"
-                            unoptimized // Important for seeing changes to the same file path
                         />
                          {onRemove && (
                             <Button 

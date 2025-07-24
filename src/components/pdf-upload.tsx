@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Trash2, FileText } from "lucide-react";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface PdfUploadProps {
     onUploadComplete: (path: string) => void;
@@ -29,23 +31,16 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
 
         setIsUploading(true);
         
-        const formData = new FormData();
-        formData.append("file", file);
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const fileName = `pdfs/${uniqueSuffix}-${file.name.replace(/\s+/g, '_')}`;
+        const storageRef = ref(storage, fileName);
 
         try {
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || "Upload failed");
-            }
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
             
-            onUploadComplete(result.path);
-            setFilePath(result.path);
+            onUploadComplete(downloadURL);
+            setFilePath(downloadURL);
 
             toast({
                 title: "Upload Successful",
@@ -53,6 +48,7 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
             });
 
         } catch (error) {
+             console.error("Firebase PDF upload error:", error);
             toast({
                 variant: "destructive",
                 title: "Upload Failed",
@@ -75,7 +71,17 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
 
     const getFileName = (path: string | null) => {
         if (!path) return 'No file uploaded.';
-        return path.split('/').pop() || 'File';
+        try {
+            // Decode URL and get the part after the last '/'
+            const url = new URL(path);
+            const pathParts = url.pathname.split('/');
+            const encodedFileName = pathParts[pathParts.length - 1];
+            // Remove the unique prefix for display
+            const originalFileName = decodeURIComponent(encodedFileName).split('-').slice(2).join('-');
+            return originalFileName || 'File';
+        } catch (e) {
+            return 'File';
+        }
     }
 
     return (

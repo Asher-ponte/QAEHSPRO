@@ -1,11 +1,13 @@
 
+"use client"
+
 import Image from "next/image";
 
 export function Logo() {
   return (
     <div className="flex items-center gap-2">
       <Image 
-        src="/uploads/logo.png" 
+        src="/images/logo.png" 
         alt="QAEHS PRO ACADEMY Logo" 
         width={50} 
         height={50} 

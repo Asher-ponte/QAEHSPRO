@@ -53,7 +53,21 @@ type SettingsFormValues = z.infer<typeof settingsFormSchema>
 
 function AppBrandingCard() {
     const { toast } = useToast();
+    const [logoPath, setLogoPath] = useState("/images/logo.png");
 
+    // This effect is to force a re-render of the logo image when it changes.
+    // The path doesn't change, but appending a timestamp busts the browser cache.
+    const handleUploadComplete = () => {
+        toast({
+            title: "Logo Updated",
+            description: "The main application logo has been changed. Refreshing...",
+            duration: 3000
+        });
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+    }
+    
     return (
         <Card>
             <CardHeader>
@@ -64,15 +78,9 @@ function AppBrandingCard() {
             </CardHeader>
             <CardContent>
                  <ImageUpload
-                    uploadUrl="/api/admin/app-logo"
-                    initialPath="/uploads/logo.png"
-                    onUploadComplete={() => {
-                        toast({
-                            title: "Logo Updated",
-                            description: "The main application logo has been changed. Please refresh the page to see the changes.",
-                            duration: 8000
-                        });
-                    }}
+                    onUploadComplete={handleUploadComplete}
+                    initialPath={logoPath}
+                    uploadPath="logos/logo.png"
                 />
             </CardContent>
         </Card>

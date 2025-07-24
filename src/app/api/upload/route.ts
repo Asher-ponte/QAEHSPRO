@@ -1,46 +1,4 @@
 
-import { NextResponse, type NextRequest } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { getCurrentSession } from '@/lib/session';
-
-export async function POST(request: NextRequest) {
-    const { user } = await getCurrentSession();
-    if (!user) { // Allow any authenticated user to upload, not just admins
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    try {
-        const data = await request.formData();
-        const file: File | null = data.get('file') as unknown as File;
-
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-        }
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        // Sanitize filename and create a unique name
-        const originalFilename = file.name.replace(/\s+/g, '_');
-        const fileExtension = path.extname(originalFilename);
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filename = `${path.basename(originalFilename, fileExtension)}-${uniqueSuffix}${fileExtension}`;
-
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        // Ensure the upload directory exists
-        await mkdir(uploadDir, { recursive: true });
-        
-        const fullPath = path.join(uploadDir, filename);
-
-        await writeFile(fullPath, buffer);
-
-        console.log(`File uploaded to ${fullPath}`);
-
-        return NextResponse.json({ success: true, path: `/uploads/${filename}` });
-
-    } catch (error) {
-        console.error("Upload error:", error);
-        return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
-    }
-}
+// This file is no longer used and can be deleted.
+// The new logic uses the ImageUpload and PdfUpload components to upload directly to Firebase Storage.
+// Keeping it might cause confusion. It's better to remove it.
