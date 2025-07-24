@@ -1,4 +1,5 @@
 
+'use server';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
@@ -149,7 +150,12 @@ export async function POST(
 
 
                         if (certificateId && courseInfoRows[0]) {
-                            const [signatoryRows] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
+                            const [signatoryRows] = await db.query<any[]>(
+                                `SELECT cs.signatory_id FROM course_signatories cs
+                                 JOIN signatories s ON cs.signatory_id = s.id
+                                 WHERE cs.course_id = ? AND s.site_id = ?`, 
+                                [courseId, siteId]
+                            );
                             if (signatoryRows.length > 0) {
                                 for (const sig of signatoryRows) {
                                     await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
