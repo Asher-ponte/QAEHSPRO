@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    const db = await getDb(siteId);
+    const db = await getDb();
 
     const userId = user.id;
     const courseId = parseInt(params.id, 10);
@@ -20,7 +20,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: 'Invalid course ID.' }, { status: 400 });
     }
 
-    const course = await db.get('SELECT * FROM courses WHERE id = ?', courseId)
+    const [courseRows]: any = await db.query('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+    const course = courseRows[0];
     
     if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 })
@@ -41,42 +42,44 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         course.price = null;
     }
 
-    const modulesAndLessons = await db.all(
+    const [modulesAndLessons]: any = await db.query(
         `SELECT 
             m.id as module_id, 
             m.title as module_title, 
-            m."order" as module_order,
+            m.order as module_order,
             l.id as lesson_id, 
             l.title as lesson_title, 
             l.type as lesson_type, 
-            l."order" as lesson_order
+            l.order as lesson_order
         FROM modules m
         LEFT JOIN lessons l ON m.id = l.module_id
         WHERE m.course_id = ? 
-        ORDER BY m."order" ASC, l."order" ASC`,
+        ORDER BY m.order ASC, l.order ASC`,
         [courseId]
     );
 
-    const allLessonIds = modulesAndLessons.filter(l => l.lesson_id).map(l => l.lesson_id);
+    const allLessonIds = modulesAndLessons.filter((l: any) => l.lesson_id).map((l: any) => l.lesson_id);
     let completedLessonIds = new Set<number>();
     if (allLessonIds.length > 0) {
-        const progressResults = await db.all(
-            `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (${allLessonIds.map(() => '?').join(',')}) AND completed = 1`,
-            [userId, ...allLessonIds]
+        const [progressResults]: any = await db.query(
+            `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (?) AND completed = 1`,
+            [userId, allLessonIds]
         );
-        completedLessonIds = new Set(progressResults.map(r => r.lesson_id));
+        completedLessonIds = new Set(progressResults.map((r: any) => r.lesson_id));
     }
     
-    const isCourseCompleted = (await db.get('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId])) != null;
+    const [certRows]: any = await db.query('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+    const isCourseCompleted = certRows.length > 0;
     const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
     const hasFinalAssessment = !!course.final_assessment_content;
 
     let transactionStatus: { status: string, reason: string | null } | null = null;
     if (user.type === 'External') {
-        const transaction = await db.get(
+        const [transactionRows]: any = await db.query(
             `SELECT status, rejection_reason FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`,
             [userId, courseId]
         );
+        const transaction = transactionRows[0];
         if (transaction) {
             transactionStatus = { status: transaction.status, reason: transaction.rejection_reason };
         }
