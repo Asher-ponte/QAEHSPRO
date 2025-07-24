@@ -110,21 +110,22 @@ export async function POST(
         let retakeRequired = false;
 
         if (passed) {
-            const [existingCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND site_id = ?', [user.id, courseId, siteId]);
+            const [existingCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
             const existingCertificate = existingCertificateRows[0];
             
             if (!existingCertificate) {
                 const today = new Date();
                 const datePrefix = format(today, 'yyyyMMdd');
-                const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
-                const nextSerial = (countRows[0]?.count ?? 0) + 1;
-                const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                 
                 const [certResult] = await db.query<ResultSetHeader>(
                     `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                    [user.id, courseId, siteId, today.toISOString(), certificateNumber]
+                    [user.id, courseId, siteId, today.toISOString(), '']
                 );
                 certificateId = certResult.insertId;
+
+                const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
+                await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
+
 
                  if (certificateId) {
                     const [courseSignatoryRows] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
@@ -140,11 +141,7 @@ export async function POST(
         } else {
             if (attempts.length + 1 >= course.max_attempts) {
                 retakeRequired = true;
-                const [lessonRows] = await db.query<any[]>(`SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`, [courseId]);
-                if (lessonRows.length > 0) {
-                    const lessonIds = lessonRows.map(l => l.id);
-                    await db.query(`DELETE FROM user_progress WHERE user_id = ? AND lesson_id IN (?)`, [user.id, lessonIds]);
-                }
+                // No longer resetting progress here. User must initiate it from the UI.
             }
         }
 
