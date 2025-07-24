@@ -122,7 +122,7 @@ export async function POST(
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
 
             if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content, site_id FROM courses WHERE id = ?', [courseId]);
+                const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
                 const courseInfo = courseInfoRows[0];
                 const hasFinalAssessment = !!courseInfo?.final_assessment_content;
 
@@ -136,7 +136,7 @@ export async function POST(
                         
                          const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, courseInfo.site_id, today.toISOString(), '']
+                            [userId, courseId, sessionSiteId, today.toISOString(), '']
                         );
                         certificateId = certInsertResult.insertId;
 
@@ -151,7 +151,7 @@ export async function POST(
                            `SELECT s.id as signatory_id FROM course_signatories cs
                             JOIN signatories s ON cs.signatory_id = s.id
                             WHERE cs.course_id = ? AND s.site_id = ?`, 
-                           [courseId, courseInfo.site_id]
+                           [courseId, sessionSiteId]
                         );
 
                         if (signatoryRows.length > 0) {
