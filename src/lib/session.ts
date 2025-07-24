@@ -51,12 +51,12 @@ export async function getCurrentSession(): Promise<SessionData> {
     
     // First, find the user's "home" site and determine if they are a super admin.
     const [userRows] = await db.query<UserFromDb[]>('SELECT * FROM users WHERE id = ?', [userId]);
-    const userFromDb = userRows[0];
-
-    if (!userFromDb) {
+    
+    if (userRows.length === 0) {
         return { user: null, siteId: null, isSuperAdmin: false };
     }
-    
+    const userFromDb = userRows[0];
+
     // **CRITICAL FIX**: Create a plain user object without the password or other metadata.
     // This prevents serialization errors in Next.js Server Components.
     const user: User = {
