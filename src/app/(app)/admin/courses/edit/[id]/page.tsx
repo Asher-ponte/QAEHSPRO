@@ -121,86 +121,6 @@ const courseSchema = z.object({
 type CourseFormValues = z.infer<typeof courseSchema>
 
 
-function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
-    const isPublic = useWatch({
-        control,
-        name: "is_public",
-    });
-
-    return (
-        <div className="space-y-8">
-             <div className="space-y-4">
-                <Label>Course Audience</Label>
-                <FormDescription>Select who can see and enroll in this course.</FormDescription>
-                 <FormField
-                    control={control}
-                    name="is_internal"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                            <FormControl>
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                    Internal
-                                </FormLabel>
-                                <FormDescription>
-                                    Make this course available to internal employees.
-                                </FormDescription>
-                            </div>
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={control}
-                    name="is_public"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                            <FormControl>
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                    Public
-                                </FormLabel>
-                                <FormDescription>
-                                    Make this course available to external users for purchase.
-                                </FormDescription>
-                            </div>
-                        </FormItem>
-                    )}
-                />
-                 <FormMessage>{(control.getFieldState(`is_public`).error as any)?.message}</FormMessage>
-            </div>
-            
-            {isPublic && (
-                 <FormField
-                    control={control}
-                    name="price"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Course Price (PHP)</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="e.g., 2500" {...field} value={field.value ?? ''} />
-                            </FormControl>
-                            <FormDescription>
-                               Set the price for external users. Enter 0 for a free public course.
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            )}
-        </div>
-    );
-}
-
 function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
     const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1055,18 +975,6 @@ export default function EditCoursePage() {
                             />
                         </div>
                     </div>
-                </CardContent>
-            </Card>
-
-             <Card>
-                <CardHeader>
-                    <CardTitle>Audience & Pricing</CardTitle>
-                    <CardDescription>
-                        Define who can enroll in this course and set a price if applicable.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <AudienceAndPricing control={form.control} />
                 </CardContent>
             </Card>
 
