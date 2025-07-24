@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building, HardDrive } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building, HardDrive, HeartPulse } from "lucide-react"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
@@ -98,6 +98,14 @@ export default async function AdminPage() {
         href: "/admin/certificates",
         disabled: false,
         superAdminOnly: false,
+      },
+       {
+        title: "System Health",
+        description: "Check API and database connection status.",
+        icon: <HeartPulse className="h-8 w-8 text-primary" />,
+        href: "/admin/system-health",
+        disabled: false,
+        superAdminOnly: true,
       },
       {
         title: "Platform Settings",
