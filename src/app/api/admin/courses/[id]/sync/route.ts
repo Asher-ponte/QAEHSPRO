@@ -74,11 +74,10 @@ async function syncCourseToDb(db: any, targetSiteId: string, masterCourseData: a
     }
     const targetCourseId = targetCourse.id;
     
-    const connection = await db.getConnection();
-    await connection.beginTransaction();
+    await db.query('START TRANSACTION');
 
     try {
-        await connection.query(
+        await db.query(
             `UPDATE courses SET 
                 description = ?, category = ?, imagePath = ?, venue = ?, 
                 startDate = ?, endDate = ?, is_internal = ?, is_public = ?
@@ -90,37 +89,34 @@ async function syncCourseToDb(db: any, targetSiteId: string, masterCourseData: a
             ]
         );
 
-        const [existingModuleRows] = await connection.query<RowDataPacket[]>('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
+        const [existingModuleRows] = await db.query<RowDataPacket[]>('SELECT id FROM modules WHERE course_id = ?', targetCourseId);
         if (existingModuleRows.length > 0) {
             const existingModuleIds = existingModuleRows.map((m: any) => m.id);
-            const moduleIdsPlaceholder = existingModuleIds.map(() => '?').join(',');
-            await connection.query(`DELETE FROM lessons WHERE module_id IN (${moduleIdsPlaceholder})`, existingModuleIds);
-            await connection.query('DELETE FROM modules WHERE course_id = ?', targetCourseId);
+            await db.query(`DELETE FROM lessons WHERE module_id IN (?)`, [existingModuleIds]);
+            await db.query('DELETE FROM modules WHERE course_id = ?', targetCourseId);
         }
         
         for (const [moduleIndex, moduleData] of masterCourseData.modules.entries()) {
-            const [moduleResult] = await connection.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                await connection.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
 
-        await connection.query('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
+        await db.query('DELETE FROM course_signatories WHERE course_id = ?', targetCourseId);
         if (masterCourseData.signatoryIds && masterCourseData.signatoryIds.length > 0) {
             for (const signatoryId of masterCourseData.signatoryIds) {
-                await connection.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [targetCourseId, signatoryId]);
+                await db.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [targetCourseId, signatoryId]);
             }
         }
         
-        await connection.commit();
+        await db.query('COMMIT');
     } catch (e) {
-        await connection.rollback();
+        await db.query('ROLLBACK');
         throw e;
-    } finally {
-        connection.release();
     }
 }
 

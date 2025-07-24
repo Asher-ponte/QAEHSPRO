@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
     }
 
     const db = await getDb();
-    const connection = await db.getConnection();
     let transactionIdForError: number | null = null;
     let statusForError: string | null = null;
     
@@ -36,57 +35,56 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Admin Action] Attempting to update transaction ${transactionId} to status: ${status}`);
 
-        await connection.beginTransaction();
+        await db.query('START TRANSACTION');
 
-        const [transactionRows] = await connection.query<RowDataPacket[]>('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [transactionId]);
+        const [transactionRows] = await db.query<RowDataPacket[]>('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [transactionId]);
         const transaction = transactionRows[0];
 
         if (!transaction) {
             console.error(`Transaction with ID ${transactionId} not found.`);
-            await connection.rollback();
+            await db.query('ROLLBACK');
             return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
         }
         
         if (transaction.status !== 'pending') {
              console.warn(`Attempted to process an already-processed transaction. ID: ${transactionId}, Status: ${transaction.status}`);
-             await connection.rollback();
+             await db.query('ROLLBACK');
              return NextResponse.json({ error: 'This transaction has already been processed.' }, { status: 409 });
         }
         
         if (status === 'completed') {
-            await connection.query("UPDATE transactions SET status = 'completed' WHERE id = ?", [transactionId]);
+            await db.query("UPDATE transactions SET status = 'completed' WHERE id = ?", [transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'completed'.`);
         } else if (status === 'rejected') {
             if (!rejectionReason || rejectionReason.trim() === "") {
-                await connection.rollback();
+                await db.query('ROLLBACK');
                 console.error("Rejection attempt failed: Reason is required.");
                 return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
             }
             
-            await connection.query("UPDATE transactions SET status = 'rejected', rejection_reason = ? WHERE id = ?", [rejectionReason, transactionId]);
+            await db.query("UPDATE transactions SET status = 'rejected', rejection_reason = ? WHERE id = ?", [rejectionReason, transactionId]);
             console.log(`Transaction ${transactionId} status updated to 'rejected'.`);
             
             const { user_id, course_id } = transaction;
             if (!user_id || !course_id) {
+                await db.query('ROLLBACK');
                 throw new Error(`Transaction ${transactionId} is missing user_id or course_id.`);
             }
 
             console.log(`Attempting to un-enroll user ${user_id} from course ${course_id}.`);
-            await connection.query('DELETE FROM enrollments WHERE user_id = ? AND course_id = ?', [user_id, course_id]);
+            await db.query('DELETE FROM enrollments WHERE user_id = ? AND course_id = ?', [user_id, course_id]);
             console.log(`Successfully un-enrolled user ${user_id} from course ${course_id}.`);
         }
         
-        await connection.commit();
+        await db.query('COMMIT');
         console.log("Transaction committed successfully.");
 
         return NextResponse.json({ success: true, message: `Transaction status updated to ${status}.` });
 
     } catch (error) {
-        await connection.rollback();
+        await db.query('ROLLBACK').catch(e => console.error("Rollback failed:", e));
         const message = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error(`Failed to update transaction status for ID: ${transactionIdForError}, intended status: ${statusForError}. Error:`, message, error);
         return NextResponse.json({ error: 'Failed to update transaction status.', details: message }, { status: 500 });
-    } finally {
-        connection.release();
     }
 }

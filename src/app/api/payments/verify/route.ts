@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Payment gateway is not configured on the server.' }, { status: 500 });
     }
     
-    let db;
+    const db = await getDb();
+    
     try {
         const body = await request.json();
         const parsedBody = verifySchema.safeParse(body);
@@ -22,9 +23,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request: Missing checkout session ID.' }, { status: 400 });
         }
         const { checkoutSessionId } = parsedBody.data;
-
-        // All transactions and external users are in the 'external' database.
-        db = await getDb('external');
 
         // 1. Get session from PayMongo
         const options = {
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
         const paidPayment = attributes.payments?.find((p: any) => p.data?.attributes?.status === 'paid');
 
         if (!paidPayment) {
-            await db.run("UPDATE transactions SET status = 'failed' WHERE gateway_transaction_id = ?", checkoutSessionId);
+            await db.query("UPDATE transactions SET status = 'failed' WHERE gateway_transaction_id = ?", [checkoutSessionId]);
             return NextResponse.json({ error: 'Payment was not successful or is still pending.' }, { status: 402 });
         }
 
@@ -68,32 +66,32 @@ export async function POST(request: NextRequest) {
         const { userId, courseId } = metadata;
         
         // 3. Update database
-        await db.run('BEGIN TRANSACTION');
+        await db.query('START TRANSACTION');
 
         // Idempotency check: see if user is already enrolled.
-        const existingEnrollment = await db.get('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+        const [existingEnrollment] = await db.query('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, courseId]);
         
         // Update the transaction from 'pending' to 'completed' regardless.
-        await db.run("UPDATE transactions SET status = 'completed' WHERE gateway_transaction_id = ?", checkoutSessionId);
+        await db.query("UPDATE transactions SET status = 'completed' WHERE gateway_transaction_id = ?", [checkoutSessionId]);
         
-        if (existingEnrollment) {
+        if (Array.isArray(existingEnrollment) && existingEnrollment.length > 0) {
             // If already enrolled, just commit the transaction update and return success.
-            await db.run('COMMIT');
+            await db.query('COMMIT');
             return NextResponse.json({ success: true, message: 'Already enrolled.' });
         }
         
         // Enroll the user
-        await db.run(
+        await db.query(
             'INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)',
             [userId, courseId]
         );
 
-        await db.run('COMMIT');
+        await db.query('COMMIT');
 
         return NextResponse.json({ success: true, message: 'User enrolled successfully.' });
 
     } catch (error) {
-        if (db) await db.run('ROLLBACK').catch(console.error);
+        await db.query('ROLLBACK').catch(e => console.error("Rollback failed:", e));
         const msg = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error("Failed to verify payment: ", msg, error);
         return NextResponse.json({

@@ -51,7 +51,20 @@ const initializePool = (): mysql.Pool => {
     return pool;
 };
 
-// This function now simply returns the single, shared connection pool.
+/**
+ * Returns the singleton MySQL connection pool.
+ * This is the primary way to interact with the database.
+ * The pool handles connection acquisition, release, and transactions.
+ * Example Usage:
+ * const db = await getDb();
+ * await db.query('START TRANSACTION');
+ * try {
+ *   await db.query(...)
+ *   await db.query('COMMIT');
+ * } catch (e) {
+ *   await db.query('ROLLBACK');
+ * }
+ */
 export const getDb = async (): Promise<mysql.Pool> => {
     if (!pool) {
         pool = initializePool();

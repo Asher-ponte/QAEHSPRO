@@ -15,8 +15,8 @@ async function checkPermissions(branchId: string) {
         return { authorized: false, error: 'Unauthorized: Super Admin access required', status: 403 };
     }
     
-    // Core site IDs that cannot be modified.
-    const coreSiteIds = ['main', 'external'];
+    // Core site IDs that cannot be modified or deleted.
+    const coreSiteIds = ['main', 'external', 'branch-one', 'branch-two'];
     if (coreSiteIds.includes(branchId)) {
         return { authorized: false, error: 'Core branches cannot be modified or deleted.', status: 403 };
     }
