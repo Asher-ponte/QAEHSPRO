@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
+import type { RowDataPacket } from 'mysql2';
 
 // Helper function to compute statistics for a list of courses against a specific database.
 async function getCourseStats(db: any, courses: any[]) {
@@ -14,7 +15,7 @@ async function getCourseStats(db: any, courses: any[]) {
     const courseIds = courses.map(c => c.id);
     const placeholders = courseIds.map(() => '?').join(',');
 
-    const lessonsPerCourseResult = await db.all(`
+    const [lessonsPerCourseResult] = await db.query<RowDataPacket[]>(`
         SELECT m.course_id, COUNT(l.id) as totalLessons
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
@@ -23,7 +24,7 @@ async function getCourseStats(db: any, courses: any[]) {
     `, courseIds);
     const lessonsPerCourse = new Map(lessonsPerCourseResult.map(i => [i.course_id, i.totalLessons]));
 
-    const enrollmentsResult = await db.all(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (${placeholders})`, courseIds);
+    const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (${placeholders})`, courseIds);
     const enrollmentsByCourse: Record<number, number[]> = {};
     for (const e of enrollmentsResult) {
         if (!enrollmentsByCourse[e.course_id]) {
@@ -32,7 +33,7 @@ async function getCourseStats(db: any, courses: any[]) {
         enrollmentsByCourse[e.course_id].push(e.user_id);
     }
     
-    const completedLessonsResult = await db.all(`
+    const [completedLessonsResult] = await db.query<RowDataPacket[]>(`
         SELECT m.course_id, up.user_id, COUNT(up.lesson_id) as completedLessons
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id
@@ -78,6 +79,7 @@ export async function GET() {
   }
 
   try {
+    const db = await getDb();
     // If super admin, fetch from all sites.
     if (isSuperAdmin) {
         const allSites = await getAllSites();
@@ -85,8 +87,7 @@ export async function GET() {
 
         for (const site of allSites) {
             try {
-                const db = await getDb(site.id);
-                const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
+                const [courses] = await db.query<RowDataPacket[]>(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses WHERE site_id = ? ORDER BY title ASC`, [site.id]);
                 if (courses.length > 0) {
                     const coursesWithStats = await getCourseStats(db, courses);
                     const coursesWithSiteInfo = coursesWithStats.map(c => ({
@@ -106,8 +107,7 @@ export async function GET() {
     
     // If not a super admin, fetch from their own site.
     else {
-        const db = await getDb(siteId);
-        const courses = await db.all(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses ORDER BY title ASC`);
+        const [courses] = await db.query<RowDataPacket[]>(`SELECT id, title, category, startDate, endDate, is_internal, is_public, price FROM courses WHERE site_id = ? ORDER BY title ASC`, [siteId]);
         const coursesWithCompletion = await getCourseStats(db, courses);
         return NextResponse.json(coursesWithCompletion);
     }
