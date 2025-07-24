@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
+import type { ResultSetHeader } from 'mysql2';
 
 const signatorySchema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -40,8 +41,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = await getDb(permCheck.effectiveSiteId!);
-    const signatories = await db.all('SELECT * FROM signatories ORDER BY name');
+    const db = await getDb();
+    const [signatories] = await db.query('SELECT * FROM signatories WHERE site_id = ? ORDER BY name', [permCheck.effectiveSiteId!]);
     return NextResponse.json(signatories);
   } catch (error) {
     console.error("Failed to fetch signatories:", error);
@@ -57,19 +58,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const db = await getDb(permCheck.effectiveSiteId!);
+    const db = await getDb();
     const parsedData = signatorySchema.safeParse(data);
 
     if (!parsedData.success) {
       return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
     }
 
-    const { name, position, signatureImagePath } = parsedData.data;
+    const { name, position, signatureImagePath, siteId } = parsedData.data;
 
-    const result = await db.run('INSERT INTO signatories (name, position, signatureImagePath) VALUES (?, ?, ?)', [name, position, signatureImagePath]);
-    const newSignatory = await db.get('SELECT * FROM signatories WHERE id = ?', result.lastID);
+    const [result] = await db.query<ResultSetHeader>('INSERT INTO signatories (site_id, name, position, signatureImagePath) VALUES (?, ?, ?, ?)', [siteId, name, position, signatureImagePath]);
+    const newSignatoryId = result.insertId;
 
-    return NextResponse.json(newSignatory, { status: 201 });
+    const [newSignatoryRows] = await db.query<any[]>('SELECT * FROM signatories WHERE id = ?', [newSignatoryId]);
+    
+    return NextResponse.json(newSignatoryRows[0], { status: 201 });
   } catch (error) {
     console.error("Failed to create signatory:", error);
     return NextResponse.json({ error: 'Failed to create signatory' }, { status: 500 });
