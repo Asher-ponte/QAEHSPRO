@@ -18,25 +18,25 @@ async function getDashboardData() {
     const db = await getDb();
 
     // 1. Get stats which are independent of course enrollment.
-    const [totalTrainingsResult] = await db.query<RowDataPacket[]>(
+    const [totalTrainingsRows] = await db.query<RowDataPacket[]>(
       'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
       [userId, 'completion', siteId]
     );
-    const totalTrainingsAttended = totalTrainingsResult[0]?.count ?? 0;
+    const totalTrainingsAttended = totalTrainingsRows[0]?.count ?? 0;
 
-    const [totalRecognitionsResult] = await db.query<RowDataPacket[]>(
+    const [totalRecognitionsRows] = await db.query<RowDataPacket[]>(
       'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
       [userId, 'recognition', siteId]
     );
-    const totalRecognitions = totalRecognitionsResult[0]?.count ?? 0;
+    const totalRecognitions = totalRecognitionsRows[0]?.count ?? 0;
 
-    const [acquiredSkillsResult] = await db.query<RowDataPacket[]>(
+    const [acquiredSkillsRows] = await db.query<RowDataPacket[]>(
         `SELECT DISTINCT c.category FROM certificates cert
          JOIN courses c ON cert.course_id = c.id
          WHERE cert.user_id = ? AND cert.type = 'completion' AND cert.site_id = ?`,
         [userId, siteId]
     );
-    const skillsAcquiredCount = acquiredSkillsResult.length;
+    const skillsAcquiredCount = acquiredSkillsRows.length;
     
     const stats = {
         totalTrainingsAttended,
@@ -72,20 +72,20 @@ async function getDashboardData() {
         WHERE m.course_id IN (${courseIdsPlaceholder})
     `, courseIds);
 
-    const [completedLessonIdsResult] = await db.query<RowDataPacket[]>(`
+    const [completedLessonRows] = await db.query<RowDataPacket[]>(`
         SELECT up.lesson_id
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id
         JOIN modules m ON l.module_id = m.id
         WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${courseIdsPlaceholder})
     `, [userId, ...courseIds]);
-    const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
+    const completedLessonIds = new Set(completedLessonRows.map(r => r.lesson_id));
 
-    const [passedAssessmentResult] = await db.query<RowDataPacket[]>(`
+    const [passedAssessmentRows] = await db.query<RowDataPacket[]>(`
         SELECT course_id FROM final_assessment_attempts
         WHERE user_id = ? AND passed = 1 AND course_id IN (${courseIdsPlaceholder})
     `, [userId, ...courseIds]);
-    const passedAssessmentIds = new Set(passedAssessmentResult.map(r => r.course_id));
+    const passedAssessmentIds = new Set(passedAssessmentRows.map(r => r.course_id));
 
 
     // 5. Process the data in memory for course list.
