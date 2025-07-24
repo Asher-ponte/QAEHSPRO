@@ -17,16 +17,7 @@ async function getDashboardData() {
   try {
     const db = await getDb();
 
-    // 1. Get all courses the user is enrolled in.
-    const [enrolledCourses] = await db.query<RowDataPacket[]>(`
-        SELECT 
-            c.*
-        FROM enrollments e
-        JOIN courses c ON e.course_id = c.id
-        WHERE e.user_id = ? AND c.site_id = ?
-    `, [userId, siteId]);
-
-    // 2. Get stats
+    // 1. Get stats which are independent of course enrollment.
     const [totalTrainingsResult] = await db.query<RowDataPacket[]>(
       'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
       [userId, 'completion', siteId]
@@ -39,7 +30,6 @@ async function getDashboardData() {
     );
     const totalRecognitions = totalRecognitionsResult[0]?.count ?? 0;
 
-
     const [acquiredSkillsResult] = await db.query<RowDataPacket[]>(
         `SELECT DISTINCT c.category FROM certificates cert
          JOIN courses c ON cert.course_id = c.id
@@ -47,11 +37,26 @@ async function getDashboardData() {
         [userId, siteId]
     );
     const skillsAcquiredCount = acquiredSkillsResult.length;
+    
+    const stats = {
+        totalTrainingsAttended,
+        totalRecognitions,
+        skillsAcquired: skillsAcquiredCount,
+    };
 
-    // 3. If no courses, return early.
+    // 2. Get all courses the user is enrolled in.
+    const [enrolledCourses] = await db.query<RowDataPacket[]>(`
+        SELECT 
+            c.*
+        FROM enrollments e
+        JOIN courses c ON e.course_id = c.id
+        WHERE e.user_id = ? AND c.site_id = ?
+    `, [userId, siteId]);
+
+    // 3. CRITICAL FIX: If no courses, return early to prevent invalid queries later.
     if (enrolledCourses.length === 0) {
       return {
-        stats: { totalTrainingsAttended, totalRecognitions, skillsAcquired: skillsAcquiredCount },
+        stats: stats,
         courses: [],
       };
     }
@@ -126,11 +131,7 @@ async function getDashboardData() {
     });
     
     return {
-      stats: {
-        totalTrainingsAttended,
-        totalRecognitions,
-        skillsAcquired: skillsAcquiredCount,
-      },
+      stats: stats,
       courses: myCourses,
     };
 
