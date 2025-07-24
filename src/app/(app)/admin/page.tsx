@@ -25,14 +25,18 @@ export default async function AdminPage() {
     const currentSite = await getSiteById(siteId);
     const allSites = await getAllSites();
 
-    const [[totalUsersResult]] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM users WHERE site_id = ?`, [siteId]);
-    const [[totalCoursesResult]] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM courses WHERE site_id = ?`, [siteId]);
+    const [totalUsersRows] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM users WHERE site_id = ?`, [siteId]);
+    const totalUsersResult = totalUsersRows[0];
+
+    const [totalCoursesRows] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM courses WHERE site_id = ?`, [siteId]);
+    const totalCoursesResult = totalCoursesRows[0];
     
     // Revenue Calculation for Super Admin
     let totalRevenue = 0;
     if (isSuperAdmin) {
         try {
-            const [[revenueResult]] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT SUM(amount) as total FROM transactions WHERE status = 'completed' AND site_id = ?`, ['external']);
+            const [revenueRows] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT SUM(amount) as total FROM transactions WHERE status = 'completed' AND site_id = ?`, ['external']);
+            const revenueResult = revenueRows[0];
             totalRevenue = revenueResult?.total ?? 0;
         } catch(e) {
             console.error("Could not calculate revenue:", e);

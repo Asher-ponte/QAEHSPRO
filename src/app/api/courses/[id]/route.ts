@@ -3,6 +3,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const { user, siteId } = await getCurrentSession();
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ error: 'Invalid course ID.' }, { status: 400 });
     }
 
-    const [courseRows]: any = await db.query('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+    const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
     const course = courseRows[0];
     
     if (!course) {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         course.price = null;
     }
 
-    const [modulesAndLessons]: any = await db.query(
+    const [modulesAndLessons] = await db.query<RowDataPacket[]>(
         `SELECT 
             m.id as module_id, 
             m.title as module_title, 
@@ -61,21 +62,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const allLessonIds = modulesAndLessons.filter((l: any) => l.lesson_id).map((l: any) => l.lesson_id);
     let completedLessonIds = new Set<number>();
     if (allLessonIds.length > 0) {
-        const [progressResults]: any = await db.query(
+        const [progressResults] = await db.query<RowDataPacket[]>(
             `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (?) AND completed = 1`,
             [userId, allLessonIds]
         );
         completedLessonIds = new Set(progressResults.map((r: any) => r.lesson_id));
     }
     
-    const [certRows]: any = await db.query('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
+    const [certRows] = await db.query<RowDataPacket[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
     const isCourseCompleted = certRows.length > 0;
     const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
     const hasFinalAssessment = !!course.final_assessment_content;
 
     let transactionStatus: { status: string, reason: string | null } | null = null;
     if (user.type === 'External') {
-        const [transactionRows]: any = await db.query(
+        const [transactionRows] = await db.query<RowDataPacket[]>(
             `SELECT status, rejection_reason FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`,
             [userId, courseId]
         );

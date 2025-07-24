@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 const userUpdateSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -48,7 +49,9 @@ export async function GET(
     }
 
     try {
-        const [[user]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+        const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+        const user = userRows[0];
+
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
@@ -77,7 +80,9 @@ export async function PUT(
     const db = await getDb();
     
     // Globally protected user
-    const [[userToEdit]]: any = await db.query('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+    const [userToEditRows] = await db.query<RowDataPacket[]>('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+    const userToEdit = userToEditRows[0];
+
     if (userToEdit?.username === 'florante') {
          return NextResponse.json({ error: 'The Super Admin user cannot be edited.' }, { status: 403 });
     }
@@ -92,8 +97,8 @@ export async function PUT(
 
         const { username, fullName, password, department, position, role, type, email, phone } = parsedData.data;
         
-        const [existingUser]: any = await db.query('SELECT id FROM users WHERE username = ? AND site_id = ? AND id != ?', [username, effectiveSiteId, userId]);
-        if (existingUser.length > 0) {
+        const [existingUserRows] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE username = ? AND site_id = ? AND id != ?', [username, effectiveSiteId, userId]);
+        if (existingUserRows.length > 0) {
             return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
         }
 
@@ -109,8 +114,8 @@ export async function PUT(
             );
         }
         
-        const [[updatedUser]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
-        return NextResponse.json(updatedUser, { status: 200 });
+        const [updatedUserRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', userId);
+        return NextResponse.json(updatedUserRows[0], { status: 200 });
 
     } catch (error) {
         console.error(`Failed to update user ${userId}:`, error);
@@ -136,7 +141,8 @@ export async function DELETE(
 
     const db = await getDb();
 
-    const [[userToDelete]]: any = await db.query('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+    const [userToDeleteRows] = await db.query<RowDataPacket[]>('SELECT username from users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+    const userToDelete = userToDeleteRows[0];
     if (userToDelete?.username === 'florante') {
          return NextResponse.json({ error: 'The Super Admin user cannot be deleted.' }, { status: 403 });
     }

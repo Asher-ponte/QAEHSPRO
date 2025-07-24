@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const userSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -28,11 +29,11 @@ export async function GET(request: NextRequest) {
   const requestedSiteId = searchParams.get('siteId');
 
   try {
+    const db = await getDb();
     if (isSuperAdmin) {
       // If a specific site is requested by a super admin, fetch users for that site.
       if (requestedSiteId) {
-        const db = await getDb();
-        const [users] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [requestedSiteId]);
+        const [users] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [requestedSiteId]);
         return NextResponse.json(users);
       }
 
@@ -44,8 +45,7 @@ export async function GET(request: NextRequest) {
         // Exclude the 'main' (super admin) site from this management view.
         if (site.id === 'main') continue;
           
-        const db = await getDb();
-        const [siteUsers] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [site.id]);
+        const [siteUsers] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [site.id]);
         
         allUsers.push(...(siteUsers as any[]).map(u => ({
           ...u,
@@ -56,8 +56,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(allUsers);
     } else {
       // Client admin gets users from their own branch, ignoring any requestedSiteId param
-      const db = await getDb();
-      const [users] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [sessionSiteId]);
+      const [users] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [sessionSiteId]);
       return NextResponse.json(users);
     }
   } catch (error) {
@@ -101,19 +100,20 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
 
     // Check for existing username (case-insensitive) in the target database
-    const [existingUser]: any = await db.query('SELECT id FROM users WHERE username = ? AND site_id = ?', [username, siteId]);
-    if (existingUser.length > 0) {
+    const [existingUserRows] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE username = ? AND site_id = ?', [username, siteId]);
+    if (existingUserRows.length > 0) {
         const targetSiteName = allSites.find(s => s.id === siteId)?.name || siteId;
         return NextResponse.json({ error: `Username already exists in the branch '${targetSiteName}'.` }, { status: 409 });
     }
 
-    const [result]: any = await db.query(
+    const [result] = await db.query<ResultSetHeader>(
       'INSERT INTO users (site_id, username, password, fullName, department, position, role, type, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 
       [siteId, username, password, fullName, department, position, role, type, email || null, phone || null]
     );
-    const [[newUser]] = await db.query('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', [result.insertId]);
+    const newUserId = result.insertId;
 
-    return NextResponse.json(newUser, { status: 201 });
+    const [newUserRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?', [newUserId]);
+    return NextResponse.json(newUserRows[0], { status: 201 });
   } catch (error) {
     console.error("Failed to create user:", error);
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
