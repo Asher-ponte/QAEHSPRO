@@ -12,6 +12,7 @@ import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
 import { getAllSites, getSiteById } from "@/lib/sites"
+import type { RowDataPacket } from "mysql2"
 
 
 export default async function AdminPage() {
@@ -20,19 +21,18 @@ export default async function AdminPage() {
         return <p className="p-4">Session not found. Please log in.</p>;
     }
     
-    const db = await getDb(siteId);
+    const db = await getDb();
     const currentSite = await getSiteById(siteId);
     const allSites = await getAllSites();
 
-    const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM users');
-    const totalCoursesResult = await db.get('SELECT COUNT(*) as count FROM courses');
+    const [[totalUsersResult]] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM users WHERE site_id = ?`, [siteId]);
+    const [[totalCoursesResult]] = await db.query<(RowDataPacket & { count: number })[]>(`SELECT COUNT(*) as count FROM courses WHERE site_id = ?`, [siteId]);
     
     // Revenue Calculation for Super Admin
     let totalRevenue = 0;
     if (isSuperAdmin) {
         try {
-            const externalDb = await getDb('external');
-            const revenueResult = await externalDb.get("SELECT SUM(amount) as total FROM transactions WHERE status = 'completed'");
+            const [[revenueResult]] = await db.query<(RowDataPacket & { total: number })[]>(`SELECT SUM(amount) as total FROM transactions WHERE status = 'completed' AND site_id = ?`, ['external']);
             totalRevenue = revenueResult?.total ?? 0;
         } catch(e) {
             console.error("Could not calculate revenue:", e);
