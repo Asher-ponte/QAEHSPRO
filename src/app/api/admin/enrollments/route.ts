@@ -1,8 +1,10 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 const enrollmentSchema = z.object({
   userId: z.number(),
@@ -33,19 +35,20 @@ async function processEnrollment(request: NextRequest, isEnrolling: boolean) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
         
-        const db = await getDb(effectiveSiteId);
+        const db = await getDb();
 
         if (isEnrolling) {
-            const course = await db.get('SELECT id FROM courses WHERE id = ?', courseId);
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT id FROM courses WHERE id = ? AND site_id = ? LIMIT 1', [courseId, effectiveSiteId]);
+            const course = courseRows[0];
             if (!course) {
                 return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
             }
-            await db.run(
-                'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
+            await db.query(
+                'INSERT IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
                 [userId, courseId]
             );
         } else {
-            await db.run(
+            await db.query(
                 'DELETE FROM enrollments WHERE user_id = ? AND course_id = ?',
                 [userId, courseId]
             );
