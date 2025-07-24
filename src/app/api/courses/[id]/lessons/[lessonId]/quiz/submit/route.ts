@@ -92,7 +92,6 @@ export async function POST(
             }
         });
         
-        // This is the fix: Get the site_id from the course itself for the attempt record.
         const [courseInfoRowsForAttempt] = await db.query<RowDataPacket[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
         const courseSiteId = courseInfoRowsForAttempt[0]?.site_id;
         if (!courseSiteId) {
