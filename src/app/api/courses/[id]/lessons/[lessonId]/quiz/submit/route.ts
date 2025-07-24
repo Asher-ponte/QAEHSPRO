@@ -92,15 +92,9 @@ export async function POST(
             }
         });
         
-        const [courseInfoRowsForAttempt] = await db.query<RowDataPacket[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
-        const courseSiteId = courseInfoRowsForAttempt[0]?.site_id;
-        if (!courseSiteId) {
-            throw new Error(`Could not determine site for course ${courseId}.`);
-        }
-        
         await db.query(
-            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, courseSiteId, score, dbQuestions.length, new Date().toISOString()]
+            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
