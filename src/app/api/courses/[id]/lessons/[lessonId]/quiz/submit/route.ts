@@ -69,6 +69,7 @@ export async function POST(
         const [lessonRows] = await db.query<any[]>('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', [lessonId]);
         const lesson = lessonRows[0];
         if (!lesson || !lesson.content) {
+            await db.query('ROLLBACK');
             return NextResponse.json({ error: 'Quiz not found or has no content.' }, { status: 404 });
         }
         
@@ -76,6 +77,7 @@ export async function POST(
         try {
             dbQuestions = JSON.parse(lesson.content);
         } catch (e) {
+            await db.query('ROLLBACK');
             return NextResponse.json({ error: 'Failed to parse quiz content.' }, { status: 500 });
         }
         
@@ -132,13 +134,15 @@ export async function POST(
                         const datePrefix = format(today, 'yyyyMMdd');
                         const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
                         const nextSerial = (countRows[0]?.count ?? 0) + 1;
-                        const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
                         
-                        const [certResult] = await db.query<ResultSetHeader>(
+                        const [certInsertResult] = await db.query<ResultSetHeader>(
                             `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                            [userId, courseId, siteId, today.toISOString(), certificateNumber]
+                            [userId, courseId, siteId, today.toISOString(), '']
                         );
-                        certificateId = certResult.insertId;
+                        certificateId = certInsertResult.insertId;
+                        const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
+                        await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
+
 
                         if (certificateId) {
                             const [signatoryRows] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
