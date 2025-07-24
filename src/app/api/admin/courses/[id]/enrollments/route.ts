@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
+import type { RowDataPacket } from 'mysql2';
 
 export async function GET(
     request: NextRequest,
@@ -22,16 +23,18 @@ export async function GET(
     }
 
     try {
-        const db = await getDb(effectiveSiteId);
+        const db = await getDb();
         const { id: courseId } = params;
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
 
-        const enrollments = await db.all(`
-            SELECT user_id FROM enrollments WHERE course_id = ?
-        `, [courseId]);
+        const [enrollments] = await db.query<RowDataPacket[]>(`
+            SELECT user_id FROM enrollments e
+            JOIN courses c ON e.course_id = c.id
+            WHERE e.course_id = ? AND c.site_id = ?
+        `, [courseId, effectiveSiteId]);
         
         const enrolledUserIds = enrollments.map(e => e.user_id);
         
