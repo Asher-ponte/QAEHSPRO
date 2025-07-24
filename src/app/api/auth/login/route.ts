@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
 
     const db = await getDb();
     
-    // In a multi-tenant setup, the same username can exist across different sites.
-    // We need to find all potential matches.
+    // Fetch the user by username first. There could be multiple users with the same username across different sites.
     const [users] = await db.query<UserWithPassword[]>(
       'SELECT id, password, site_id FROM users WHERE username = ?', 
       [username]
@@ -45,13 +44,13 @@ export async function POST(request: NextRequest) {
 
     let authenticatedUser: UserWithPassword | null = null;
     
-    // Iterate through potential users and check password for each.
+    // Iterate through potential users and check the password for each.
     for (const user of users) {
         if (user && user.password) {
             const passwordMatch = await bcrypt.compare(password, user.password);
             if (passwordMatch) {
                 authenticatedUser = user;
-                break; // Found our user
+                break; // Found our user, exit the loop.
             }
         }
     }
@@ -73,7 +72,6 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/',
     });
-
 
     return NextResponse.json({ 
       success: true, 
