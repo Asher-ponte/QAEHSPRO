@@ -121,8 +121,7 @@ export async function POST(
                 );
                 certificateId = certResult.insertId;
 
-                const datePrefix = format(today, 'yyyyMMdd');
-                const certificateNumber = `QAEHS-${datePrefix}-${String(certificateId).padStart(4, '0')}`;
+                const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
                 await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
 

@@ -91,8 +91,9 @@ export async function POST(
                 correctlyAnsweredIndices.push(index);
             }
         });
-
-        const [courseInfoRowsForAttempt] = await db.query<any[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
+        
+        // This is the fix: Get the site_id from the course itself for the attempt record.
+        const [courseInfoRowsForAttempt] = await db.query<RowDataPacket[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
         const courseSiteId = courseInfoRowsForAttempt[0]?.site_id;
         if (!courseSiteId) {
             throw new Error(`Could not determine site for course ${courseId}.`);
@@ -150,8 +151,7 @@ export async function POST(
                             throw new Error("Failed to retrieve new certificate ID after insertion.");
                         }
 
-                        const [countRows] = await db.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM certificates WHERE id <= ?', [certificateId]);
-                        const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(countRows[0].count).padStart(4, '0')}`;
+                        const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
                         await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
                         const [signatoryRows] = await db.query<any[]>(
