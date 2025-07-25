@@ -7,9 +7,8 @@ import mysql from 'mysql2/promise';
 let pool: mysql.Pool | null = null;
 
 const initializePool = (): mysql.Pool => {
-    if (pool) {
-        return pool;
-    }
+    // This function is now responsible for creating a *new* pool if one doesn't exist
+    // or if it has been cleared due to an error.
     
     // Validate that all required environment variables are set.
     const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
@@ -30,44 +29,40 @@ const initializePool = (): mysql.Pool => {
         queueLimit: 0,
     };
 
-    // Use socketPath for Unix socket connections (common in GCP App Engine, Cloud Run)
-    // Only add it if it's a real path and not a placeholder.
     if (process.env.DB_SOCKET_PATH && !process.env.DB_SOCKET_PATH.includes('your_db_socket_path')) {
         config.socketPath = process.env.DB_SOCKET_PATH;
     }
     
     console.log("Initializing new MySQL connection pool...");
-    pool = mysql.createPool(config);
-
-    // Optional: Test the connection on initialization
-    pool.getConnection().then(conn => {
-        console.log("Database connection successful.");
-        conn.release();
-    }).catch(err => {
-        console.error("Failed to establish database connection:", err);
-        pool = null; // Reset pool on failure
-    });
-
-    return pool;
+    return mysql.createPool(config);
 };
 
 /**
  * Returns the singleton MySQL connection pool.
  * This is the primary way to interact with the database.
  * The pool handles connection acquisition, release, and transactions.
- * Example Usage:
- * const db = await getDb();
- * await db.query('START TRANSACTION');
- * try {
- *   await db.query(...)
- *   await db.query('COMMIT');
- * } catch (e) {
- *   await db.query('ROLLBACK');
- * }
+ * This new implementation ensures the pool is valid on each request.
  */
 export const getDb = async (): Promise<mysql.Pool> => {
+    // If the pool doesn't exist, create it.
     if (!pool) {
         pool = initializePool();
     }
+    
+    // Before returning the pool, we can add a quick health check.
+    // This helps to recover from transient network errors.
+    try {
+        const connection = await pool.getConnection();
+        connection.release();
+    } catch (err) {
+        console.error("Database connection pool is unhealthy. Re-initializing.", err);
+        // End the broken pool
+        if (pool) {
+            await pool.end();
+        }
+        // Force re-initialization on the next call
+        pool = initializePool();
+    }
+
     return pool;
 };
