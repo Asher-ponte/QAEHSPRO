@@ -78,9 +78,6 @@ const courseSchema = z.object({
   branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
   
-  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
-  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
@@ -563,7 +560,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
-function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`, control: Control<CourseFormValues> }) {
+function AssessmentQuestionBuilder({ name, control }: { name: `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name,
@@ -608,7 +605,7 @@ function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_question
     );
 }
 
-function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`; questionIndex: number; control: Control<CourseFormValues> }) {
+function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`; questionIndex: number; control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name: `${namePrefix}.${questionIndex}.options`,
@@ -703,8 +700,6 @@ export default function CreateCoursePage() {
       modules: [],
       branchSignatories: site ? { [site.id]: [] } : {},
       targetSiteIds: [],
-      pre_test_questions: [],
-      pre_test_passing_rate: 80,
       final_assessment_questions: [],
       final_assessment_passing_rate: 80,
       final_assessment_max_attempts: 3,
@@ -1025,42 +1020,10 @@ export default function CreateCoursePage() {
                 <CardHeader>
                     <CardTitle>Course Content</CardTitle>
                     <CardDescription>
-                        A user must pass the pre-test to access this content.
+                        Create the modules and lessons for this course.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <Card className="p-4 bg-muted/50">
-                        <CardHeader className="p-0 mb-4">
-                             <CardTitle className="text-lg">Pre-test</CardTitle>
-                             <CardDescription>
-                                This is the first thing a user sees. Create a pre-test for this course.
-                             </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-0 space-y-8">
-                             <FormField
-                                control={form.control}
-                                name="pre_test_passing_rate"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Passing Rate (%)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
-                                        </FormControl>
-                                        <FormDescription>The minimum score required to pass.</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <div>
-                                <Label>Pre-test Questions</Label>
-                                <FormDescription className="mb-4">Build the pre-test questions below.</FormDescription>
-                                <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                    
-                    <Separator />
-
                     <div className="space-y-6">
                         {fields.map((field, index) => (
                             <Card key={field.id} className="p-4 border-dashed relative">

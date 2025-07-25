@@ -77,9 +77,6 @@ const courseSchema = z.object({
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
   
-  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
-  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
@@ -113,14 +110,6 @@ const courseSchema = z.object({
 }, {
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
     path: ["final_assessment_passing_rate"],
-}).refine(data => {
-    if ((data.pre_test_questions?.length ?? 0) > 0) {
-        return data.pre_test_passing_rate !== null && data.pre_test_passing_rate !== undefined;
-    }
-    return true;
-}, {
-    message: "Passing Rate is required when there are pre-test questions.",
-    path: ["pre_test_passing_rate"],
 });
 
 
@@ -378,7 +367,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
-function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`, control: Control<CourseFormValues> }) {
+function AssessmentQuestionBuilder({ name, control }: { name: `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name,
@@ -423,7 +412,7 @@ function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_question
     );
 }
 
-function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`; questionIndex: number; control: Control<CourseFormValues> }) {
+function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`; questionIndex: number; control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name: `${namePrefix}.${questionIndex}.options`,
@@ -541,8 +530,6 @@ export default function EditCoursePage() {
       price: undefined,
       modules: [],
       signatoryIds: [],
-      pre_test_questions: [],
-      pre_test_passing_rate: 80,
       final_assessment_questions: [],
       final_assessment_passing_rate: 80,
       final_assessment_max_attempts: 3,
@@ -567,7 +554,6 @@ export default function EditCoursePage() {
                 is_internal: !!data.is_internal,
                 is_public: !!data.is_public,
                 signatoryIds: data.signatoryIds || [],
-                pre_test_questions: data.pre_test_questions || [],
                 final_assessment_questions: data.final_assessment_questions || [],
             });
             setCourseSiteId(data.site_id);
@@ -881,42 +867,10 @@ export default function EditCoursePage() {
                 <CardHeader>
                     <CardTitle>Course Content</CardTitle>
                     <CardDescription>
-                        A user must pass the pre-test to access this content.
+                       Create the modules and lessons for this course.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <Card className="p-4 bg-muted/50">
-                        <CardHeader className="p-0 mb-4">
-                             <CardTitle className="text-lg">Pre-test</CardTitle>
-                             <CardDescription>
-                                This is the first thing a user sees. Create a pre-test for this course.
-                             </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-0 space-y-8">
-                             <FormField
-                                control={form.control}
-                                name="pre_test_passing_rate"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Passing Rate (%)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
-                                        </FormControl>
-                                        <FormDescription>The minimum score required to pass.</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <div>
-                                <Label>Pre-test Questions</Label>
-                                <FormDescription className="mb-4">Edit the pre-test questions below.</FormDescription>
-                                <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Separator />
-                    
                     <div>
                         {fields.map((field, index) => (
                             <Card key={field.id} className="p-4 border-dashed relative mb-6">

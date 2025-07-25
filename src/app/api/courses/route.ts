@@ -56,9 +56,6 @@ const courseSchema = z.object({
   branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
   
-  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
-  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
@@ -131,10 +128,6 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
     try {
         const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
 
-        const preTestContent = (payload.pre_test_questions && payload.pre_test_questions.length > 0)
-            ? transformQuestionsToDbFormat(payload.pre_test_questions)
-            : null;
-
         const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
             ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
             : null;
@@ -143,14 +136,12 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
             `INSERT INTO courses (
                 site_id, title, description, category, imagePath, venue, startDate, endDate, 
                 is_internal, is_public, price, 
-                pre_test_content, pre_test_passing_rate,
                 final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, 
                 payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, 
                 coursePriceForThisBranch, 
-                preTestContent, payload.pre_test_passing_rate,
                 finalAssessmentContent, payload.final_assessment_passing_rate, payload.final_assessment_max_attempts
             ]
         );
@@ -165,7 +156,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
         }
 
         for (const [moduleIndex, moduleData] of payload.modules.entries()) {
-            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, \`order\`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
@@ -174,7 +165,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
                     ? transformQuestionsToDbFormat(lessonData.questions)
                     : lessonData.content ?? null;
 
-                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.query('COMMIT');
@@ -247,4 +238,3 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: `Course created in main branch and published to ${effectiveTargetSites.size} other branch(es).` }, { status: 201 });
 }
-

@@ -47,8 +47,6 @@ interface Course {
   price: number | null;
   allLessonsCompleted: boolean;
   hasFinalAssessment: boolean;
-  hasPreTest: boolean;
-  preTestPassed: boolean | null;
   transactionStatus: { status: 'pending' | 'completed' | 'rejected'; reason: string | null; } | null;
 }
 
@@ -111,8 +109,6 @@ export default function CourseDetailPage() {
             isCompleted: !!data.isCompleted,
             allLessonsCompleted: !!data.allLessonsCompleted,
             hasFinalAssessment: !!data.hasFinalAssessment,
-            hasPreTest: !!data.hasPreTest,
-            preTestPassed: data.preTestPassed, // can be null, true, or false
         }
         setCourse(courseDataWithBooleans)
       } catch (error) {
@@ -134,6 +130,7 @@ export default function CourseDetailPage() {
     switch (type) {
       case "video": return <PlayCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
       case "document": return <FileText className="h-5 w-5 mr-3 text-muted-foreground" />;
+      case "quiz": return <HelpCircle className="h-5 w-5 mr-3 text-muted-foreground" />;
       default: return null;
     }
   }
@@ -148,8 +145,6 @@ export default function CourseDetailPage() {
   const hasPaidOrIsPending = isExternalUser && isPaidCourse && !!course?.transactionStatus && course.transactionStatus.status !== 'rejected';
   
   const hasAccessToCourse = user?.type === 'Employee' || !isPaidCourse || hasPaidOrIsPending;
-  const contentIsLocked = course?.hasPreTest && course.preTestPassed === false;
-  const canAccessContent = hasAccessToCourse && !contentIsLocked;
 
   const PaymentStatusCard = () => {
     if (!isExternalUser || !isPaidCourse || !course?.transactionStatus || course.transactionStatus.status === 'completed') {
@@ -267,14 +262,7 @@ export default function CourseDetailPage() {
         }
     }
 
-    if (course.hasPreTest && course.preTestPassed === null) {
-        buttonText = "Start Pre-test";
-        buttonHref = `/courses/${course.id}/pre-test`;
-        Icon = HelpCircle;
-    } else if (contentIsLocked) {
-        buttonText = "Pre-test Failed";
-        buttonDisabled = true;
-    } else if (course.allLessonsCompleted && course.hasFinalAssessment) {
+    if (course.allLessonsCompleted && course.hasFinalAssessment) {
         buttonText = "Start Final Assessment";
         buttonHref = `/courses/${course.id}/assessment`;
         Icon = ClipboardCheck;
@@ -338,31 +326,7 @@ export default function CourseDetailPage() {
             )}
           </CardHeader>
           <CardContent>
-            {contentIsLocked && (
-                 <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md mb-4">
-                    <p className="font-semibold text-yellow-800 dark:text-yellow-300">Content Locked</p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400">You must pass the pre-test to unlock the course modules.</p>
-                </div>
-            )}
-            
-            {course.hasPreTest && (
-                 <div className="mb-4 border-b pb-4">
-                     <Link href={hasAccessToCourse ? `/courses/${course.id}/pre-test` : '#'} className={cn(
-                         "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
-                         !hasAccessToCourse && "pointer-events-none opacity-50"
-                     )}>
-                         <div className="flex items-center min-w-0 font-semibold">
-                             <HelpCircle className="h-5 w-5 mr-3 text-muted-foreground" />
-                             <span className="break-words flex-1">Pre-test</span>
-                         </div>
-                         {course.preTestPassed !== null && (
-                            <CheckCircle className={cn("h-5 w-5 shrink-0", course.preTestPassed ? 'text-green-500' : 'text-red-500')} />
-                         )}
-                     </Link>
-                 </div>
-            )}
-
-            <div className={cn(contentIsLocked && "opacity-50 pointer-events-none")}>
+            <div className={cn(!hasAccessToCourse && "opacity-50 pointer-events-none")}>
                 <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
                   {course.modules.map((module) => (
                     <AccordionItem value={module.title} key={module.id || module.title}>
@@ -372,10 +336,10 @@ export default function CourseDetailPage() {
                           {module.lessons.map((lesson) => (
                             <li key={lesson.id || lesson.title}>
                                <Link
-                                 href={canAccessContent ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
+                                 href={hasAccessToCourse ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
                                  className={cn(
                                     "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md transition-colors",
-                                    canAccessContent ? "hover:bg-muted/50" : "pointer-events-none"
+                                    hasAccessToCourse ? "hover:bg-muted/50" : "pointer-events-none"
                                  )}
                                >
                                 <div className="flex items-center min-w-0">
@@ -393,9 +357,9 @@ export default function CourseDetailPage() {
                 </Accordion>
                  {course.hasFinalAssessment && (
                      <div className="mt-4 border-t pt-4">
-                         <Link href={canAccessContent && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
+                         <Link href={hasAccessToCourse && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
                              "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
-                             (!canAccessContent || !course.allLessonsCompleted) && "pointer-events-none opacity-50"
+                             (!hasAccessToCourse || !course.allLessonsCompleted) && "pointer-events-none opacity-50"
                          )}>
                              <div className="flex items-center min-w-0 font-semibold">
                                  <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
@@ -415,7 +379,7 @@ export default function CourseDetailPage() {
             <Card className="overflow-hidden">
                 <div className="w-full aspect-video relative">
                     <Image
-                    src={course.imagePath || 'https://picsum.photos/600/400'}
+                    src={course.imagePath || 'https://placehold.co/600x400'}
                     alt={course.title}
                     fill
                     className="object-cover"

@@ -76,9 +76,6 @@ const courseUpdateSchema = z.object({
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
 
-  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
-  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
@@ -185,7 +182,6 @@ export async function GET(
         const [assignedSignatories] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
         const signatoryIds = assignedSignatories.map(s => s.signatory_id);
         
-        const preTestQuestions = transformDbToQuestionsFormat(course.pre_test_content);
         const finalAssessmentQuestions = transformDbToQuestionsFormat(course.final_assessment_content);
 
         return NextResponse.json({
@@ -195,7 +191,6 @@ export async function GET(
             imagePath: course.imagePath ?? null,
             venue: course.venue ?? null,
             signatoryIds,
-            pre_test_questions: preTestQuestions,
             final_assessment_questions: finalAssessmentQuestions,
         });
 
@@ -232,13 +227,8 @@ export async function PUT(
         const { 
             title, description, category, modules, imagePath, venue, startDate, endDate, 
             is_internal, is_public, price, signatoryIds, 
-            pre_test_questions, pre_test_passing_rate,
             final_assessment_questions, final_assessment_passing_rate, final_assessment_max_attempts 
         } = parsedData.data;
-
-        const preTestContent = (pre_test_questions && pre_test_questions.length > 0)
-            ? transformQuestionsToDbFormat(pre_test_questions)
-            : null;
         
         const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
             ? transformQuestionsToDbFormat(final_assessment_questions)
@@ -251,12 +241,10 @@ export async function PUT(
             `UPDATE courses SET 
                 title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, 
                 is_internal = ?, is_public = ?, price = ?, 
-                pre_test_content = ?, pre_test_passing_rate = ?,
                 final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
              WHERE id = ? AND site_id = ?`,
             [
                 title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price,
-                preTestContent, pre_test_passing_rate,
                 finalAssessmentContent, final_assessment_passing_rate, final_assessment_max_attempts,
                 courseId, siteId
             ]
@@ -389,4 +377,3 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete course due to a server error.', details }, { status: 500 });
     }
 }
-
