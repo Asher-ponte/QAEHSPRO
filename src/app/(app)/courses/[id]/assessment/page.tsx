@@ -92,12 +92,15 @@ export default function AssessmentPage() {
     const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
 
     // --- Proctoring State ---
-    const [showFocusWarning, setShowFocusWarning] = useState(false);
-    const [isWarningPaused, setIsWarningPaused] = useState(false);
+    type ProctoringState = 'compliant' | 'warning' | 'paused' | 'failed';
+    const [proctoringState, setProctoringState] = useState<ProctoringState>('compliant');
+    const [proctoringMessage, setProctoringMessage] = useState("");
     const [countdown, setCountdown] = useState(10);
-    const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastWarningTimeRef = useRef(0);
+    
+    const [isFaceVisible, setIsFaceVisible] = useState(true);
+    const [isTabFocused, setIsTabFocused] = useState(true);
+    const [isMouseInPage, setIsMouseInPage] = useState(true);
 
     // --- MediaPipe State ---
     const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
@@ -112,66 +115,61 @@ export default function AssessmentPage() {
         });
         window.location.reload();
     };
-
-    const stopWarning = useCallback(() => {
-        if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-            setIsWarningPaused(true); // Pause the warning, but keep the dialog
-        }
-    }, []);
-
-    const startWarning = useCallback((message: string) => {
-        if (Date.now() - lastWarningTimeRef.current < 2000 || countdownIntervalRef.current) {
-            return;
-        }
-
-        lastWarningTimeRef.current = Date.now();
-        setProctoringMessage(message);
+    
+    const startCountdown = () => {
+        setProctoringState('warning');
         setCountdown(10);
-        setIsWarningPaused(false);
-        setShowFocusWarning(true);
-
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         countdownIntervalRef.current = setInterval(() => {
-            setCountdown((prev) => {
+            setCountdown(prev => {
                 if (prev <= 1) {
                     clearInterval(countdownIntervalRef.current!);
+                    setProctoringState('failed');
                     handleExamRestart();
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
-    }, []);
-
-    const handleAcknowledge = () => {
-        setShowFocusWarning(false);
-        setIsWarningPaused(false);
-        setCountdown(10);
-        lastWarningTimeRef.current = 0;
     };
 
+    const stopCountdown = () => {
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+        }
+    };
+    
+    const handleAcknowledge = () => {
+        setProctoringState('compliant');
+    };
 
-    // Effect for Proctoring Event Listeners (visibility and mouse)
+    // Main proctoring state machine effect
     useEffect(() => {
         const proctoringActive = hasAgreedToRules && !isLoading;
         if (!proctoringActive) return;
 
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                startWarning("You have switched to another tab or window.");
-            } else {
-                 stopWarning();
-            }
-        };
+        const isCompliant = isFaceVisible && isTabFocused && isMouseInPage;
 
-        const handleMouseLeave = () => {
-            startWarning("Your mouse cursor has left the page.");
-        };
-
-        const handleMouseEnter = () => {
-            stopWarning();
-        };
+        if (!isCompliant && proctoringState === 'compliant') {
+            let message = "Proctoring violation detected.";
+            if (!isFaceVisible) message = "Your face is not visible to the camera.";
+            else if (!isTabFocused) message = "You have switched to another tab or window.";
+            else if (!isMouseInPage) message = "Your mouse cursor has left the page.";
+            
+            setProctoringMessage(message);
+            startCountdown();
+        } else if (isCompliant && proctoringState === 'warning') {
+            stopCountdown();
+            setProctoringState('paused'); // Move to paused state so user can acknowledge
+        }
+    }, [isFaceVisible, isTabFocused, isMouseInPage, proctoringState, hasAgreedToRules, isLoading]);
+    
+    // Tab and Mouse focus listeners
+    useEffect(() => {
+        const handleVisibilityChange = () => setIsTabFocused(document.visibilityState === 'visible');
+        const handleMouseLeave = () => setIsMouseInPage(false);
+        const handleMouseEnter = () => setIsMouseInPage(true);
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
         document.addEventListener('mouseleave', handleMouseLeave);
@@ -181,11 +179,9 @@ export default function AssessmentPage() {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-            }
         };
-    }, [hasAgreedToRules, isLoading, startWarning, stopWarning]);
+    }, []);
+
 
     // --- MediaPipe FaceLandmarker Initialization ---
     useEffect(() => {
@@ -241,12 +237,7 @@ export default function AssessmentPage() {
             const video = videoRef.current;
             if (video && video.readyState >= 2) {
                 const result: FaceLandmarkerResult = faceLandmarker.detectForVideo(video, performance.now());
-                
-                if (result.faceLandmarks.length === 0) {
-                    startWarning("Your face is not visible to the camera.");
-                } else {
-                    stopWarning();
-                }
+                setIsFaceVisible(result.faceLandmarks.length > 0);
             }
             if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
@@ -260,7 +251,7 @@ export default function AssessmentPage() {
             stream?.getTracks().forEach(track => track.stop());
             if (videoRef.current) videoRef.current.srcObject = null;
         };
-    }, [faceLandmarker, hasAgreedToRules, toast, startWarning, stopWarning]);
+    }, [faceLandmarker, hasAgreedToRules, toast]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -385,7 +376,7 @@ export default function AssessmentPage() {
 
     const FocusWarningDialog = () => {
         return (
-            <AlertDialog open={showFocusWarning}>
+            <AlertDialog open={proctoringState === 'warning' || proctoringState === 'paused'}>
                 <AlertDialogContent>
                     <AlertDialogHeader className="text-center">
                         <AlertDialogTitle className="justify-center flex items-center gap-2">
@@ -398,7 +389,7 @@ export default function AssessmentPage() {
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            {isWarningPaused
+                            {proctoringState === 'paused'
                                 ? 'Compliance detected. You may resume.'
                                 : 'Return to compliance immediately or the exam will be terminated in:'
                             }
@@ -410,7 +401,7 @@ export default function AssessmentPage() {
                      <AlertDialogFooter>
                         <Button
                             onClick={handleAcknowledge}
-                            disabled={!isWarningPaused}
+                            disabled={proctoringState !== 'paused'}
                             className="w-full"
                         >
                             I Understand, Resume Exam
