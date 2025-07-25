@@ -33,6 +33,7 @@ export interface SessionData {
  * This version is updated for MySQL and checks across all sites for a user.
  */
 export async function getCurrentSession(): Promise<SessionData> {
+  // Fix: Access the cookie store once at the beginning.
   const cookieStore = cookies();
   const sessionId = cookieStore.get('session_id')?.value;
   const siteIdFromCookie = cookieStore.get('site_id')?.value; // The site the user is currently "viewing"
@@ -94,4 +95,3 @@ export async function getCurrentSession(): Promise<SessionData> {
     return { user: null, siteId: null, isSuperAdmin: false };
   }
 }
-
