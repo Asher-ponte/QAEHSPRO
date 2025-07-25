@@ -61,6 +61,9 @@ function QuizTester() {
     const form = useForm<QuizTestFormValues>({
         resolver: zodResolver(quizTestSchema),
         defaultValues: {
+            userId: "" as any, // Initialize as empty string to be controlled
+            courseId: "" as any,
+            lessonId: "" as any,
             answers: '{"0": 0, "1": 0}',
         },
     });
