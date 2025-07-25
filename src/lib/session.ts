@@ -53,6 +53,10 @@ export async function getCurrentSession(): Promise<SessionData> {
     const [userRows] = await db.query<UserFromDb[]>('SELECT * FROM users WHERE id = ?', [userId]);
     
     if (userRows.length === 0) {
+        // CRITICAL FIX: The user ID from the cookie does not exist in the database.
+        // Invalidate the session to prevent foreign key errors.
+        cookies().delete('session_id');
+        cookies().delete('site_id');
         return { user: null, siteId: null, isSuperAdmin: false };
     }
     const userFromDb = userRows[0];
@@ -90,3 +94,4 @@ export async function getCurrentSession(): Promise<SessionData> {
     return { user: null, siteId: null, isSuperAdmin: false };
   }
 }
+
