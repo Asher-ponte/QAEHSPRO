@@ -170,6 +170,7 @@ export default function AssessmentPage() {
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastProctoringEventTime = useRef<number>(Date.now());
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
+    const [isProctoringPaused, setIsProctoringPaused] = useState(false);
 
 
     // --- MediaPipe State ---
@@ -186,7 +187,37 @@ export default function AssessmentPage() {
         window.location.reload();
     };
     
-    // This is the single source of truth for the countdown timer interval.
+    const stopWarning = () => {
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+        }
+        setIsCountdownActive(false);
+        setFocusCountdown(10);
+        // Don't hide the dialog immediately, let the user dismiss it.
+        setIsProctoringPaused(true);
+    };
+
+    const startWarning = (message: string) => {
+        // Debounce warnings
+        if (Date.now() - lastProctoringEventTime.current < 2000) return;
+        lastProctoringEventTime.current = Date.now();
+        
+        // Don't start a new warning if one is already active or paused.
+        if (isCountdownActive || isProctoringPaused) return;
+
+        setProctoringMessage(message);
+        setShowFocusWarning(true);
+        setFocusCountdown(10);
+        setIsCountdownActive(true);
+    };
+
+    const resumeProctoring = () => {
+        setShowFocusWarning(false);
+        setIsProctoringPaused(false);
+    };
+
+    // This effect manages the countdown timer itself.
     useEffect(() => {
         if (isCountdownActive && focusCountdown > 0) {
             countdownIntervalRef.current = setInterval(() => {
@@ -205,30 +236,6 @@ export default function AssessmentPage() {
     }, [isCountdownActive, focusCountdown]);
 
 
-    const startWarning = (message: string) => {
-        if (Date.now() - lastProctoringEventTime.current < 2000) return; 
-        lastProctoringEventTime.current = Date.now();
-        
-        // Don't start a new warning if one is already active.
-        if (isCountdownActive) return;
-
-        setProctoringMessage(message);
-        setShowFocusWarning(true);
-        setFocusCountdown(10);
-        setIsCountdownActive(true);
-    };
-
-    const stopWarning = () => {
-        // Only act if a countdown is running.
-        if (isCountdownActive) {
-            setIsCountdownActive(false); 
-            // The useEffect cleanup will clear the interval.
-            // Then we can reset the state for the next warning.
-            setFocusCountdown(10);
-            setShowFocusWarning(false);
-        }
-    };
-
     // Effect for Proctoring Event Listeners (visibility and mouse)
     useEffect(() => {
         const proctoringActive = hasAgreedToRules && !isLoading;
@@ -237,8 +244,6 @@ export default function AssessmentPage() {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 startWarning("You have switched to another tab or window.");
-            } else {
-                stopWarning();
             }
         };
 
@@ -247,7 +252,9 @@ export default function AssessmentPage() {
         };
 
         const handleMouseEnter = () => {
-            stopWarning();
+            if(isCountdownActive) {
+                stopWarning();
+            }
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -259,7 +266,7 @@ export default function AssessmentPage() {
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
         };
-    }, [hasAgreedToRules, isLoading]);
+    }, [hasAgreedToRules, isLoading, isCountdownActive]);
 
     // --- MediaPipe FaceLandmarker Initialization ---
     useEffect(() => {
@@ -324,7 +331,9 @@ export default function AssessmentPage() {
             } else if (isLookingAway(result.faceLandmarks)) {
                  startWarning("Please keep your eyes on the screen.");
             } else {
-                stopWarning();
+                 if(isCountdownActive) {
+                    stopWarning();
+                }
             }
 
             if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
@@ -339,7 +348,7 @@ export default function AssessmentPage() {
             stream?.getTracks().forEach(track => track.stop());
             if (videoRef.current) videoRef.current.srcObject = null;
         };
-    }, [faceLandmarker, hasAgreedToRules, toast]);
+    }, [faceLandmarker, hasAgreedToRules, toast, isCountdownActive]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -477,12 +486,24 @@ export default function AssessmentPage() {
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            Return to compliance immediately or the exam will be terminated in:
+                            {isProctoringPaused
+                                ? 'Compliance detected. You may resume.'
+                                : 'Return to compliance immediately or the exam will be terminated in:'
+                            }
                         </div>
                          <div className="text-6xl font-bold text-destructive">
                             {focusCountdown}
                         </div>
                     </div>
+                     <AlertDialogFooter>
+                        <Button
+                            onClick={resumeProctoring}
+                            disabled={!isProctoringPaused}
+                            className="w-full"
+                        >
+                            I Understand, Resume Exam
+                        </Button>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         )
@@ -698,3 +719,5 @@ export default function AssessmentPage() {
         </div>
     )
 }
+
+    
