@@ -21,9 +21,9 @@ const nextConfig: NextConfig = {
     // This is required for packages with native Node.js dependencies.
     if (isServer) {
       // bcrypt is a native dependency, keep it here.
-      // Remove sqlite3, as it's no longer used.
-      // TensorFlow dependencies are for client-side, but might need externals if they cause issues.
-      config.externals.push('@tensorflow/tfjs', '@tensorflow-models/face-landmarks-detection');
+      // TensorFlow and MediaPipe dependencies can be externalized on the server
+      // to prevent bundling issues that can lead to console errors.
+      config.externals.push('@tensorflow/tfjs', '@tensorflow-models/face-landmarks-detection', '@mediapipe/tasks-vision');
     }
     return config;
   },
@@ -40,5 +40,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-    
