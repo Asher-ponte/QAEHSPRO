@@ -90,8 +90,9 @@ const courseSchema = z.object({
     message: "End date must be on or after the start date.",
     path: ["endDate"],
 }).refine(data => {
-    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
-        return false;
+    // Price must be defined and non-negative if the course is public
+    if (data.is_public) {
+        return data.price !== null && data.price !== undefined && data.price >= 0;
     }
     return true;
 }, {
@@ -124,18 +125,20 @@ const courseSchema = z.object({
 type CourseFormValues = z.infer<typeof courseSchema>
 
 
-function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
+function SignatoriesField({ control, siteId }: { control: Control<CourseFormValues>; siteId: string | undefined }) {
     const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const { site } = useSession();
 
     useEffect(() => {
-        if (!site) return;
+        if (!siteId) {
+            setIsLoading(false);
+            return;
+        }
         const fetchAllSignatories = async () => {
             setIsLoading(true);
             try {
-                const res = await fetch(`/api/admin/signatories?siteId=${site.id}`);
-                if (!res.ok) throw new Error("Failed to load signatories");
+                const res = await fetch(`/api/admin/signatories?siteId=${siteId}`);
+                if (!res.ok) throw new Error("Failed to load signatories for this branch.");
                 setSignatories(await res.json());
             } catch (error) {
                 console.error(error);
@@ -144,7 +147,7 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
             }
         };
         fetchAllSignatories();
-    }, [site]);
+    }, [siteId]);
 
     return (
         <FormField
@@ -191,7 +194,7 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
                         </div>
                     ) : (
                         <p className="text-sm text-muted-foreground">
-                            No signatories found. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
+                            No signatories found for this branch. You can add them from the <Link href="/admin/certificates" className="underline">Manage Certificates</Link> page.
                         </p>
                     )}
                     <FormMessage />
@@ -493,7 +496,7 @@ export default function EditCoursePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const courseId = params.id;
-  const { site: currentSite } = useSession();
+  const [courseSiteId, setCourseSiteId] = useState<string | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -554,6 +557,7 @@ export default function EditCoursePage() {
                 pre_test_questions: data.pre_test_questions || [],
                 final_assessment_questions: data.final_assessment_questions || [],
             });
+            setCourseSiteId(data.site_id);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
             toast({
@@ -592,11 +596,13 @@ export default function EditCoursePage() {
         const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to update course");
         throw new Error(message);
       }
+      
+      const updatedCourse = await response.json();
 
       toast({
         variant: "default",
         title: "Course Updated!",
-        description: `The course "${values.title}" has been successfully updated for the branch "${currentSite?.name}".`,
+        description: `The course "${values.title}" has been successfully updated.`,
       });
       
       router.push('/admin/courses');
@@ -641,7 +647,7 @@ export default function EditCoursePage() {
         <div>
           <h1 className="text-3xl font-bold font-headline">Edit Course</h1>
           <p className="text-muted-foreground">
-            Modify the course details for branch: <span className="font-semibold text-primary">{currentSite?.name}</span>
+            Modify the course details.
           </p>
         </div>
       </div>
@@ -854,7 +860,7 @@ export default function EditCoursePage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <SignatoriesField control={form.control} />
+                    <SignatoriesField control={form.control} siteId={courseSiteId} />
                 </CardContent>
             </Card>
             
@@ -1002,3 +1008,5 @@ export default function EditCoursePage() {
     </div>
   )
 }
+
+    
