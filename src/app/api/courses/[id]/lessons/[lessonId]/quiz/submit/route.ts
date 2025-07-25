@@ -87,7 +87,7 @@ export async function POST(
         
         await db.query(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [user.id, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
+            [user.id, lessonId, courseId, score, dbQuestions.length, new Date()]
         );
         
         const passed = score === dbQuestions.length;
