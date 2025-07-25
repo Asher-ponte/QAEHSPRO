@@ -78,8 +78,8 @@ export async function GET(
         }
         
         const [attempts] = await db.query<RowDataPacket[]>(
-            'SELECT * FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? AND site_id = ? ORDER BY attempt_date DESC',
-            [user.id, courseId, siteId]
+            'SELECT * FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? ORDER BY attempt_date DESC',
+            [user.id, courseId]
         );
 
         return NextResponse.json({
