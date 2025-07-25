@@ -49,7 +49,7 @@ export async function POST(
         }
         
         const [courseRows] = await db.query<any[]>(
-            'SELECT final_assessment_content, passing_rate, max_attempts, site_id FROM courses WHERE id = ?',
+            'SELECT final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts, site_id FROM courses WHERE id = ?',
             [courseId]
         );
         const course = courseRows[0];
@@ -62,7 +62,7 @@ export async function POST(
             [user.id, courseId]
         );
         
-        if (attempts.length >= course.max_attempts) {
+        if (attempts.length >= course.final_assessment_max_attempts) {
             return NextResponse.json({ error: 'Maximum attempts reached.' }, { status: 403 });
         }
         
@@ -85,7 +85,7 @@ export async function POST(
         });
         
         const scorePercentage = (score / dbQuestions.length) * 100;
-        const passed = scorePercentage >= course.passing_rate;
+        const passed = scorePercentage >= course.final_assessment_passing_rate;
 
         await db.query(
             'INSERT INTO final_assessment_attempts (user_id, course_id, site_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -120,7 +120,7 @@ export async function POST(
                 }
             }
         } else {
-            if (attempts.length + 1 >= course.max_attempts) {
+            if (attempts.length + 1 >= course.final_assessment_max_attempts) {
                 retakeRequired = true;
             }
         }
