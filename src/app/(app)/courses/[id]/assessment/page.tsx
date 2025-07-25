@@ -107,38 +107,21 @@ export default function AssessmentPage() {
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     
-    const handleExamRestart = () => {
+    const handleExamRestart = useCallback(() => {
         toast({
             variant: "destructive",
             title: "Exam Terminated",
             description: "Proctoring rules were violated. The attempt has been reset.",
         });
         window.location.reload();
-    };
+    }, [toast]);
     
-    const startCountdown = () => {
-        setProctoringState('warning');
-        setCountdown(10);
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    clearInterval(countdownIntervalRef.current!);
-                    setProctoringState('failed');
-                    handleExamRestart();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    };
-
-    const stopCountdown = () => {
+    const stopCountdown = useCallback(() => {
         if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;
         }
-    };
+    }, []);
     
     const handleAcknowledge = () => {
         setProctoringState('compliant');
@@ -151,19 +134,39 @@ export default function AssessmentPage() {
 
         const isCompliant = isFaceVisible && isTabFocused && isMouseInPage;
 
-        if (!isCompliant && proctoringState === 'compliant') {
-            let message = "Proctoring violation detected.";
-            if (!isFaceVisible) message = "Your face is not visible to the camera.";
-            else if (!isTabFocused) message = "You have switched to another tab or window.";
-            else if (!isMouseInPage) message = "Your mouse cursor has left the page.";
-            
-            setProctoringMessage(message);
-            startCountdown();
-        } else if (isCompliant && proctoringState === 'warning') {
-            stopCountdown();
-            setProctoringState('paused'); // Move to paused state so user can acknowledge
+        if (isCompliant) {
+            if (proctoringState === 'warning') {
+                stopCountdown();
+                setProctoringState('paused'); // Move to paused state so user can acknowledge
+            }
+        } else { // Not compliant
+            if (proctoringState === 'compliant' || proctoringState === 'paused') {
+                let message = "Proctoring violation detected.";
+                if (!isFaceVisible) message = "Your face is not visible to the camera.";
+                else if (!isTabFocused) message = "You have switched to another tab or window.";
+                else if (!isMouseInPage) message = "Your mouse cursor has left the page.";
+                
+                setProctoringMessage(message);
+
+                setProctoringState('warning');
+                setCountdown(10); // Reset countdown
+                
+                if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                
+                countdownIntervalRef.current = setInterval(() => {
+                    setCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(countdownIntervalRef.current!);
+                            setProctoringState('failed');
+                            handleExamRestart();
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            }
         }
-    }, [isFaceVisible, isTabFocused, isMouseInPage, proctoringState, hasAgreedToRules, isLoading]);
+    }, [isFaceVisible, isTabFocused, isMouseInPage, proctoringState, hasAgreedToRules, isLoading, handleExamRestart, stopCountdown]);
     
     // Tab and Mouse focus listeners
     useEffect(() => {
@@ -179,8 +182,9 @@ export default function AssessmentPage() {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
+            stopCountdown(); // Cleanup interval on unmount
         };
-    }, []);
+    }, [stopCountdown]);
 
 
     // --- MediaPipe FaceLandmarker Initialization ---
