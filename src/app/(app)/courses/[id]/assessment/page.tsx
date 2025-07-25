@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useEffect, useState, useMemo, useRef } from "react"
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -93,11 +93,11 @@ export default function AssessmentPage() {
 
     // --- Proctoring State ---
     const [showFocusWarning, setShowFocusWarning] = useState(false);
+    const [isWarningPaused, setIsWarningPaused] = useState(false);
     const [countdown, setCountdown] = useState(10);
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastWarningTimeRef = useRef(0);
-    const [isWarningPaused, setIsWarningPaused] = useState(false);
 
     // --- MediaPipe State ---
     const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
@@ -112,40 +112,38 @@ export default function AssessmentPage() {
         });
         window.location.reload();
     };
-    
+
     const stopWarning = useCallback(() => {
         if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;
-            setIsWarningPaused(true);
+            setIsWarningPaused(true); // Pause the warning, but keep the dialog
         }
     }, []);
 
     const startWarning = useCallback((message: string) => {
-        // Debounce warnings to avoid flickering
-        if (Date.now() - lastWarningTimeRef.current < 2000) return;
-        
-        // Don't start a new warning if one is already active and counting down
-        if (countdownIntervalRef.current) return;
-        
+        if (Date.now() - lastWarningTimeRef.current < 2000 || countdownIntervalRef.current) {
+            return;
+        }
+
         lastWarningTimeRef.current = Date.now();
         setProctoringMessage(message);
-        setShowFocusWarning(true);
-        setIsWarningPaused(false);
         setCountdown(10);
+        setIsWarningPaused(false);
+        setShowFocusWarning(true);
 
         countdownIntervalRef.current = setInterval(() => {
-            setCountdown((prevCountdown) => {
-                if (prevCountdown <= 1) {
+            setCountdown((prev) => {
+                if (prev <= 1) {
                     clearInterval(countdownIntervalRef.current!);
                     handleExamRestart();
                     return 0;
                 }
-                return prevCountdown - 1;
+                return prev - 1;
             });
         }, 1000);
     }, []);
-    
+
     const handleAcknowledge = () => {
         setShowFocusWarning(false);
         setIsWarningPaused(false);
@@ -199,10 +197,10 @@ export default function AssessmentPage() {
                         modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
                         delegate: "GPU",
                     },
-                    outputFaceBlendshapes: false,
-                    outputFacialTransformationMatrixes: false,
                     runningMode: 'VIDEO',
                     numFaces: 1,
+                    outputFaceBlendshapes: false,
+                    outputFacialTransformationMatrixes: false,
                 });
                 setFaceLandmarker(landmarker);
             } catch (error) {
