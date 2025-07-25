@@ -115,43 +115,42 @@ export async function POST(
         let redirectToAssessment = false;
         
         if (passed) {
-            const [totalLessonsRows] = await db.query<RowDataPacket[]>(
-                `SELECT COUNT(l.id) as count FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
-                [courseId]
-            );
-            const totalLessons = totalLessonsRows[0]?.count ?? 0;
-            const [progressRows] = await db.query<any[]>(`SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`, [userId, lessonId]);
-            const wasAlreadyCompleted = progressRows[0]?.completed === 1;
-            
-            const [completedCountRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(up.lesson_id) as count FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`, [userId, courseId]);
-            const oldCompletedCount = completedCountRows[0]?.count ?? 0;
-            
+            // First, mark the current lesson as complete
             await db.query(
                 'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE completed = 1',
                 [userId, lessonId]
             );
 
-            const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
-
-            if (newCompletedCount >= totalLessons) {
-                const [courseInfoRows] = await db.query<any[]>(`SELECT final_assessment_content FROM courses WHERE id = ?`, [courseId]);
-                const courseInfo = courseInfoRows[0];
-                const hasFinalAssessment = !!courseInfo?.final_assessment_content;
-
-                if (hasFinalAssessment) {
-                    redirectToAssessment = true;
-                } 
-            }
-
+            // Get all lessons for the course, in order
             const [allLessonsRows] = await db.query<any[]>(
                 `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m.\`order\` ASC, l.\`order\` ASC`,
                 [courseId]
             );
-            const allLessonsOrdered = allLessonsRows.map(l => l.id);
-            const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === lessonId);
-            
-            if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
-                nextLessonId = allLessonsOrdered[currentIndex + 1];
+            const allLessonIds = allLessonsRows.map(l => l.id);
+
+            // Get all of the user's completed lessons for this course
+            const [completedLessonRows] = await db.query<RowDataPacket[]>(
+                `SELECT lesson_id FROM user_progress WHERE user_id = ? AND lesson_id IN (?) AND completed = 1`,
+                [userId, allLessonIds]
+            );
+            const completedLessonIds = new Set(completedLessonRows.map(row => row.lesson_id));
+
+            // Determine if all lessons are now complete
+            const allLessonsCompleted = allLessonIds.every(id => completedLessonIds.has(id));
+
+            if (allLessonsCompleted) {
+                // All lessons are done, check if there's a final assessment
+                const [courseInfoRows] = await db.query<any[]>(`SELECT final_assessment_content FROM courses WHERE id = ?`, [courseId]);
+                const hasFinalAssessment = !!courseInfoRows[0]?.final_assessment_content;
+                if (hasFinalAssessment) {
+                    redirectToAssessment = true;
+                }
+            } else {
+                // Not all lessons are done, find the next one
+                const currentLessonIndex = allLessonIds.findIndex(id => id === lessonId);
+                if (currentLessonIndex !== -1 && currentLessonIndex < allLessonIds.length - 1) {
+                    nextLessonId = allLessonIds[currentLessonIndex + 1];
+                }
             }
         }
         
