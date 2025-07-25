@@ -315,8 +315,8 @@ export async function DELETE(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
+    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
+    if (user?.role !== 'Admin' || !sessionSiteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -327,6 +327,16 @@ export async function DELETE(
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+        }
+        
+        let targetSiteId = sessionSiteId;
+        
+        if (isSuperAdmin) {
+            const [courseToDeleteRows] = await db.query<RowDataPacket[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
+            if (courseToDeleteRows.length === 0) {
+                return NextResponse.json({ error: 'Course not found anywhere.' }, { status: 404 });
+            }
+            targetSiteId = courseToDeleteRows[0].site_id;
         }
         
         await db.query('START TRANSACTION');
@@ -347,7 +357,7 @@ export async function DELETE(
         
         await db.query('DELETE FROM modules WHERE course_id = ?', [courseId]);
         
-        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ? AND site_id = ?', [courseId, targetSiteId]);
 
         if (result.affectedRows === 0) {
              await db.query('ROLLBACK');
