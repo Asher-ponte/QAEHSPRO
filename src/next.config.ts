@@ -29,9 +29,13 @@ const nextConfig: NextConfig = {
   },
   devIndicators: {
     onLog: (log) => {
-      // This is a known, non-critical warning from the MediaPipe library.
-      // We can safely ignore it to prevent the Next.js error overlay from appearing.
-      if (log.message.includes('Created TensorFlow Lite XNNPACK delegate for CPU')) {
+      const messagesToIgnore = [
+          'Created TensorFlow Lite XNNPACK delegate for CPU',
+          'Sets FaceBlendshapesGraph acceleration to xnnpack by default',
+          'OpenGL error checking is disabled'
+      ];
+
+      if (messagesToIgnore.some(msg => log.message.includes(msg))) {
         return false;
       }
       return true;
