@@ -119,6 +119,10 @@ const QuizContent = ({
             }
         }
     }, [lesson.content, lesson.completed, toast]);
+    
+    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
+        setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
+    };
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
