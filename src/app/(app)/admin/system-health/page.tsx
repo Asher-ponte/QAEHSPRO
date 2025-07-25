@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, CheckCircle, XCircle, Loader2, Play, TestTube, Send, Server, Database, Columns, Workflow, Beaker } from "lucide-react"
 
