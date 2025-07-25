@@ -72,78 +72,6 @@ function AssessmentSkeleton() {
     )
 }
 
-/**
- * Checks if a user is looking away based on iris position relative to eye corners.
- * @param landmarks - The facial landmarks detected by MediaPipe.
- * @returns True if the user is looking away, false otherwise.
- */
-function isLookingAway(landmarks: any): boolean {
-    if (!landmarks || landmarks.length === 0) {
-        return false; // No face detected, handled by a separate check
-    }
-
-    const eyeLandmarks = landmarks[0];
-    
-    // Iris landmark indices
-    const RIGHT_IRIS = 473;
-    const LEFT_IRIS = 468;
-
-    // Eye corner landmark indices
-    const LEFT_EYE_RIGHT_CORNER = 362;
-    const LEFT_EYE_LEFT_CORNER = 263;
-    const RIGHT_EYE_RIGHT_CORNER = 133;
-    const RIGHT_EYE_LEFT_CORNER = 33;
-    
-    // Vertical eye landmarks
-    const LEFT_EYE_TOP = 386;
-    const LEFT_EYE_BOTTOM = 374;
-    const RIGHT_EYE_TOP = 159;
-    const RIGHT_EYE_BOTTOM = 145;
-
-    const leftIris = eyeLandmarks[LEFT_IRIS];
-    const rightIris = eyeLandmarks[RIGHT_IRIS];
-
-    // Horizontal check
-    const leftEyeLeftCorner = eyeLandmarks[LEFT_EYE_LEFT_CORNER];
-    const leftEyeRightCorner = eyeLandmarks[LEFT_EYE_RIGHT_CORNER];
-    const rightEyeLeftCorner = eyeLandmarks[RIGHT_EYE_LEFT_CORNER];
-    const rightEyeRightCorner = eyeLandmarks[RIGHT_EYE_RIGHT_CORNER];
-    
-    const leftEyeSpan = leftEyeLeftCorner.x - leftEyeRightCorner.x;
-    const rightEyeSpan = rightEyeRightCorner.x - rightEyeLeftCorner.x;
-    
-    // Normalize iris position within the eye span (0 to 1)
-    const leftIrisPosition = (leftEyeLeftCorner.x - leftIris.x) / leftEyeSpan;
-    const rightIrisPosition = (rightEyeRightCorner.x - rightIris.x) / rightEyeSpan;
-
-    // A threshold of 0.3 means if the iris is in the outer 30% of the eye, they're looking away.
-    const HORIZONTAL_THRESHOLD = 0.30;
-    if (leftIrisPosition < HORIZONTAL_THRESHOLD || leftIrisPosition > 1 - HORIZONTAL_THRESHOLD ||
-        rightIrisPosition < HORIZONTAL_THRESHOLD || rightIrisPosition > 1 - HORIZONTAL_THRESHOLD) {
-        return true;
-    }
-
-    // Vertical check
-    const leftEyeTop = eyeLandmarks[LEFT_EYE_TOP];
-    const leftEyeBottom = eyeLandmarks[LEFT_EYE_BOTTOM];
-    const rightEyeTop = eyeLandmarks[RIGHT_EYE_TOP];
-    const rightEyeBottom = eyeLandmarks[RIGHT_EYE_BOTTOM];
-    
-    const leftEyeSpanY = leftEyeTop.y - leftEyeBottom.y;
-    const rightEyeSpanY = rightEyeTop.y - rightEyeBottom.y;
-
-    const leftIrisPositionV = (leftEyeTop.y - leftIris.y) / leftEyeSpanY;
-    const rightIrisPositionV = (rightEyeTop.y - rightIris.y) / rightEyeSpanY;
-    
-    const VERTICAL_THRESHOLD = 0.35;
-     if (leftIrisPositionV < VERTICAL_THRESHOLD || leftIrisPositionV > 1 - VERTICAL_THRESHOLD ||
-        rightIrisPositionV < VERTICAL_THRESHOLD || rightIrisPositionV > 1 - VERTICAL_THRESHOLD) {
-        return true;
-    }
-
-    return false;
-}
-
 export default function AssessmentPage() {
     const params = useParams<{ id: string }>()
     const courseId = params.id;
@@ -165,18 +93,17 @@ export default function AssessmentPage() {
 
     // --- Proctoring State ---
     const [showFocusWarning, setShowFocusWarning] = useState(false);
-    const [isCountdownActive, setIsCountdownActive] = useState(false);
-    const [focusCountdown, setFocusCountdown] = useState(10);
-    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastProctoringEventTime = useRef<number>(Date.now());
+    const [countdown, setCountdown] = useState(10);
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
-
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastWarningTimeRef = useRef(0);
+    const [isWarningPaused, setIsWarningPaused] = useState(false);
 
     // --- MediaPipe State ---
     const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
-
+    
     const handleExamRestart = () => {
         toast({
             variant: "destructive",
@@ -186,47 +113,45 @@ export default function AssessmentPage() {
         window.location.reload();
     };
     
-    const stopWarning = () => {
+    const stopWarning = useCallback(() => {
         if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;
+            setIsWarningPaused(true);
         }
-        setIsCountdownActive(false);
-        setFocusCountdown(10);
-        // Do not hide the dialog, let the user dismiss it.
-    };
+    }, []);
 
-    const startWarning = (message: string) => {
-        // Debounce warnings
-        if (Date.now() - lastProctoringEventTime.current < 2000) return;
-        lastProctoringEventTime.current = Date.now();
+    const startWarning = useCallback((message: string) => {
+        // Debounce warnings to avoid flickering
+        if (Date.now() - lastWarningTimeRef.current < 2000) return;
         
-        // Don't start a new warning if one is already active
-        if (isCountdownActive) return;
-
+        // Don't start a new warning if one is already active and counting down
+        if (countdownIntervalRef.current) return;
+        
+        lastWarningTimeRef.current = Date.now();
         setProctoringMessage(message);
         setShowFocusWarning(true);
-        setFocusCountdown(10);
-        setIsCountdownActive(true);
+        setIsWarningPaused(false);
+        setCountdown(10);
+
+        countdownIntervalRef.current = setInterval(() => {
+            setCountdown((prevCountdown) => {
+                if (prevCountdown <= 1) {
+                    clearInterval(countdownIntervalRef.current!);
+                    handleExamRestart();
+                    return 0;
+                }
+                return prevCountdown - 1;
+            });
+        }, 1000);
+    }, []);
+    
+    const handleAcknowledge = () => {
+        setShowFocusWarning(false);
+        setIsWarningPaused(false);
+        setCountdown(10);
+        lastWarningTimeRef.current = 0;
     };
-
-    // This effect manages the countdown timer itself.
-    useEffect(() => {
-        if (isCountdownActive && focusCountdown > 0) {
-            countdownIntervalRef.current = setInterval(() => {
-                setFocusCountdown((prev) => prev - 1);
-            }, 1000);
-        } else if (focusCountdown <= 0) {
-            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-            handleExamRestart();
-        }
-
-        return () => {
-            if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-            }
-        };
-    }, [isCountdownActive, focusCountdown]);
 
 
     // Effect for Proctoring Event Listeners (visibility and mouse)
@@ -258,8 +183,11 @@ export default function AssessmentPage() {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+            }
         };
-    }, [hasAgreedToRules, isLoading]);
+    }, [hasAgreedToRules, isLoading, startWarning, stopWarning]);
 
     // --- MediaPipe FaceLandmarker Initialization ---
     useEffect(() => {
@@ -318,8 +246,6 @@ export default function AssessmentPage() {
                 
                 if (result.faceLandmarks.length === 0) {
                     startWarning("Your face is not visible to the camera.");
-                } else if (isLookingAway(result.faceLandmarks)) {
-                    startWarning("Please keep your eyes on the screen.");
                 } else {
                     stopWarning();
                 }
@@ -336,7 +262,7 @@ export default function AssessmentPage() {
             stream?.getTracks().forEach(track => track.stop());
             if (videoRef.current) videoRef.current.srcObject = null;
         };
-    }, [faceLandmarker, hasAgreedToRules, toast]);
+    }, [faceLandmarker, hasAgreedToRules, toast, startWarning, stopWarning]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -474,19 +400,19 @@ export default function AssessmentPage() {
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            {isCountdownActive
-                                ? 'Return to compliance immediately or the exam will be terminated in:'
-                                : 'Compliance detected. You may resume.'
+                            {isWarningPaused
+                                ? 'Compliance detected. You may resume.'
+                                : 'Return to compliance immediately or the exam will be terminated in:'
                             }
                         </div>
                          <div className="text-6xl font-bold text-destructive">
-                            {focusCountdown}
+                            {countdown}
                         </div>
                     </div>
                      <AlertDialogFooter>
                         <Button
-                            onClick={() => setShowFocusWarning(false)}
-                            disabled={isCountdownActive}
+                            onClick={handleAcknowledge}
+                            disabled={!isWarningPaused}
                             className="w-full"
                         >
                             I Understand, Resume Exam
@@ -603,7 +529,7 @@ export default function AssessmentPage() {
                         <div className="prose dark:prose-invert max-w-none bg-muted/50 p-4 rounded-md text-sm">
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
+                                <li>You must allow camera access. Your face must be visible at all times.</li>
                                 <li>If you switch tabs, look away, or your face is not visible, a 10-second warning will start.</li>
                                 <li>If your mouse cursor leaves the page, a warning will also be triggered.</li>
                                 <li>If you do not comply within 10 seconds, your attempt will be automatically terminated.</li>
