@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -129,7 +128,11 @@ export default function AssessmentPage() {
 
         const isCurrentlyCompliant = isFaceVisible && isTabFocused && isMouseInPage;
 
-        setProctoringState(isCurrentlyCompliant ? 'compliant' : 'warning');
+        if (isCurrentlyCompliant) {
+            setProctoringState('compliant');
+        } else {
+            setProctoringState('warning');
+        }
     }, [proctoringState, isFaceVisible, isTabFocused, isMouseInPage]);
 
     // Main proctoring state machine effect
@@ -571,17 +574,8 @@ export default function AssessmentPage() {
             </AlertDialog>
             
             {hasAgreedToRules && (
-                 <div className="fixed bottom-4 right-4 z-50 hidden">
-                    <Card className="p-2 w-48 h-36">
-                        <CardContent className="p-0 relative h-full">
-                            <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent p-2 flex items-end">
-                                <p className="text-white text-xs font-semibold flex items-center gap-1">
-                                    <Video className="h-3 w-3"/> Proctoring Active
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                 <div className="fixed -z-10 h-0 w-0 opacity-0">
+                    <video ref={videoRef} className="h-full w-full" autoPlay muted playsInline />
                 </div>
             )}
 
@@ -634,7 +628,3 @@ export default function AssessmentPage() {
         </div>
     )
 }
-
-
-
-    
