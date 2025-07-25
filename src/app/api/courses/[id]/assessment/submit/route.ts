@@ -15,27 +15,14 @@ interface DbQuizQuestion {
     options: { text: string; isCorrect: boolean }[];
 }
 
-// Helper for access check
 async function hasAccess(db: any, user: any, courseId: number) {
     if (user.role === 'Admin') return true;
-    
-    // Check for direct enrollment
     const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
-    if (enrollmentRows.length > 0) {
-        return true;
-    }
-    
-    // For external users, also check for a valid transaction
+    if (enrollmentRows.length > 0) return true;
     if (user.type === 'External') {
-        const [transactionRows] = await db.query<RowDataPacket[]>(
-            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
-            [user.id, courseId]
-        );
-        if (transactionRows.length > 0) {
-            return true;
-        }
+        const [transactionRows] = await db.query<RowDataPacket[]>(`SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`, [user.id, courseId]);
+        if (transactionRows.length > 0) return true;
     }
-
     return false;
 }
 
@@ -112,9 +99,10 @@ export async function POST(
             const [existingCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
             const existingCertificate = existingCertificateRows[0];
             
-            if (!existingCertificate) {
+            if (existingCertificate) {
+                certificateId = existingCertificate.id;
+            } else {
                 const today = new Date();
-                
                 const [certResult] = await db.query<ResultSetHeader>(
                     `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
                     [user.id, courseId, course.site_id, today.toISOString(), '']
@@ -124,26 +112,16 @@ export async function POST(
                 const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
                 await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
-
-                 if (certificateId) {
-                    const [courseSignatoryRows] = await db.query<any[]>(
-                        `SELECT cs.signatory_id FROM course_signatories cs
-                         WHERE cs.course_id = ?`, 
-                        [courseId]
-                    );
-                    if (courseSignatoryRows.length > 0) {
-                        for (const sig of courseSignatoryRows) { 
-                            await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
-                        }
+                const [courseSignatoryRows] = await db.query<any[]>(`SELECT signatory_id FROM course_signatories WHERE course_id = ?`, [courseId]);
+                if (courseSignatoryRows.length > 0) {
+                    for (const sig of courseSignatoryRows) { 
+                        await db.query('INSERT INTO certificate_signatories (certificate_id, signatory_id) VALUES (?, ?)', [certificateId, sig.signatory_id]);
                     }
                 }
-            } else {
-                 certificateId = existingCertificate.id;
             }
         } else {
             if (attempts.length + 1 >= course.max_attempts) {
                 retakeRequired = true;
-                // No longer resetting progress here. User must initiate it from the UI.
             }
         }
 

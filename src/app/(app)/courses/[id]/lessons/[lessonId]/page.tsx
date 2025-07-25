@@ -87,7 +87,7 @@ const QuizContent = ({
     setIsSubmitting 
 }: { 
     lesson: Lesson, 
-    onQuizPass: (data: any) => void,
+    onQuizPass: () => void,
     isSubmitting: boolean,
     setIsSubmitting: (isSubmitting: boolean) => void
 }) => {
@@ -107,7 +107,6 @@ const QuizContent = ({
                     setShowResults(true);
                     setLastAttempt({ score: parsedQuestions.length, total: parsedQuestions.length, passed: true });
                 } else {
-                    // If lesson is not completed, reset the state for a new attempt
                     setAnswers({});
                     setShowResults(false);
                     setLastAttempt(null);
@@ -120,10 +119,6 @@ const QuizContent = ({
             }
         }
     }, [lesson.content, lesson.completed, toast]);
-
-    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
-        setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
-    };
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
@@ -143,7 +138,8 @@ const QuizContent = ({
             setLastAttempt({ score: data.score, total: data.total, passed: data.passed });
 
             if (data.passed) {
-                onQuizPass(data);
+                // If passed, call the parent's completion handler.
+                onQuizPass();
             } else {
                 toast({
                     title: "Attempt Recorded",
@@ -174,8 +170,7 @@ const QuizContent = ({
         return <p>This quiz is empty or failed to load.</p>;
     }
     
-    // UI for when the user has completed the quiz (either in a previous session or this one)
-    if (lesson.completed || (showResults && lastAttempt?.passed)) {
+    if (lesson.completed) {
         return (
              <Card className="p-4 bg-green-100 dark:bg-green-900/30 border-green-500">
                 <CardHeader className="p-0">
@@ -191,7 +186,6 @@ const QuizContent = ({
         );
     }
 
-    // UI for after a failed attempt
     if (showResults && lastAttempt && !lastAttempt.passed) {
          return (
              <Card className="p-4 bg-orange-100 dark:bg-orange-900/30 border-orange-500 text-center">
@@ -212,7 +206,6 @@ const QuizContent = ({
         );
     }
     
-    // UI for an active quiz attempt
     return (
         <div className="space-y-8">
             {questions.map((q, qIndex) => (
@@ -255,7 +248,7 @@ const LessonContent = ({
     setIsQuizSubmitting
 }: { 
     lesson: Lesson; 
-    onQuizPass: (data: any) => void;
+    onQuizPass: () => void;
     isQuizSubmitting: boolean;
     setIsQuizSubmitting: (isSubmitting: boolean) => void;
 }) => {
@@ -270,7 +263,6 @@ const LessonContent = ({
         case 'document':
             return (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                    {/* Left Column for Image */}
                     {lesson.imagePath && (
                         <div className="lg:col-span-1">
                             <div className="relative aspect-video w-full overflow-hidden rounded-lg">
@@ -284,8 +276,6 @@ const LessonContent = ({
                             </div>
                         </div>
                     )}
-
-                    {/* Right Column for Text and PDF */}
                     <div className={cn(
                         "space-y-6",
                         lesson.imagePath ? "lg:col-span-2" : "lg:col-span-3"
@@ -368,26 +358,21 @@ export default function LessonPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleting, setIsCompleting] = useState(false);
     const [isQuizSubmitting, setIsQuizSubmitting] = useState(false);
-    const [isQuizPassed, setIsQuizPassed] = useState(false);
     
-    const fetchPageData = useCallback(async (options: { invalidateCache?: boolean } = {}) => {
+    const fetchPageData = useCallback(async () => {
         if (!params.id || !params.lessonId) return;
-        if (options.invalidateCache) {
-             setPageData(null);
-        }
         setIsLoading(true);
 
         try {
             const url = `/api/courses/${params.id}/lessons/${params.lessonId}`;
-            const res = await fetch(url, { cache: options.invalidateCache ? 'no-store' : 'default' });
+            const res = await fetch(url, { cache: 'no-store' });
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => (null));
                 throw new Error(errorData?.error || 'Failed to fetch lesson');
             }
-            const data = await res.json();
+            const data: LessonPageData = await res.json();
 
-            // Sanitize quiz content for student view
             if (data.lesson.type === 'quiz' && data.lesson.content) {
                 try {
                     const parsedContent = JSON.parse(data.lesson.content);
@@ -402,7 +387,6 @@ export default function LessonPage() {
                 }
             }
             
-            setIsQuizPassed(data.lesson.completed);
             setPageData(data);
         } catch (error) {
             console.error(error);
@@ -420,42 +404,8 @@ export default function LessonPage() {
         fetchPageData();
     }, [params.lessonId, fetchPageData]);
 
-    const handlePostCompletion = (data: { nextLessonId?: number, certificateId?: number, redirectToAssessment?: boolean }) => {
-        if (data.redirectToAssessment) {
-            toast({
-                title: "All Lessons Completed!",
-                description: "Proceeding to the final assessment.",
-            });
-            router.push(`/courses/${params.id}/assessment`);
-            return;
-        }
-
-        if (pageData?.lesson.type === 'quiz') {
-            setIsQuizPassed(true); // Explicitly set quiz as passed on successful API call
-        }
-        
-        // This is now redundant as we set isQuizPassed directly, but keep for non-quiz lessons.
-        fetchPageData({ invalidateCache: true });
-
-        if (data.certificateId) {
-            toast({
-                title: "Congratulations! Course Completed!",
-                description: "Redirecting to your new certificate...",
-                duration: 5000,
-            });
-            setTimeout(() => {
-                router.push(`/profile/certificates/${data.certificateId}`);
-            }, 2000);
-        } else {
-             toast({
-                title: pageData?.lesson.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
-                description: "You can now proceed to the next lesson.",
-            });
-        }
-    };
-    
-    const handleCompleteLesson = async () => {
-        if (!pageData || isCompleting || pageData.lesson.type === 'quiz') return;
+    const handleMarkAsComplete = async () => {
+        if (!pageData) return;
         setIsCompleting(true);
         try {
             const res = await fetch(`/api/courses/${pageData.lesson.course_id}/lessons/${pageData.lesson.id}/complete`, {
@@ -466,7 +416,22 @@ export default function LessonPage() {
                 throw new Error(data.error || 'Failed to update progress');
             }
             
-            handlePostCompletion(data);
+            if (data.redirectToAssessment) {
+                toast({
+                    title: "All Lessons Completed!",
+                    description: "Proceeding to the final assessment.",
+                });
+                router.push(`/courses/${params.id}/assessment`);
+                return;
+            }
+            
+            toast({
+                title: pageData.lesson.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
+                description: "You can now proceed to the next lesson.",
+            });
+            
+            // Re-fetch data to update UI state, including sidebar.
+            await fetchPageData();
 
         } catch (error) {
              toast({
@@ -477,18 +442,18 @@ export default function LessonPage() {
         } finally {
             setIsCompleting(false);
         }
-    }
+    };
     
     const handleNextClick = () => {
         if (!pageData) return;
-        if (pageData.lesson.completed) {
+        if (lesson.completed) {
             if (pageData.nextLessonId) {
                 router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
             } else if (pageData.hasFinalAssessment) {
                  router.push(`/courses/${pageData.course.id}/assessment`);
             }
-        } else if (!pageData.lesson.completed) {
-            handleCompleteLesson();
+        } else {
+            handleMarkAsComplete();
         }
     };
 
@@ -524,44 +489,31 @@ export default function LessonPage() {
         }
     }
 
-    const NextButtonContent = () => {
-        if (lesson.completed) {
-            if (!nextLessonId && hasFinalAssessment) {
-                return <>Start Final Assessment <ArrowRight className="ml-2 h-4 w-4" /></>;
-            }
-            if (nextLessonId) {
-                return <>Next Lesson <ArrowRight className="ml-2 h-4 w-4" /></>;
-            }
-            return <>Course Complete <CheckCircle className="ml-2 h-4 w-4" /></>;
-        }
-        
-        if (!nextLessonId && hasFinalAssessment) {
-            return <>Complete & Start Assessment <ArrowRight className="ml-2 h-4 w-4" /></>;
-        }
-
-        return <> {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />} Complete & Continue </>;
-    };
-
-    const QuizNavButton = () => {
-        if (isQuizSubmitting) {
-            return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</Button>;
-        }
-        if (!isQuizPassed) {
+    const NavButton = () => {
+        if (lesson.type === 'quiz' && !lesson.completed) {
             return <Button disabled>Pass Quiz to Continue</Button>;
         }
-        
-        const destinationText = nextLessonId ? "Next Lesson" : "Start Final Assessment";
-        const destinationPath = nextLessonId ? `/courses/${course.id}/lessons/${nextLessonId}` : `/courses/${course.id}/assessment`;
 
-        if (nextLessonId || hasFinalAssessment) {
-             return (
-                <Button onClick={() => router.push(destinationPath)}>
-                    {destinationText} <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-            );
-        }
+        const isLastLesson = !nextLessonId;
+        const isLoading = isCompleting;
 
-        return <Button disabled><CheckCircle className="mr-2 h-4 w-4" /> Course Complete</Button>;
+        let buttonText = 'Next Lesson';
+        if (isLastLesson && hasFinalAssessment) buttonText = 'Start Final Assessment';
+        else if (isLastLesson) buttonText = 'Course Complete';
+
+        if (!lesson.completed) buttonText = 'Complete & Continue';
+
+        const isDisabled = isLoading || (lesson.completed && isLastLesson && !hasFinalAssessment);
+
+        return (
+            <Button onClick={handleNextClick} disabled={isDisabled}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {buttonText}
+                {!isLastLesson && <ArrowRight className="ml-2 h-4 w-4" />}
+                {isLastLesson && hasFinalAssessment && <ArrowRight className="ml-2 h-4 w-4" />}
+                {isLastLesson && !hasFinalAssessment && <CheckCircle className="ml-2 h-4 w-4" />}
+            </Button>
+        );
     };
 
     return (
@@ -609,7 +561,7 @@ export default function LessonPage() {
                         <CardContent className="p-6">
                            <LessonContent 
                             lesson={lesson} 
-                            onQuizPass={handlePostCompletion} 
+                            onQuizPass={handleMarkAsComplete} 
                             isQuizSubmitting={isQuizSubmitting}
                             setIsQuizSubmitting={setIsQuizSubmitting}
                            />
@@ -623,17 +575,7 @@ export default function LessonPage() {
                                 Previous
                             </Link>
                         </Button>
-                        
-                        {lesson.type !== 'quiz' ? (
-                            <Button 
-                                onClick={handleNextClick} 
-                                disabled={isCompleting || (lesson.completed && !nextLessonId && !hasFinalAssessment)}
-                            >
-                                <NextButtonContent />
-                            </Button>
-                        ) : (
-                            <QuizNavButton />
-                        )}
+                        <NavButton />
                     </div>
                 </div>
                 {/* Mobile-only toggle button */}
