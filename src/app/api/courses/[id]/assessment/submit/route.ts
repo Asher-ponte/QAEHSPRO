@@ -89,7 +89,7 @@ export async function POST(
 
         await db.query(
             'INSERT INTO final_assessment_attempts (user_id, course_id, site_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [user.id, courseId, course.site_id, score, dbQuestions.length, passed, new Date().toISOString()]
+            [user.id, courseId, course.site_id, score, dbQuestions.length, passed, new Date()]
         );
         
         let certificateId: number | null = null;
@@ -105,7 +105,7 @@ export async function POST(
                 const today = new Date();
                 const [certResult] = await db.query<ResultSetHeader>(
                     `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                    [user.id, courseId, course.site_id, today.toISOString(), '']
+                    [user.id, courseId, course.site_id, today, '']
                 );
                 certificateId = certResult.insertId;
 
@@ -142,4 +142,3 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to submit assessment' }, { status: 500 });
     }
 }
-
