@@ -187,7 +187,7 @@ function AutomatedTestRunner() {
     )
 }
 
-function EndToEndTestRunner() {
+function QuizTestRunner() {
     const { toast } = useToast();
     const [users, setUsers] = useState<TestItem[]>([]);
     const [courses, setCourses] = useState<TestItem[]>([]);
@@ -276,15 +276,11 @@ function EndToEndTestRunner() {
 
     return (
         <div className="space-y-6">
-             <div>
-                <h2 className="text-2xl font-bold font-headline">End-to-End Test Runner</h2>
-                <p className="text-muted-foreground">Manually trigger and debug core application flows. All database operations are rolled back.</p>
-            </div>
             <form onSubmit={handleSubmitTest}>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Quiz Submission Test</CardTitle>
-                        <CardDescription>Simulate a specific user submitting answers to a quiz. This tests the entire `POST` (insert/grade) and `GET` (read) logic for quiz attempts without permanently saving data.</CardDescription>
+                        <CardTitle>Lesson Quiz Submission Test</CardTitle>
+                        <CardDescription>Simulate a specific user submitting answers to a lesson quiz. This tests the logic for quiz attempts without permanently saving data.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="space-y-2">
@@ -330,7 +326,7 @@ function EndToEndTestRunner() {
             {testResult && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Test Results</CardTitle>
+                        <CardTitle>Quiz Test Results</CardTitle>
                          <CardDescription>{testResult.message}</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -340,6 +336,144 @@ function EndToEndTestRunner() {
                     </CardContent>
                 </Card>
             )}
+        </div>
+    )
+}
+
+function FinalAssessmentTestRunner() {
+    const { toast } = useToast();
+    const [users, setUsers] = useState<TestItem[]>([]);
+    const [courses, setCourses] = useState<TestItem[]>([]);
+    const [selectedUser, setSelectedUser] = useState<string>('');
+    const [selectedCourse, setSelectedCourse] = useState<string>('');
+    const [answers, setAnswers] = useState<string>('{}');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [testResult, setTestResult] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [usersRes, coursesRes] = await Promise.all([
+                    fetch('/api/admin/debug/users'),
+                    fetch('/api/admin/debug/courses'),
+                ]);
+                if (!usersRes.ok || !coursesRes.ok) throw new Error("Failed to fetch initial debug data.");
+                setUsers(await usersRes.json());
+                setCourses(await coursesRes.json());
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load debug data.' });
+            }
+        };
+        fetchData();
+    }, [toast]);
+    
+    const handleSubmitTest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setTestResult(null);
+        try {
+            let parsedAnswers;
+            try {
+                parsedAnswers = JSON.parse(answers);
+            } catch (err) {
+                throw new Error("Answers field must be valid JSON.");
+            }
+
+            const payload = {
+                userId: Number(selectedUser),
+                courseId: Number(selectedCourse),
+                answers: parsedAnswers,
+            };
+
+            const res = await fetch('/api/admin/debug/final-assessment-submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const resultData = await res.json();
+            if (!res.ok) {
+                throw new Error(resultData.details || resultData.error || "Test submission failed.");
+            }
+            setTestResult(resultData);
+             toast({ title: 'Test Complete', description: resultData.message });
+
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Test Failed', description: error instanceof Error ? error.message : "An unknown error occurred." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <form onSubmit={handleSubmitTest}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Final Assessment Submission Test</CardTitle>
+                        <CardDescription>Simulate a specific user submitting answers to a course's final assessment. This tests grading and certificate generation logic.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="fa-test-user">User</Label>
+                            <Select value={selectedUser} onValueChange={setSelectedUser} name="fa-test-user">
+                                <SelectTrigger><SelectValue placeholder="Select a User" /></SelectTrigger>
+                                <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="fa-test-course">Course</Label>
+                            <Select value={selectedCourse} onValueChange={setSelectedCourse} name="fa-test-course">
+                                <SelectTrigger><SelectValue placeholder="Select a Course" /></SelectTrigger>
+                                <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                         <div className="space-y-2 col-span-1 lg:col-span-2">
+                            <Label htmlFor="fa-test-answers">Answers (JSON)</Label>
+                            <Textarea
+                                id="fa-test-answers"
+                                value={answers}
+                                onChange={(e) => setAnswers(e.target.value)}
+                                placeholder={`e.g., {"0": 1, "1": 0}`}
+                                className="font-mono text-xs"
+                                rows={3}
+                            />
+                        </div>
+                    </CardContent>
+                    <CardContent>
+                         <Button type="submit" disabled={isSubmitting || !selectedUser || !selectedCourse}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Run Test
+                        </Button>
+                    </CardContent>
+                </Card>
+            </form>
+            {testResult && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Final Assessment Test Results</CardTitle>
+                         <CardDescription>{testResult.message}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto">
+                            {JSON.stringify(testResult.simulation, null, 2)}
+                        </pre>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    )
+}
+
+function DebugTestRunner() {
+    return (
+         <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-bold font-headline">End-to-End Test Runner</h2>
+                <p className="text-muted-foreground">Manually trigger and debug core application flows. All database operations are rolled back.</p>
+            </div>
+            <QuizTestRunner />
+            <FinalAssessmentTestRunner />
         </div>
     )
 }
@@ -368,7 +502,7 @@ export default function SystemHealthPage() {
                    <AutomatedTestRunner />
                 </TabsContent>
                 <TabsContent value="e2e-runner" className="mt-6">
-                   <EndToEndTestRunner />
+                   <DebugTestRunner />
                 </TabsContent>
             </Tabs>
         </div>
