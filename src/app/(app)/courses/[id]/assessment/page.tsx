@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -123,14 +124,25 @@ export default function AssessmentPage() {
         }
     }, []);
     
-    const handleAcknowledge = () => {
-        setProctoringState('compliant');
-    };
+     const handleAcknowledge = useCallback(() => {
+        // Only allow acknowledging if paused
+        if (proctoringState !== 'paused') return;
+
+        // Check for immediate compliance
+        const isCurrentlyCompliant = isFaceVisible && isTabFocused && isMouseInPage;
+
+        if (isCurrentlyCompliant) {
+            setProctoringState('compliant');
+        } else {
+            // If they click "I understand" but are still non-compliant, re-warn immediately.
+            setProctoringState('warning');
+        }
+    }, [proctoringState, isFaceVisible, isTabFocused, isMouseInPage]);
 
     // Main proctoring state machine effect
     useEffect(() => {
         const proctoringActive = hasAgreedToRules && !isLoading;
-        if (!proctoringActive) return;
+        if (!proctoringActive || proctoringState === 'failed') return;
 
         const isCompliant = isFaceVisible && isTabFocused && isMouseInPage;
 
@@ -149,24 +161,33 @@ export default function AssessmentPage() {
                 setProctoringMessage(message);
 
                 setProctoringState('warning');
-                setCountdown(10); // Reset countdown
-                
-                if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-                
-                countdownIntervalRef.current = setInterval(() => {
-                    setCountdown(prev => {
-                        if (prev <= 1) {
-                            clearInterval(countdownIntervalRef.current!);
-                            setProctoringState('failed');
-                            handleExamRestart();
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
             }
         }
-    }, [isFaceVisible, isTabFocused, isMouseInPage, proctoringState, hasAgreedToRules, isLoading, handleExamRestart, stopCountdown]);
+    }, [isFaceVisible, isTabFocused, isMouseInPage, proctoringState, hasAgreedToRules, isLoading, stopCountdown]);
+    
+    // Countdown timer effect, tied to the 'warning' state
+    useEffect(() => {
+        if (proctoringState === 'warning') {
+            setCountdown(10); // Reset countdown on new warning
+            countdownIntervalRef.current = setInterval(() => {
+                setCountdown((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(countdownIntervalRef.current!);
+                        setProctoringState('failed');
+                        handleExamRestart();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            // Cleanup timer if state is no longer 'warning'
+            stopCountdown();
+        }
+        return () => {
+            stopCountdown();
+        };
+    }, [proctoringState, handleExamRestart, stopCountdown]);
     
     // Tab and Mouse focus listeners
     useEffect(() => {
@@ -276,17 +297,25 @@ export default function AssessmentPage() {
                 throw new Error(result.error || "Failed to submit assessment.");
             }
             
-            setAssessmentData(prev => prev ? ({
-                ...prev,
-                attempts: [
-                    ...prev.attempts,
-                    { id: Date.now(), score: result.score, total: result.total, passed: result.passed, attempt_date: new Date().toISOString() }
-                ]
-            }) : null);
-
-            setLastResult(result);
             setShowSubmitConfirm(false);
-            setShowResultDialog(true);
+
+            if (result.passed && result.certificateId) {
+                toast({
+                    title: "Assessment Passed!",
+                    description: "Redirecting to your new certificate...",
+                });
+                router.push(`/profile/certificates/${result.certificateId}`);
+            } else {
+                 setAssessmentData(prev => prev ? ({
+                    ...prev,
+                    attempts: [
+                        ...prev.attempts,
+                        { id: Date.now(), score: result.score, total: result.total, passed: result.passed, attempt_date: new Date().toISOString() }
+                    ]
+                }) : null);
+                setLastResult(result);
+                setShowResultDialog(true);
+            }
             
         } catch (error) {
              toast({
@@ -326,9 +355,9 @@ export default function AssessmentPage() {
     }
     
     const ResultDialog = () => {
-        if (!lastResult) return null;
+        if (!lastResult || lastResult.passed) return null; // Don't show for passed results anymore
 
-        const { score, total, passed, certificateId } = lastResult;
+        const { score, total } = lastResult;
         const attemptsLeft = (assessmentData?.maxAttempts || 0) - (assessmentData?.attempts.length || 0);
 
         const handleTryAgain = () => {
@@ -336,18 +365,12 @@ export default function AssessmentPage() {
             window.location.reload();
         };
 
-        const handleViewCertificate = () => {
-            if (certificateId) {
-                router.push(`/profile/certificates/${certificateId}`);
-            }
-        };
-
         return (
             <AlertDialog open={showResultDialog} onOpenChange={setShowResultDialog}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-center text-2xl font-bold">
-                            {passed ? "Assessment Passed!" : "Assessment Failed"}
+                            Assessment Failed
                         </AlertDialogTitle>
                         <div className="text-center !mt-4 space-y-2">
                              <div className="text-sm text-muted-foreground">Your Score</div>
@@ -356,21 +379,13 @@ export default function AssessmentPage() {
                         </div>
                     </AlertDialogHeader>
                      <AlertDialogFooter className="!flex-row !justify-center gap-4">
-                        {passed ? (
-                            <AlertDialogAction className="w-full" onClick={handleViewCertificate}>
-                                View Certificate
+                        <AlertDialogCancel>Okay</AlertDialogCancel>
+                        {attemptsLeft > 0 ? (
+                            <AlertDialogAction onClick={handleTryAgain}>
+                                Try Again ({attemptsLeft} left)
                             </AlertDialogAction>
                         ) : (
-                            <>
-                                <AlertDialogCancel>Okay</AlertDialogCancel>
-                                {attemptsLeft > 0 ? (
-                                    <AlertDialogAction onClick={handleTryAgain}>
-                                        Try Again ({attemptsLeft} left)
-                                    </AlertDialogAction>
-                                ) : (
-                                    <AlertDialogAction disabled>No Attempts Left</AlertDialogAction>
-                                )}
-                            </>
+                            <AlertDialogAction disabled>No Attempts Left</AlertDialogAction>
                         )}
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -626,3 +641,4 @@ export default function AssessmentPage() {
         </div>
     )
 }
+
