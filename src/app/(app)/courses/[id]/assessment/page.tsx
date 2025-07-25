@@ -105,14 +105,14 @@ export default function AssessmentPage() {
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const handleExamRestart = useCallback(() => {
+    const handleExamRestart = () => {
         toast({
             variant: "destructive",
             title: "Exam Terminated",
             description: "Proctoring rules were violated. The attempt has been reset.",
         });
         window.location.reload();
-    }, [toast]);
+    };
     
     // This is the single source of truth for the countdown timer interval.
     useEffect(() => {
@@ -121,6 +121,7 @@ export default function AssessmentPage() {
                 setFocusCountdown((prev) => prev - 1);
             }, 1000);
         } else if (focusCountdown <= 0) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
             handleExamRestart();
         }
 
@@ -129,10 +130,10 @@ export default function AssessmentPage() {
                 clearInterval(countdownIntervalRef.current);
             }
         };
-    }, [isCountdownActive, focusCountdown, handleExamRestart]);
+    }, [isCountdownActive, focusCountdown]);
 
 
-    const startWarning = useCallback((message: string) => {
+    const startWarning = (message: string) => {
         // Debounce to prevent rapid firing of warnings
         if (Date.now() - lastProctoringEventTime.current < 2000) return; 
         lastProctoringEventTime.current = Date.now();
@@ -140,15 +141,16 @@ export default function AssessmentPage() {
         if (showFocusWarning && isCountdownActive) return;
 
         setProctoringMessage(message);
+        setFocusCountdown(10);
         setShowFocusWarning(true);
         setIsCountdownActive(true); // This will trigger the useEffect above to start the timer
-    }, [showFocusWarning, isCountdownActive]);
+    };
 
-    const stopWarning = useCallback(() => {
+    const stopWarning = () => {
         if (isCountdownActive) {
             setIsCountdownActive(false); // This will stop the timer via the useEffect cleanup
         }
-    }, [isCountdownActive]);
+    };
 
     // Effect for Proctoring Event Listeners (visibility and mouse)
     useEffect(() => {
@@ -180,17 +182,13 @@ export default function AssessmentPage() {
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
         };
-    }, [hasAgreedToRules, isLoading, startWarning, stopWarning]);
+    }, [hasAgreedToRules, isLoading]);
 
     // --- MediaPipe FaceDetector Initialization ---
     useEffect(() => {
-        if (!hasAgreedToRules || isLoading) return;
-
-        const createFaceDetector = async () => {
+        const initMediaPipe = async () => {
             try {
-                const vision = await FilesetResolver.forVisionTasks(
-                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-                );
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
                 const detector = await FaceDetector.createFromOptions(vision, {
                     baseOptions: {
                         modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
@@ -204,71 +202,78 @@ export default function AssessmentPage() {
                 toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection model.' });
             }
         };
-        createFaceDetector();
+        if (hasAgreedToRules && !isLoading) {
+            initMediaPipe();
+        }
     }, [hasAgreedToRules, isLoading, toast]);
     
     // --- Camera Setup & Prediction Loop ---
     useEffect(() => {
-        if (!faceDetector || !videoRef.current) return;
+        let isMounted = true;
+        let stream: MediaStream | null = null;
+        
+        if (!faceDetector || !videoRef.current || !hasAgreedToRules) {
+            return;
+        }
 
-        let isMounted = true; // Flag to check if component is still mounted
-
-        const setupCameraAndPredict = async () => {
+        const setupCamera = async () => {
             try {
-                if (videoRef.current && !videoRef.current.srcObject) {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    if (isMounted && videoRef.current) {
-                        videoRef.current.srcObject = stream;
-                    }
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                if (isMounted && videoRef.current) {
+                    videoRef.current.srcObject = stream;
                 }
             } catch (error) {
                 console.error("Error accessing camera:", error);
-                toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the camera for proctoring.' });
+                if (isMounted) {
+                    toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the camera for proctoring.' });
+                }
+            }
+        };
+        
+        setupCamera();
+
+        const video = videoRef.current;
+        
+        let lastTime = -1;
+        const predictWebcam = async () => {
+            if (!isMounted || !faceDetector || !video || video.paused || video.videoWidth === 0) {
+                 if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
                 return;
             }
-
-            let lastTime = -1;
-            const predictWebcam = async () => {
-                if (!isMounted || !faceDetector || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth === 0) {
-                     if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
-                    return;
-                }
-                
-                const startTimeMs = performance.now();
-                if (startTimeMs > lastTime) {
-                    const result = faceDetector.detectForVideo(videoRef.current, startTimeMs);
-                    if (result.detections.length === 0) {
-                        startWarning("Your face is not visible to the camera.");
-                    } else {
-                        stopWarning();
-                    }
-                    lastTime = startTimeMs;
-                }
-                if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
-            };
             
-            const video = videoRef.current;
-            const handleCanPlay = () => {
-                if(isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
-            };
-
-            video.addEventListener("canplay", handleCanPlay);
-
-            return () => {
-                video.removeEventListener("canplay", handleCanPlay);
-                isMounted = false;
-                if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-                if (video.srcObject) (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-            };
+            const startTimeMs = performance.now();
+            if (startTimeMs > lastTime) {
+                const result = faceDetector.detectForVideo(video, startTimeMs);
+                if (result.detections.length === 0) {
+                    startWarning("Your face is not visible to the camera.");
+                } else {
+                    stopWarning();
+                }
+                lastTime = startTimeMs;
+            }
+            if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
 
-        const cleanup = setupCameraAndPredict();
+        const handleCanPlay = () => {
+            if (isMounted) {
+                video.play();
+                animationFrameId.current = requestAnimationFrame(predictWebcam);
+            }
+        };
+
+        video.addEventListener("loadedmetadata", handleCanPlay);
 
         return () => {
-            cleanup.then(c => c && c());
+            isMounted = false;
+            video.removeEventListener("loadedmetadata", handleCanPlay);
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            stream?.getTracks().forEach(track => track.stop());
+            if (videoRef.current) {
+                videoRef.current.srcObject = null;
+            }
         };
+    }, [faceDetector, hasAgreedToRules, toast]);
 
-    }, [faceDetector, toast, startWarning, stopWarning]);
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
@@ -393,7 +398,6 @@ export default function AssessmentPage() {
     const FocusWarningDialog = () => {
         const handleCloseWarning = () => {
             setShowFocusWarning(false);
-            setFocusCountdown(10); // Reset for next time
         };
         return (
             <AlertDialog open={showFocusWarning}>
