@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
@@ -43,8 +44,8 @@ const assessmentQuestionOptionSchema = z.object({
 
 const assessmentQuestionSchema = z.object({
   text: z.string(),
-  options: z.array(assessmentQuestionOptionSchema),
-  correctOptionIndex: z.coerce.number(),
+  options: z.array(assessmentQuestionOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
 });
 
 
@@ -194,10 +195,14 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
                                             <Checkbox
                                                 checked={field.value?.includes(site.id)}
                                                 onCheckedChange={(checked) => {
-                                                    const currentValue = field.value || [];
-                                                    return checked
-                                                        ? field.onChange([...currentValue, site.id])
-                                                        : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                    setTimeout(() => {
+                                                        const currentValue = field.value || [];
+                                                        if (checked) {
+                                                            field.onChange([...currentValue, site.id]);
+                                                        } else {
+                                                            field.onChange(currentValue.filter((value) => value !== site.id));
+                                                        }
+                                                    }, 0);
                                                 }}
                                             />
                                         </FormControl>
