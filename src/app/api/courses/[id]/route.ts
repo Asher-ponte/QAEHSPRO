@@ -85,6 +85,20 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             transactionStatus = { status: transaction.status, reason: transaction.rejection_reason };
         }
     }
+    
+    // Add pre-test logic
+    const hasPreTest = !!course.pre_test_content;
+    let preTestPassed: boolean | null = null;
+    if (hasPreTest) {
+        const [preTestAttemptRows] = await db.query<RowDataPacket[]>(
+            'SELECT passed FROM pre_test_attempts WHERE user_id = ? AND course_id = ? ORDER BY attempt_date DESC LIMIT 1',
+            [userId, courseId]
+        );
+        if (preTestAttemptRows.length > 0) {
+            preTestPassed = !!preTestAttemptRows[0].passed;
+        }
+    }
+
 
     const courseDetail = { 
         ...course, 
@@ -93,6 +107,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         allLessonsCompleted: allLessonsCompleted,
         hasFinalAssessment: hasFinalAssessment,
         transactionStatus: transactionStatus,
+        hasPreTest: hasPreTest,
+        preTestPassed: preTestPassed,
     };
 
     const modulesMap = new Map<number, any>();
@@ -115,16 +131,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
     
     courseDetail.modules = Array.from(modulesMap.values());
-
-    if (courseDetail.modules.length === 0) {
-      courseDetail.modules.push({
-          id: -1,
-          title: "Module 1: Coming Soon",
-          lessons: [
-            { id: -1, title: "Course content is being prepared.", type: "document", completed: false },
-          ],
-        },)
-    }
 
     return NextResponse.json(courseDetail)
   } catch (error) {

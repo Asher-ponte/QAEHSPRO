@@ -337,14 +337,15 @@ export default function CourseDetailPage() {
                 </CardDescription>
             )}
           </CardHeader>
-          <CardContent className={cn(contentIsLocked && "opacity-50 pointer-events-none")}>
+          <CardContent>
             {contentIsLocked && (
                  <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md mb-4">
                     <p className="font-semibold text-yellow-800 dark:text-yellow-300">Content Locked</p>
                     <p className="text-sm text-yellow-700 dark:text-yellow-400">You must pass the pre-test to unlock the course modules.</p>
                 </div>
             )}
-             {course.hasPreTest && (
+            
+            {course.hasPreTest && (
                  <div className="mb-4 border-b pb-4">
                      <Link href={hasAccessToCourse ? `/courses/${course.id}/pre-test` : '#'} className={cn(
                          "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
@@ -361,48 +362,50 @@ export default function CourseDetailPage() {
                  </div>
             )}
 
-            <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
-              {course.modules.map((module) => (
-                <AccordionItem value={module.title} key={module.id || module.title}>
-                  <AccordionTrigger className="font-semibold text-left break-words">{module.title}</AccordionTrigger>
-                  <AccordionContent>
-                    <ul className="space-y-1">
-                      {module.lessons.map((lesson) => (
-                        <li key={lesson.id || lesson.title}>
-                           <Link
-                             href={canAccessContent ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
-                             className={cn(
-                                "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md transition-colors",
-                                canAccessContent ? "hover:bg-muted/50" : "pointer-events-none"
-                             )}
-                           >
-                            <div className="flex items-center min-w-0">
-                                {getIcon(lesson.type)}
-                                <span className="break-words flex-1">{lesson.title}</span>
-                            </div>
-                            <CheckCircle className={`h-5 w-5 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
-                           </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-             {course.hasFinalAssessment && (
-                 <div className="mt-4 border-t pt-4">
-                     <Link href={canAccessContent && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
-                         "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
-                         (!canAccessContent || !course.allLessonsCompleted) && "pointer-events-none opacity-50"
-                     )}>
-                         <div className="flex items-center min-w-0 font-semibold">
-                             <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
-                             <span className="break-words flex-1">Final Assessment</span>
-                         </div>
-                         <CheckCircle className={`h-5 w-5 shrink-0 ${course.isCompleted ? 'text-green-500' : 'text-muted-foreground/30'}`} />
-                     </Link>
-                 </div>
-            )}
+            <div className={cn(contentIsLocked && "opacity-50 pointer-events-none")}>
+                <Accordion type="single" collapsible defaultValue={course.modules[0]?.title}>
+                  {course.modules.map((module) => (
+                    <AccordionItem value={module.title} key={module.id || module.title}>
+                      <AccordionTrigger className="font-semibold text-left break-words">{module.title}</AccordionTrigger>
+                      <AccordionContent>
+                        <ul className="space-y-1">
+                          {module.lessons.map((lesson) => (
+                            <li key={lesson.id || lesson.title}>
+                               <Link
+                                 href={canAccessContent ? `/courses/${course.id}/lessons/${lesson.id}` : '#'}
+                                 className={cn(
+                                    "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md transition-colors",
+                                    canAccessContent ? "hover:bg-muted/50" : "pointer-events-none"
+                                 )}
+                               >
+                                <div className="flex items-center min-w-0">
+                                    {getIcon(lesson.type)}
+                                    <span className="break-words flex-1">{lesson.title}</span>
+                                </div>
+                                <CheckCircle className={`h-5 w-5 shrink-0 ${lesson.completed ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                               </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+                 {course.hasFinalAssessment && (
+                     <div className="mt-4 border-t pt-4">
+                         <Link href={canAccessContent && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
+                             "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
+                             (!canAccessContent || !course.allLessonsCompleted) && "pointer-events-none opacity-50"
+                         )}>
+                             <div className="flex items-center min-w-0 font-semibold">
+                                 <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
+                                 <span className="break-words flex-1">Final Assessment</span>
+                             </div>
+                             <CheckCircle className={`h-5 w-5 shrink-0 ${course.isCompleted ? 'text-green-500' : 'text-muted-foreground/30'}`} />
+                         </Link>
+                     </div>
+                )}
+            </div>
           </CardContent>
         </Card>
       </div>
