@@ -125,18 +125,11 @@ export default function AssessmentPage() {
     }, []);
     
      const handleAcknowledge = useCallback(() => {
-        // Only allow acknowledging if paused
         if (proctoringState !== 'paused') return;
 
-        // Check for immediate compliance
         const isCurrentlyCompliant = isFaceVisible && isTabFocused && isMouseInPage;
 
-        if (isCurrentlyCompliant) {
-            setProctoringState('compliant');
-        } else {
-            // If they click "I understand" but are still non-compliant, re-warn immediately.
-            setProctoringState('warning');
-        }
+        setProctoringState(isCurrentlyCompliant ? 'compliant' : 'warning');
     }, [proctoringState, isFaceVisible, isTabFocused, isMouseInPage]);
 
     // Main proctoring state machine effect
@@ -578,7 +571,7 @@ export default function AssessmentPage() {
             </AlertDialog>
             
             {hasAgreedToRules && (
-                 <div className="fixed bottom-4 right-4 z-50">
+                 <div className="fixed bottom-4 right-4 z-50 hidden">
                     <Card className="p-2 w-48 h-36">
                         <CardContent className="p-0 relative h-full">
                             <video ref={videoRef} className="w-full h-full object-cover rounded-md" autoPlay muted playsInline />
@@ -642,3 +635,6 @@ export default function AssessmentPage() {
     )
 }
 
+
+
+    
