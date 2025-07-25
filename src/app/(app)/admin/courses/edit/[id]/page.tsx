@@ -36,6 +36,7 @@ interface SignatoryOption {
 }
 
 const assessmentQuestionOptionSchema = z.object({
+  id: z.number().optional(),
   text: z.string(),
 });
 
@@ -49,10 +50,11 @@ const assessmentQuestionSchema = z.object({
 const lessonSchema = z.object({
   id: z.number().optional(),
   title: z.string(),
-  type: z.enum(["video", "document"]),
+  type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
+  questions: z.array(assessmentQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
@@ -219,11 +221,14 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
 
     const handleTypeChange = (value: string, index: number) => {
         const currentLesson = getValues(`modules.${moduleIndex}.lessons.${index}`);
-        const newLesson = { ...currentLesson, type: value as "video" | "document" };
+        const newLesson = { ...currentLesson, type: value as "video" | "document" | "quiz" };
         
         if (value === 'document') {
             newLesson.content = newLesson.content || "";
-        } else {
+        } else if (value === 'quiz') {
+            newLesson.questions = newLesson.questions || [{ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 }];
+        }
+        else { // video
             newLesson.content = null;
             newLesson.imagePath = null;
         }
@@ -277,6 +282,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                             <SelectContent>
                                                 <SelectItem value="video">Video</SelectItem>
                                                 <SelectItem value="document">Document</SelectItem>
+                                                <SelectItem value="quiz">Quiz</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -284,6 +290,13 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                     )}
                                 />
                             </div>
+                             {lessonType === 'quiz' && (
+                                <div>
+                                    <Label>Quiz Questions</Label>
+                                    <FormDescription className="mb-4">Build the quiz questions for this lesson below.</FormDescription>
+                                    <AssessmentQuestionBuilder name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions`} control={control} />
+                                </div>
+                            )}
                             {lessonType === 'document' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <FormField
@@ -357,7 +370,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "document", content: "", imagePath: null, documentPath: null })}
+                onClick={() => append({ title: "", type: "document", content: "", imagePath: null, documentPath: null, questions: [] })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -365,7 +378,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
-function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_questions` | `final_assessment_questions`, control: Control<CourseFormValues> }) {
+function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name,
@@ -410,7 +423,7 @@ function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_question
     );
 }
 
-function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `pre_test_questions` | `final_assessment_questions`; questionIndex: number; control: Control<CourseFormValues> }) {
+function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `pre_test_questions` | `final_assessment_questions` | `modules.${number}.lessons.${number}.questions`; questionIndex: number; control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
         name: `${namePrefix}.${questionIndex}.options`,
@@ -1008,5 +1021,3 @@ export default function EditCoursePage() {
     </div>
   )
 }
-
-    

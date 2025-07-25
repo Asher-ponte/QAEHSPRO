@@ -35,6 +35,7 @@ function transformDbToQuestionsFormat(content: string | null): any[] {
 
 
 const assessmentQuestionOptionSchema = z.object({
+  id: z.number().optional(),
   text: z.string(),
 });
 
@@ -48,10 +49,11 @@ const assessmentQuestionSchema = z.object({
 const lessonSchema = z.object({
   id: z.number().optional(),
   title: z.string(),
-  type: z.enum(["video", "document"]),
+  type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
+  questions: z.array(assessmentQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
@@ -167,8 +169,13 @@ export async function GET(
                     type: row.lesson_type,
                     imagePath: row.lesson_imagePath ?? null,
                     documentPath: row.lesson_documentPath ?? null,
-                    content: row.lesson_content ?? null
+                    content: row.lesson_content ?? null,
                 };
+
+                if (lesson.type === 'quiz') {
+                    lesson.questions = transformDbToQuestionsFormat(lesson.content);
+                }
+
                 modulesMap.get(row.module_id).lessons.push(lesson);
             }
         }
@@ -289,10 +296,14 @@ export async function PUT(
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                const lessonContent = lessonData.type === 'quiz'
+                    ? transformQuestionsToDbFormat(lessonData.questions || [])
+                    : lessonData.content ?? null;
+
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
+                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
                 } else {
-                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
                 }
             }
         }

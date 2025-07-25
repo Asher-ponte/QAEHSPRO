@@ -29,10 +29,11 @@ const assessmentQuestionSchema = z.object({
 
 const lessonSchema = z.object({
   title: z.string(),
-  type: z.enum(["video", "document"]),
+  type: z.enum(["video", "document", "quiz"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
+  questions: z.array(assessmentQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
@@ -169,7 +170,11 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                const lessonContent = lessonData.type === 'quiz'
+                    ? transformQuestionsToDbFormat(lessonData.questions || [])
+                    : lessonData.content ?? null;
+
+                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.query('COMMIT');
