@@ -142,3 +142,4 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to submit assessment' }, { status: 500 });
     }
 }
+

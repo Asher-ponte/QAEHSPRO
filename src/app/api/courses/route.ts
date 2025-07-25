@@ -23,8 +23,8 @@ const assessmentQuestionOptionSchema = z.object({
 
 const assessmentQuestionSchema = z.object({
   text: z.string(),
-  options: z.array(assessmentQuestionOptionSchema),
-  correctOptionIndex: z.coerce.number(),
+  options: z.array(assessmentQuestionOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
 });
 
 const lessonSchema = z.object({
@@ -165,16 +165,16 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
         }
 
         for (const [moduleIndex, moduleData] of payload.modules.entries()) {
-            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, \`order\`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                const lessonContent = lessonData.type === 'quiz'
-                    ? transformQuestionsToDbFormat(lessonData.questions || [])
+                 const lessonContent = lessonData.type === 'quiz' && lessonData.questions
+                    ? transformQuestionsToDbFormat(lessonData.questions)
                     : lessonData.content ?? null;
 
-                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.query('COMMIT');
@@ -247,3 +247,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: `Course created in main branch and published to ${effectiveTargetSites.size} other branch(es).` }, { status: 201 });
 }
+

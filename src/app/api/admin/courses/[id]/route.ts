@@ -42,8 +42,8 @@ const assessmentQuestionOptionSchema = z.object({
 const assessmentQuestionSchema = z.object({
   id: z.number().optional(),
   text: z.string(),
-  options: z.array(assessmentQuestionOptionSchema),
-  correctOptionIndex: z.coerce.number(),
+  options: z.array(assessmentQuestionOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
 });
 
 const lessonSchema = z.object({
@@ -172,8 +172,9 @@ export async function GET(
                     content: row.lesson_content ?? null,
                 };
 
-                if (lesson.type === 'quiz') {
+                if (lesson.type === 'quiz' && lesson.content) {
                     lesson.questions = transformDbToQuestionsFormat(lesson.content);
+                    lesson.content = null; // Don't send the raw content for quizzes
                 }
 
                 modulesMap.get(row.module_id).lessons.push(lesson);
@@ -281,7 +282,7 @@ export async function PUT(
         for (const [moduleIndex, moduleData] of modules.entries()) {
             let moduleId = moduleData.id;
             if (moduleId && existingModuleIds.has(moduleId)) {
-                await db.query('UPDATE modules SET title = ?, `order` = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
+                await db.query('UPDATE modules SET title = ?, \`order\` = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
             } else {
                 const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
                 moduleId = moduleResult.insertId;
@@ -296,14 +297,14 @@ export async function PUT(
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                const lessonContent = lessonData.type === 'quiz'
-                    ? transformQuestionsToDbFormat(lessonData.questions || [])
+                const lessonContent = lessonData.type === 'quiz' && lessonData.questions
+                    ? transformQuestionsToDbFormat(lessonData.questions)
                     : lessonData.content ?? null;
 
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
+                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, \`order\` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
                 } else {
-                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                    await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
                 }
             }
         }
@@ -388,3 +389,4 @@ export async function DELETE(
         return NextResponse.json({ error: 'Failed to delete course due to a server error.', details }, { status: 500 });
     }
 }
+

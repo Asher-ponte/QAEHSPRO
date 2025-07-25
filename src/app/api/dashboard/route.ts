@@ -14,7 +14,34 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    // 1. Get all courses the user is enrolled in.
+    // 1. Get stats which are independent of course enrollment.
+    const [totalTrainingsRows] = await db.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'completion']
+    );
+    const totalTrainingsAttended = totalTrainingsRows[0]?.count ?? 0;
+
+    const [totalRecognitionsRows] = await db.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ?',
+      [userId, 'recognition']
+    );
+    const totalRecognitions = totalRecognitionsRows[0]?.count ?? 0;
+
+    const [acquiredSkillsRows] = await db.query<RowDataPacket[]>(
+        `SELECT DISTINCT c.category FROM certificates cert
+         JOIN courses c ON cert.course_id = c.id
+         WHERE cert.user_id = ? AND cert.type = 'completion'`,
+        [userId]
+    );
+    const skillsAcquiredCount = acquiredSkillsRows.length;
+    
+    const stats = {
+        totalTrainingsAttended,
+        totalRecognitions,
+        skillsAcquired: skillsAcquiredCount,
+    };
+
+    // 2. Get all courses the user is enrolled in for their specific site context.
     const [enrolledCourses] = await db.query<RowDataPacket[]>(`
         SELECT 
             c.*
@@ -23,55 +50,40 @@ export async function GET() {
         WHERE e.user_id = ? AND c.site_id = ?
     `, [userId, siteId]);
 
-    // 2. Get stats
-    const [totalTrainingsResult] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
-      [userId, 'completion', siteId]
-    );
-    const totalTrainingsAttended = totalTrainingsResult[0].count;
-
-    const [totalRecognitionsResult] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as count FROM certificates WHERE user_id = ? AND type = ? AND site_id = ?',
-      [userId, 'recognition', siteId]
-    );
-    const totalRecognitions = totalRecognitionsResult[0].count;
-
-    const [acquiredSkillsResult] = await db.query<RowDataPacket[]>(
-        `SELECT DISTINCT c.category FROM certificates cert
-         JOIN courses c ON cert.course_id = c.id
-         WHERE cert.user_id = ? AND c.site_id = ?`,
-        [userId, siteId]
-    );
-    const skillsAcquiredCount = acquiredSkillsResult.length;
-
-    // 3. If no courses, return early.
+    // 3. If no courses, return early to prevent invalid queries later.
     if (enrolledCourses.length === 0) {
       return NextResponse.json({
-        stats: { totalTrainingsAttended, totalRecognitions, skillsAcquired: skillsAcquiredCount },
+        stats: stats,
         courses: [],
       });
     }
     
     // 4. Get data for progress calculation of currently enrolled courses
     const courseIds = enrolledCourses.map(c => c.id);
-    const courseIdsPlaceholder = courseIds.map(() => '?').join(',');
+    const placeholders = courseIds.map(() => '?').join(',');
 
     const [allLessons] = await db.query<RowDataPacket[]>(`
-        SELECT l.id, m.course_id, m.order as module_order, l.order as lesson_order
+        SELECT l.id, m.course_id
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
-        WHERE m.course_id IN (${courseIdsPlaceholder})
-        ORDER BY m.course_id, m.order, l.order
+        WHERE m.course_id IN (${placeholders})
     `, courseIds);
 
-    const [completedLessonIdsResult] = await db.query<RowDataPacket[]>(`
+    const [completedLessonRows] = await db.query<RowDataPacket[]>(`
         SELECT up.lesson_id
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id
         JOIN modules m ON l.module_id = m.id
-        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${courseIdsPlaceholder})
+        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${placeholders})
     `, [userId, ...courseIds]);
-    const completedLessonIds = new Set(completedLessonIdsResult.map(r => r.lesson_id));
+    const completedLessonIds = new Set(completedLessonRows.map(r => r.lesson_id));
+
+    const [passedAssessmentRows] = await db.query<RowDataPacket[]>(`
+        SELECT course_id FROM final_assessment_attempts
+        WHERE user_id = ? AND passed = 1 AND course_id IN (${placeholders})
+    `, [userId, ...courseIds]);
+    const passedAssessmentIds = new Set(passedAssessmentRows.map(r => r.course_id));
+
 
     // 5. Process the data in memory for course list.
     const lessonsByCourse = allLessons.reduce((acc, l) => {
@@ -83,15 +95,32 @@ export async function GET() {
     const myCourses = enrolledCourses.map(course => {
         const courseLessons = lessonsByCourse[course.id] || [];
         const totalLessons = courseLessons.length;
-        const completedCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+        const completedLessonsCount = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+        const hasFinalAssessment = !!course.final_assessment_content;
+        const hasPassedAssessment = passedAssessmentIds.has(course.id);
 
         let progress = 0;
         if (totalLessons > 0) {
-            progress = Math.floor((completedCount / totalLessons) * 100);
+            progress = Math.floor((completedLessonsCount / totalLessons) * 100);
         }
         
+        // If course has an assessment and it's passed, it's 100% complete.
+        if (hasFinalAssessment && hasPassedAssessment) {
+            progress = 100;
+        } 
+        // If all lessons are done, but the assessment isn't passed yet, cap at 99%.
+        else if (hasFinalAssessment && progress === 100 && !hasPassedAssessment) {
+            progress = 99;
+        }
+
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
-        const continueLessonId = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+        let continueLessonId: number | null = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
+        
+        // If all lessons are complete and there's an assessment to be taken, nullify the lesson ID.
+        // The UI will use this null value to show the "Start Final Assessment" button.
+        if (hasFinalAssessment && completedLessonsCount === totalLessons && !hasPassedAssessment) {
+            continueLessonId = null;
+        }
 
         return {
             id: course.id,
@@ -103,23 +132,15 @@ export async function GET() {
         };
     });
     
-    const dashboardData = {
-      stats: {
-        totalTrainingsAttended,
-        totalRecognitions,
-        skillsAcquired: skillsAcquiredCount,
-      },
+    return NextResponse.json({
+      stats: stats,
       courses: myCourses,
-    };
-
-    return NextResponse.json(dashboardData);
+    });
 
   } catch (error) {
-    console.error('Error in /api/dashboard route:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown internal error occurred';
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard data due to a server error.', details: errorMessage },
-      { status: 500 }
-    );
+    console.error('Error fetching dashboard data on server:', error);
+    // Return empty state on error to avoid crashing the page.
+    return NextResponse.json({ stats: { totalTrainingsAttended: 0, totalRecognitions: 0, skillsAcquired: 0 }, courses: [] });
   }
 }
+

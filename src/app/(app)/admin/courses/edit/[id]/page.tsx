@@ -26,7 +26,6 @@ import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
-import { useSession } from "@/hooks/use-session"
 import { PdfUpload } from "@/components/pdf-upload"
 
 interface SignatoryOption {
@@ -43,8 +42,8 @@ const assessmentQuestionOptionSchema = z.object({
 const assessmentQuestionSchema = z.object({
   id: z.number().optional(),
   text: z.string(),
-  options: z.array(assessmentQuestionOptionSchema),
-  correctOptionIndex: z.coerce.number(),
+  options: z.array(assessmentQuestionOptionSchema).min(2, "Must have at least two options."),
+  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
 });
 
 const lessonSchema = z.object({
@@ -1021,3 +1020,4 @@ export default function EditCoursePage() {
     </div>
   )
 }
+
