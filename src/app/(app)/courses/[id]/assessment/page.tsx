@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
+import React, { useEffect, useState, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
+import { FaceLandmarker, FilesetResolver, type FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 
 
 interface Question {
@@ -72,6 +72,78 @@ function AssessmentSkeleton() {
     )
 }
 
+/**
+ * Checks if a user is looking away based on iris position relative to eye corners.
+ * @param landmarks - The facial landmarks detected by MediaPipe.
+ * @returns True if the user is looking away, false otherwise.
+ */
+function isLookingAway(landmarks: any): boolean {
+    if (!landmarks || landmarks.length === 0) {
+        return false; // No face detected, handled by a separate check
+    }
+
+    const eyeLandmarks = landmarks[0];
+    
+    // Iris landmark indices
+    const RIGHT_IRIS = 473;
+    const LEFT_IRIS = 468;
+
+    // Eye corner landmark indices
+    const LEFT_EYE_RIGHT_CORNER = 362;
+    const LEFT_EYE_LEFT_CORNER = 263;
+    const RIGHT_EYE_RIGHT_CORNER = 133;
+    const RIGHT_EYE_LEFT_CORNER = 33;
+    
+    // Vertical eye landmarks
+    const LEFT_EYE_TOP = 386;
+    const LEFT_EYE_BOTTOM = 374;
+    const RIGHT_EYE_TOP = 159;
+    const RIGHT_EYE_BOTTOM = 145;
+
+    const leftIris = eyeLandmarks[LEFT_IRIS];
+    const rightIris = eyeLandmarks[RIGHT_IRIS];
+
+    // Horizontal check
+    const leftEyeLeftCorner = eyeLandmarks[LEFT_EYE_LEFT_CORNER];
+    const leftEyeRightCorner = eyeLandmarks[LEFT_EYE_RIGHT_CORNER];
+    const rightEyeLeftCorner = eyeLandmarks[RIGHT_EYE_LEFT_CORNER];
+    const rightEyeRightCorner = eyeLandmarks[RIGHT_EYE_RIGHT_CORNER];
+    
+    const leftEyeSpan = leftEyeLeftCorner.x - leftEyeRightCorner.x;
+    const rightEyeSpan = rightEyeRightCorner.x - rightEyeLeftCorner.x;
+    
+    // Normalize iris position within the eye span (0 to 1)
+    const leftIrisPosition = (leftEyeLeftCorner.x - leftIris.x) / leftEyeSpan;
+    const rightIrisPosition = (rightEyeRightCorner.x - rightIris.x) / rightEyeSpan;
+
+    // A threshold of 0.3 means if the iris is in the outer 30% of the eye, they're looking away.
+    const HORIZONTAL_THRESHOLD = 0.30;
+    if (leftIrisPosition < HORIZONTAL_THRESHOLD || leftIrisPosition > 1 - HORIZONTAL_THRESHOLD ||
+        rightIrisPosition < HORIZONTAL_THRESHOLD || rightIrisPosition > 1 - HORIZONTAL_THRESHOLD) {
+        return true;
+    }
+
+    // Vertical check
+    const leftEyeTop = eyeLandmarks[LEFT_EYE_TOP];
+    const leftEyeBottom = eyeLandmarks[LEFT_EYE_BOTTOM];
+    const rightEyeTop = eyeLandmarks[RIGHT_EYE_TOP];
+    const rightEyeBottom = eyeLandmarks[RIGHT_EYE_BOTTOM];
+    
+    const leftEyeSpanY = leftEyeTop.y - leftEyeBottom.y;
+    const rightEyeSpanY = rightEyeTop.y - rightEyeBottom.y;
+
+    const leftIrisPositionV = (leftEyeTop.y - leftIris.y) / leftEyeSpanY;
+    const rightIrisPositionV = (rightEyeTop.y - rightIris.y) / rightEyeSpanY;
+    
+    const VERTICAL_THRESHOLD = 0.35;
+     if (leftIrisPositionV < VERTICAL_THRESHOLD || leftIrisPositionV > 1 - VERTICAL_THRESHOLD ||
+        rightIrisPositionV < VERTICAL_THRESHOLD || rightIrisPositionV > 1 - VERTICAL_THRESHOLD) {
+        return true;
+    }
+
+    return false;
+}
+
 export default function AssessmentPage() {
     const params = useParams<{ id: string }>()
     const courseId = params.id;
@@ -101,7 +173,7 @@ export default function AssessmentPage() {
 
 
     // --- MediaPipe State ---
-    const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
+    const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
     const animationFrameId = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -184,21 +256,24 @@ export default function AssessmentPage() {
         };
     }, [hasAgreedToRules, isLoading]);
 
-    // --- MediaPipe FaceDetector Initialization ---
+    // --- MediaPipe FaceLandmarker Initialization ---
     useEffect(() => {
         const initMediaPipe = async () => {
             try {
                 const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-                const detector = await FaceDetector.createFromOptions(vision, {
+                const landmarker = await FaceLandmarker.createFromOptions(vision, {
                     baseOptions: {
-                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.tflite',
                         delegate: "GPU",
                     },
+                    outputFaceBlendshapes: false,
+                    outputFacialTransformationMatrixes: false,
                     runningMode: 'VIDEO',
+                    numFaces: 1,
                 });
-                setFaceDetector(detector);
+                setFaceLandmarker(landmarker);
             } catch (error) {
-                console.error("Error creating FaceDetector:", error);
+                console.error("Error creating FaceLandmarker:", error);
                 toast({ variant: 'destructive', title: 'Proctoring Error', description: 'Could not initialize face detection model.' });
             }
         };
@@ -209,70 +284,57 @@ export default function AssessmentPage() {
     
     // --- Camera Setup & Prediction Loop ---
     useEffect(() => {
-        let isMounted = true;
-        let stream: MediaStream | null = null;
-        
-        if (!faceDetector || !videoRef.current || !hasAgreedToRules) {
+        if (!faceLandmarker || !videoRef.current || !hasAgreedToRules) {
             return;
         }
 
-        const setupCamera = async () => {
+        let stream: MediaStream | null = null;
+        let isMounted = true;
+
+        const setupAndPredict = async () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 if (isMounted && videoRef.current) {
                     videoRef.current.srcObject = stream;
+                    videoRef.current.addEventListener('loadeddata', predictWebcam);
                 }
             } catch (error) {
-                console.error("Error accessing camera:", error);
-                if (isMounted) {
+                 if (isMounted) {
                     toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the camera for proctoring.' });
                 }
             }
-        };
-        
-        setupCamera();
+        }
 
-        const video = videoRef.current;
-        
-        let lastTime = -1;
-        const predictWebcam = async () => {
-            if (!isMounted || !faceDetector || !video || video.paused || video.videoWidth === 0) {
+        const predictWebcam = () => {
+            const video = videoRef.current;
+            if (!isMounted || !faceLandmarker || !video || video.paused || video.videoWidth === 0) {
                  if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
                 return;
             }
             
-            const startTimeMs = performance.now();
-            if (startTimeMs > lastTime) {
-                const result = faceDetector.detectForVideo(video, startTimeMs);
-                if (result.detections.length === 0) {
-                    startWarning("Your face is not visible to the camera.");
-                } else {
-                    stopWarning();
-                }
-                lastTime = startTimeMs;
+            const result: FaceLandmarkerResult = faceLandmarker.detectForVideo(video, performance.now());
+            
+            if (result.faceLandmarks.length === 0) {
+                startWarning("Your face is not visible to the camera.");
+            } else if (isLookingAway(result.faceLandmarks)) {
+                 startWarning("Please keep your eyes on the screen.");
+            } else {
+                stopWarning();
             }
+
             if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
-
-        const handleCanPlay = () => {
-            if (isMounted) {
-                video.play();
-                animationFrameId.current = requestAnimationFrame(predictWebcam);
-            }
-        };
-
-        video.addEventListener("loadedmetadata", handleCanPlay);
+        
+        setupAndPredict();
 
         return () => {
             isMounted = false;
-            video.removeEventListener("loadedmetadata", handleCanPlay);
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            if(videoRef.current) videoRef.current.removeEventListener('loadeddata', predictWebcam);
             stream?.getTracks().forEach(track => track.stop());
-            if (videoRef.current) {
-                videoRef.current.srcObject = null;
-            }
+            if (videoRef.current) videoRef.current.srcObject = null;
         };
-    }, [faceDetector, hasAgreedToRules, toast]);
+    }, [faceLandmarker, hasAgreedToRules, toast]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -536,7 +598,7 @@ export default function AssessmentPage() {
                             <p className="font-semibold">To ensure exam integrity, this assessment is proctored.</p>
                             <ul className="list-disc pl-5 mt-2 space-y-1">
                                 <li>You must allow camera access. Your face must be visible and facing the screen at all times.</li>
-                                <li>If you switch tabs, apps, look away, or your face is not visible, a 10-second warning will start.</li>
+                                <li>If you switch tabs, look away, or your face is not visible, a 10-second warning will start.</li>
                                 <li>If your mouse cursor leaves the page, a warning will also be triggered.</li>
                                 <li>If you do not comply within 10 seconds, your attempt will be automatically terminated.</li>
                             </ul>
