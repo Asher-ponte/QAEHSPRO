@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -31,11 +31,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface TestResult {
     name: string;
     status: 'success' | 'failed';
     details: string;
+}
+
+interface SelectOption {
+    id: number;
+    name: string;
 }
 
 const quizTestSchema = z.object({
@@ -58,15 +64,67 @@ function QuizTester() {
     const [isTesting, setIsTesting] = useState(false);
     const [testResponse, setTestResponse] = useState<any>(null);
 
+    // State for dropdown options
+    const [users, setUsers] = useState<SelectOption[]>([]);
+    const [courses, setCourses] = useState<SelectOption[]>([]);
+    const [lessons, setLessons] = useState<SelectOption[]>([]);
+
+    const [isLoading, setIsLoading] = useState({ users: true, courses: true, lessons: false });
+
     const form = useForm<QuizTestFormValues>({
         resolver: zodResolver(quizTestSchema),
         defaultValues: {
-            userId: "" as any, // Initialize as empty string to be controlled
-            courseId: "" as any,
-            lessonId: "" as any,
-            answers: '{"0": 0, "1": 0}',
+            answers: '{"0": 0}',
         },
     });
+    
+    const selectedCourseId = form.watch('courseId');
+
+    // Fetch initial data for users and courses
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [usersRes, coursesRes] = await Promise.all([
+                    fetch('/api/admin/debug/users'),
+                    fetch('/api/admin/debug/courses')
+                ]);
+                if (usersRes.ok) setUsers(await usersRes.json());
+                if (coursesRes.ok) setCourses(await coursesRes.json());
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load initial data for tester.' });
+            } finally {
+                setIsLoading(prev => ({ ...prev, users: false, courses: false }));
+            }
+        };
+        fetchData();
+    }, [toast]);
+
+    // Fetch lessons when a course is selected
+    useEffect(() => {
+        if (!selectedCourseId) {
+            setLessons([]);
+            return;
+        }
+        
+        const fetchLessons = async () => {
+            setIsLoading(prev => ({ ...prev, lessons: true }));
+            try {
+                const res = await fetch(`/api/admin/debug/lessons?courseId=${selectedCourseId}`);
+                if (res.ok) {
+                    setLessons(await res.json());
+                    form.resetField('lessonId'); // Reset lesson selection when course changes
+                } else {
+                    setLessons([]);
+                }
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load lessons for the selected course.' });
+                setLessons([]);
+            } finally {
+                setIsLoading(prev => ({ ...prev, lessons: false }));
+            }
+        };
+        fetchLessons();
+    }, [selectedCourseId, toast, form]);
 
     async function onSubmit(values: QuizTestFormValues) {
         setIsTesting(true);
@@ -112,13 +170,34 @@ function QuizTester() {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <FormField control={form.control} name="userId" render={({ field }) => (
-                                <FormItem><FormLabel>User ID</FormLabel><FormControl><Input placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>User</FormLabel>
+                                 <Select onValueChange={field.onChange} defaultValue={field.value?.toString()} disabled={isLoading.users}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder={isLoading.users ? "Loading..." : "Select User"} /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {users.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}
+                                    </SelectContent>
+                                 </Select>
+                                <FormMessage /></FormItem>
                             )} />
-                            <FormField control={form.control} name="courseId" render={({ field }) => (
-                                <FormItem><FormLabel>Course ID</FormLabel><FormControl><Input placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
+                           <FormField control={form.control} name="courseId" render={({ field }) => (
+                                <FormItem><FormLabel>Course</FormLabel>
+                                 <Select onValueChange={field.onChange} defaultValue={field.value?.toString()} disabled={isLoading.courses}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder={isLoading.courses ? "Loading..." : "Select Course"} /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {courses.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                 </Select>
+                                <FormMessage /></FormItem>
                             )} />
                             <FormField control={form.control} name="lessonId" render={({ field }) => (
-                                <FormItem><FormLabel>Lesson ID</FormLabel><FormControl><Input placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Quiz Lesson</FormLabel>
+                                 <Select onValueChange={field.onChange} value={field.value?.toString()} disabled={!selectedCourseId || isLoading.lessons}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder={isLoading.lessons ? "Loading..." : "Select Lesson"} /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {lessons.map(l => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}
+                                    </SelectContent>
+                                 </Select>
+                                <FormMessage /></FormItem>
                             )} />
                         </div>
                         <FormField control={form.control} name="answers" render={({ field }) => (
