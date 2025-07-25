@@ -110,6 +110,14 @@ const courseSchema = z.object({
 }, {
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
     path: ["final_assessment_passing_rate"],
+}).refine(data => {
+    if ((data.pre_test_questions?.length ?? 0) > 0) {
+        return data.pre_test_passing_rate !== null && data.pre_test_passing_rate !== undefined;
+    }
+    return true;
+}, {
+    message: "Passing Rate is required when there are pre-test questions.",
+    path: ["pre_test_passing_rate"],
 });
 
 
