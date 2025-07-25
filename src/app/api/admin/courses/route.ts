@@ -1,9 +1,9 @@
 
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // Helper function to compute statistics for a list of courses against the database.
 async function getCourseStats(db: any, courses: any[]) {

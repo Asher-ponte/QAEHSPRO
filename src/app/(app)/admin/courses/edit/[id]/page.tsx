@@ -27,7 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { useSession } from "@/hooks/use-session"
-import type { Site } from "@/lib/sites"
 import { PdfUpload } from "@/components/pdf-upload"
 
 interface SignatoryOption {
@@ -36,35 +35,28 @@ interface SignatoryOption {
     position: string | null;
 }
 
-const quizOptionSchema = z.object({
+const assessmentQuestionOptionSchema = z.object({
   text: z.string(),
 });
 
-const quizQuestionSchema = z.object({
-  text: z.string(),
-  options: z.array(quizOptionSchema),
-  correctOptionIndex: z.coerce.number(),
-});
-
-const finalAssessmentQuestionSchema = z.object({
+const assessmentQuestionSchema = z.object({
   id: z.number().optional(),
   text: z.string(),
-  options: z.array(quizOptionSchema),
+  options: z.array(assessmentQuestionOptionSchema),
   correctOptionIndex: z.coerce.number(),
 });
 
 const lessonSchema = z.object({
-  id: z.number().optional(), // Keep track of existing lessons
+  id: z.number().optional(),
   title: z.string(),
-  type: z.enum(["video", "document", "quiz"]),
+  type: z.enum(["video", "document"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
-  questions: z.array(quizQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
-  id: z.number().optional(), // Keep track of existing modules
+  id: z.number().optional(),
   title: z.string(),
   lessons: z.array(lessonSchema),
 });
@@ -82,9 +74,13 @@ const courseSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
-  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  max_attempts: z.coerce.number().min(1).optional().nullable(),
-  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
+  
+  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
+  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+
+  final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
+  final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -107,14 +103,13 @@ const courseSchema = z.object({
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
 }).refine(data => {
-    // If there are assessment questions, then passing rate and max attempts are required.
     if ((data.final_assessment_questions?.length ?? 0) > 0) {
-        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+        return data.final_assessment_passing_rate !== null && data.final_assessment_passing_rate !== undefined && data.final_assessment_max_attempts !== null && data.final_assessment_max_attempts !== undefined;
     }
     return true;
 }, {
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
-    path: ["passing_rate"], // Or point to a more general location.
+    path: ["final_assessment_passing_rate"],
 });
 
 
@@ -131,7 +126,6 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
         const fetchAllSignatories = async () => {
             setIsLoading(true);
             try {
-                // Fetch signatories specific to the current site context
                 const res = await fetch(`/api/admin/signatories?siteId=${site.id}`);
                 if (!res.ok) throw new Error("Failed to load signatories");
                 setSignatories(await res.json());
@@ -199,113 +193,6 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
     )
 }
 
-function QuizBuilder({ moduleIndex, lessonIndex, control }: { moduleIndex: number, lessonIndex: number, control: Control<CourseFormValues> }) {
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: `modules.${moduleIndex}.lessons.${lessonIndex}.questions`,
-    });
-
-    return (
-        <div className="space-y-4">
-            {fields.map((questionField, questionIndex) => (
-                <div key={questionField.id} className="p-4 border rounded-lg space-y-4 bg-background">
-                    <div className="flex justify-between items-center">
-                        <FormLabel>Question {questionIndex + 1}</FormLabel>
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(questionIndex)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                    </div>
-                     <FormField
-                        control={control}
-                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.text`}
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-xs">Question Text</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="e.g., What is the capital of France?" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <QuestionOptions moduleIndex={moduleIndex} lessonIndex={lessonIndex} questionIndex={questionIndex} control={control} />
-                </div>
-            ))}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => append({ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 })}
-            >
-                <Plus className="mr-2 h-4 w-4" /> Add Question
-            </Button>
-             <FormMessage>{(control.getFieldState(`modules.${moduleIndex}.lessons.${lessonIndex}.questions`).error as any)?.message}</FormMessage>
-        </div>
-    );
-}
-
-function QuestionOptions({ moduleIndex, lessonIndex, questionIndex, control }: { moduleIndex: number, lessonIndex: number, questionIndex: number, control: Control<CourseFormValues> }) {
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: `modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.options`,
-    });
-
-    const correctOptionFieldName = `modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.correctOptionIndex`;
-
-    return (
-        <div className="space-y-2">
-            <FormLabel className="text-xs">Options</FormLabel>
-            <FormField
-                control={control}
-                name={correctOptionFieldName}
-                render={({ field }) => (
-                    <FormItem>
-                        <FormControl>
-                            <RadioGroup
-                                onValueChange={(value) => field.onChange(parseInt(value, 10))}
-                                value={field.value?.toString()}
-                                className="space-y-2"
-                            >
-                                {fields.map((optionField, optionIndex) => (
-                                    <div key={optionField.id} className="flex items-center gap-2">
-                                        <FormControl>
-                                            <RadioGroupItem value={optionIndex.toString()} />
-                                        </FormControl>
-                                         <FormField
-                                            control={control}
-                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions.${questionIndex}.options.${optionIndex}.text`}
-                                            render={({ field }) => (
-                                                <FormItem className="flex-grow">
-                                                    <FormControl>
-                                                        <Input placeholder={`Option ${optionIndex + 1}`} {...field} />
-                                                    </FormControl>
-                                                    <FormMessage/>
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => remove(optionIndex)} disabled={fields.length <= 2}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                 )}
-            />
-             <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => append({ text: "" })}
-            >
-                <Plus className="mr-2 h-4 w-4" /> Add Option
-            </Button>
-        </div>
-    );
-}
-
 function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         name: `modules.${moduleIndex}.lessons`,
@@ -321,19 +208,13 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
 
     const handleTypeChange = (value: string, index: number) => {
         const currentLesson = getValues(`modules.${moduleIndex}.lessons.${index}`);
-        const newLesson = { ...currentLesson, type: value as "video" | "document" | "quiz" };
+        const newLesson = { ...currentLesson, type: value as "video" | "document" };
         
-        if (value === 'quiz') {
-            newLesson.questions = newLesson.questions || [];
-            newLesson.content = null;
-            newLesson.imagePath = null;
-        } else if (value === 'document') {
+        if (value === 'document') {
             newLesson.content = newLesson.content || "";
-            newLesson.questions = undefined;
         } else {
             newLesson.content = null;
             newLesson.imagePath = null;
-            newLesson.questions = undefined;
         }
 
         setValue(`modules.${moduleIndex}.lessons.${index}`, newLesson);
@@ -385,7 +266,6 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                             <SelectContent>
                                                 <SelectItem value="video">Video</SelectItem>
                                                 <SelectItem value="document">Document</SelectItem>
-                                                <SelectItem value="quiz">Quiz</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -458,12 +338,6 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                     </div>
                                 </div>
                             )}
-                             {lessonType === 'quiz' && (
-                               <div className="space-y-2">
-                                  <Label>Quiz Builder</Label>
-                                  <QuizBuilder moduleIndex={moduleIndex} lessonIndex={lessonIndex} control={control} />
-                               </div>
-                            )}
                         </div>
                     </div>
                 )
@@ -472,7 +346,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ title: "", type: "video", content: null, imagePath: null, documentPath: null })}
+                onClick={() => append({ title: "", type: "document", content: "", imagePath: null, documentPath: null })}
                 >
                 <Plus className="mr-2 h-4 w-4" /> Add Lesson
             </Button>
@@ -480,13 +354,58 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     )
 }
 
-function FinalAssessmentQuestionOptions({ questionIndex, control }: { questionIndex: number; control: Control<CourseFormValues> }) {
+function AssessmentQuestionBuilder({ name, control }: { name: `pre_test_questions` | `final_assessment_questions`, control: Control<CourseFormValues> }) {
     const { fields, append, remove } = useFieldArray({
         control,
-        name: `final_assessment_questions.${questionIndex}.options`,
+        name,
     });
 
-    const correctOptionFieldName = `final_assessment_questions.${questionIndex}.correctOptionIndex`;
+    return (
+        <div className="space-y-4">
+            {fields.map((questionField, questionIndex) => (
+                <div key={questionField.id} className="p-4 border rounded-lg space-y-4 bg-background">
+                    <div className="flex justify-between items-center">
+                        <FormLabel>Question {questionIndex + 1}</FormLabel>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(questionIndex)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                    <FormField
+                        control={control}
+                        name={`${name}.${questionIndex}.text`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs">Question Text</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., What is the primary goal of..." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <AssessmentQuestionOptions namePrefix={name} questionIndex={questionIndex} control={control} />
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 })}
+            >
+                <Plus className="mr-2 h-4 w-4" /> Add Question
+            </Button>
+            <FormMessage>{(control.getFieldState(name).error as any)?.message}</FormMessage>
+        </div>
+    );
+}
+
+function AssessmentQuestionOptions({ namePrefix, questionIndex, control }: { namePrefix: `pre_test_questions` | `final_assessment_questions`; questionIndex: number; control: Control<CourseFormValues> }) {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `${namePrefix}.${questionIndex}.options`,
+    });
+
+    const correctOptionFieldName = `${namePrefix}.${questionIndex}.correctOptionIndex`;
 
     return (
         <div className="space-y-2">
@@ -509,7 +428,7 @@ function FinalAssessmentQuestionOptions({ questionIndex, control }: { questionIn
                                         </FormControl>
                                         <FormField
                                             control={control}
-                                            name={`final_assessment_questions.${questionIndex}.options.${optionIndex}.text`}
+                                            name={`${namePrefix}.${questionIndex}.options.${optionIndex}.text`}
                                             render={({ field }) => (
                                                 <FormItem className="flex-grow">
                                                     <FormControl>
@@ -533,51 +452,6 @@ function FinalAssessmentQuestionOptions({ questionIndex, control }: { questionIn
             <Button type="button" variant="outline" size="sm" onClick={() => append({ text: "" })}>
                 <Plus className="mr-2 h-4 w-4" /> Add Option
             </Button>
-        </div>
-    );
-}
-
-function FinalAssessmentBuilder({ control }: { control: Control<CourseFormValues> }) {
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: `final_assessment_questions`,
-    });
-
-    return (
-        <div className="space-y-4">
-            {fields.map((questionField, questionIndex) => (
-                <div key={questionField.id} className="p-4 border rounded-lg space-y-4 bg-background">
-                    <div className="flex justify-between items-center">
-                        <FormLabel>Question {questionIndex + 1}</FormLabel>
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(questionIndex)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                    </div>
-                    <FormField
-                        control={control}
-                        name={`final_assessment_questions.${questionIndex}.text`}
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-xs">Question Text</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="e.g., What is the primary goal of..." {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FinalAssessmentQuestionOptions questionIndex={questionIndex} control={control} />
-                </div>
-            ))}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => append({ text: "", options: [{ text: "" }, { text: "" }], correctOptionIndex: -1 })}
-            >
-                <Plus className="mr-2 h-4 w-4" /> Add Question
-            </Button>
-            <FormMessage>{(control.getFieldState('final_assessment_questions').error as any)?.message}</FormMessage>
         </div>
     );
 }
@@ -643,9 +517,11 @@ export default function EditCoursePage() {
       price: undefined,
       modules: [],
       signatoryIds: [],
-      passing_rate: 80,
-      max_attempts: 3,
+      pre_test_questions: [],
+      pre_test_passing_rate: 80,
       final_assessment_questions: [],
+      final_assessment_passing_rate: 80,
+      final_assessment_max_attempts: 3,
     },
     mode: "onChange"
   });
@@ -667,6 +543,7 @@ export default function EditCoursePage() {
                 is_internal: !!data.is_internal,
                 is_public: !!data.is_public,
                 signatoryIds: data.signatoryIds || [],
+                pre_test_questions: data.pre_test_questions || [],
                 final_assessment_questions: data.final_assessment_questions || [],
             });
         } catch (error) {
@@ -693,35 +570,13 @@ export default function EditCoursePage() {
   async function onSubmit(values: CourseFormValues) {
     setIsSubmitting(true);
     
-    const payload = {
-      ...values,
-      price: values.is_public ? values.price : null,
-      modules: values.modules.map(module => ({
-        id: module.id,
-        title: module.title,
-        lessons: module.lessons.map(lesson => ({
-          id: lesson.id,
-          title: lesson.title,
-          type: lesson.type,
-          content: lesson.content,
-          imagePath: lesson.imagePath,
-          documentPath: lesson.documentPath,
-          questions: lesson.type === 'quiz' ? lesson.questions?.map(q => ({
-            text: q.text,
-            options: q.options.map(o => ({ text: o.text })),
-            correctOptionIndex: q.correctOptionIndex
-          })) : undefined,
-        }))
-      }))
-    };
-    
     try {
       const response = await fetch(`/api/admin/courses/${courseId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(values),
       });
 
       if (!response.ok) {
@@ -994,12 +849,42 @@ export default function EditCoursePage() {
                     <SignatoriesField control={form.control} />
                 </CardContent>
             </Card>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Pre-test</CardTitle>
+                    <CardDescription>
+                        Edit the pre-test for this course.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                    <FormField
+                        control={form.control}
+                        name="pre_test_passing_rate"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Passing Rate (%)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
+                                </FormControl>
+                                <FormDescription>The minimum score required to pass.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div>
+                        <Label>Pre-test Questions</Label>
+                        <FormDescription className="mb-4">Edit the pre-test questions below.</FormDescription>
+                        <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
+                    </div>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Course Content</CardTitle>
                     <CardDescription>
-                        Add modules and lessons. Use the Quiz Builder for interactive questions.
+                        Add or edit modules and lessons.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1040,7 +925,7 @@ export default function EditCoursePage() {
                         type="button"
                         variant="outline"
                         className="mt-6"
-                        onClick={() => append({ title: "", lessons: [{ title: "", type: "video", content: null, imagePath: null, documentPath: null }] })}
+                        onClick={() => append({ title: "", lessons: [{ title: "", type: "document", content: "" }] })}
                     >
                         <Plus className="mr-2 h-4 w-4" /> Add Module
                     </Button>
@@ -1052,14 +937,14 @@ export default function EditCoursePage() {
                 <CardHeader>
                     <CardTitle>Final Assessment</CardTitle>
                     <CardDescription>
-                        Create a final exam for this course. This assessment is presented to users only after they have completed all lessons.
+                        Edit the final exam for this course.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <FormField
                             control={form.control}
-                            name="passing_rate"
+                            name="final_assessment_passing_rate"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Passing Rate (%)</FormLabel>
@@ -1073,7 +958,7 @@ export default function EditCoursePage() {
                         />
                         <FormField
                             control={form.control}
-                            name="max_attempts"
+                            name="final_assessment_max_attempts"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Maximum Attempts</FormLabel>
@@ -1088,8 +973,8 @@ export default function EditCoursePage() {
                     </div>
                     <div>
                         <Label>Assessment Questions</Label>
-                        <FormDescription className="mb-4">Build the final exam questions below.</FormDescription>
-                        <FinalAssessmentBuilder control={form.control} />
+                        <FormDescription className="mb-4">Edit the final exam questions below.</FormDescription>
+                        <AssessmentQuestionBuilder name="final_assessment_questions" control={form.control} />
                     </div>
                 </CardContent>
             </Card>
@@ -1109,5 +994,3 @@ export default function EditCoursePage() {
     </div>
   )
 }
-
-    

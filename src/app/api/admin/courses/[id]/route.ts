@@ -1,12 +1,10 @@
 
-
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import type { ResultSetHeader } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
-// Helper to transform form quiz data to DB format
 function transformQuestionsToDbFormat(questions: any[]) {
     if (!questions || !Array.isArray(questions)) return null;
     return JSON.stringify(questions.map(q => ({
@@ -18,7 +16,6 @@ function transformQuestionsToDbFormat(questions: any[]) {
     })));
 }
 
-// Helper to transform DB quiz data to form format
 function transformDbToQuestionsFormat(content: string | null): any[] {
     if (!content) return [];
     try {
@@ -32,36 +29,29 @@ function transformDbToQuestionsFormat(content: string | null): any[] {
         }));
     } catch (e) {
         console.error("Failed to parse DB questions format:", e);
-        return []; // Return empty array if JSON is invalid
+        return [];
     }
 }
 
 
-const quizOptionSchema = z.object({
+const assessmentQuestionOptionSchema = z.object({
   text: z.string(),
 });
 
-const quizQuestionSchema = z.object({
-  text: z.string(),
-  options: z.array(quizOptionSchema),
-  correctOptionIndex: z.coerce.number(),
-});
-
-const finalAssessmentQuestionSchema = z.object({
+const assessmentQuestionSchema = z.object({
   id: z.number().optional(),
   text: z.string(),
-  options: z.array(quizOptionSchema),
+  options: z.array(assessmentQuestionOptionSchema),
   correctOptionIndex: z.coerce.number(),
 });
 
 const lessonSchema = z.object({
   id: z.number().optional(),
   title: z.string(),
-  type: z.enum(["video", "document", "quiz"]),
+  type: z.enum(["video", "document"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
-  questions: z.array(quizQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
@@ -83,9 +73,13 @@ const courseUpdateSchema = z.object({
   price: z.coerce.number().optional().nullable(),
   modules: z.array(moduleSchema),
   signatoryIds: z.array(z.number()).default([]),
-  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  max_attempts: z.coerce.number().min(1).optional().nullable(),
-  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
+
+  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
+  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  
+  final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
+  final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -108,14 +102,13 @@ const courseUpdateSchema = z.object({
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
 }).refine(data => {
-    // If there are assessment questions, then passing rate and max attempts are required.
     if ((data.final_assessment_questions?.length ?? 0) > 0) {
-        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+        return data.final_assessment_passing_rate !== null && data.final_assessment_passing_rate !== undefined && data.final_assessment_max_attempts !== null && data.final_assessment_max_attempts !== undefined;
     }
     return true;
 }, {
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
-    path: ["passing_rate"], // Or point to a more general location.
+    path: ["final_assessment_passing_rate"],
 });
 
 
@@ -136,8 +129,8 @@ export async function GET(
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
 
-        const [courseRows] = await db.query<any[]>('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
-        const course = courseRows[0];
+        const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const course = courseRows[0] as any;
         if (!course) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
@@ -174,14 +167,8 @@ export async function GET(
                     type: row.lesson_type,
                     imagePath: row.lesson_imagePath ?? null,
                     documentPath: row.lesson_documentPath ?? null,
+                    content: row.lesson_content ?? null
                 };
-
-                if (row.lesson_type === 'quiz') {
-                    lesson.questions = transformDbToQuestionsFormat(row.lesson_content);
-                    lesson.content = null;
-                } else {
-                    lesson.content = row.lesson_content ?? null;
-                }
                 modulesMap.get(row.module_id).lessons.push(lesson);
             }
         }
@@ -190,6 +177,7 @@ export async function GET(
         const [assignedSignatories] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
         const signatoryIds = assignedSignatories.map(s => s.signatory_id);
         
+        const preTestQuestions = transformDbToQuestionsFormat(course.pre_test_content);
         const finalAssessmentQuestions = transformDbToQuestionsFormat(course.final_assessment_content);
 
         return NextResponse.json({
@@ -199,6 +187,7 @@ export async function GET(
             imagePath: course.imagePath ?? null,
             venue: course.venue ?? null,
             signatoryIds,
+            pre_test_questions: preTestQuestions,
             final_assessment_questions: finalAssessmentQuestions,
         });
 
@@ -232,8 +221,17 @@ export async function PUT(
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { title, description, category, modules, imagePath, venue, startDate, endDate, is_internal, is_public, price, signatoryIds, passing_rate, max_attempts, final_assessment_questions } = parsedData.data;
+        const { 
+            title, description, category, modules, imagePath, venue, startDate, endDate, 
+            is_internal, is_public, price, signatoryIds, 
+            pre_test_questions, pre_test_passing_rate,
+            final_assessment_questions, final_assessment_passing_rate, final_assessment_max_attempts 
+        } = parsedData.data;
 
+        const preTestContent = (pre_test_questions && pre_test_questions.length > 0)
+            ? transformQuestionsToDbFormat(pre_test_questions)
+            : null;
+        
         const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
             ? transformQuestionsToDbFormat(final_assessment_questions)
             : null;
@@ -242,8 +240,18 @@ export async function PUT(
         await db.query('START TRANSACTION');
 
         await db.query(
-            'UPDATE courses SET title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, is_internal = ?, is_public = ?, price = ?, passing_rate = ?, max_attempts = ?, final_assessment_content = ? WHERE id = ? AND site_id = ?',
-            [title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, finalAssessmentContent, courseId, siteId]
+            `UPDATE courses SET 
+                title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, 
+                is_internal = ?, is_public = ?, price = ?, 
+                pre_test_content = ?, pre_test_passing_rate = ?,
+                final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
+             WHERE id = ? AND site_id = ?`,
+            [
+                title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price,
+                preTestContent, pre_test_passing_rate,
+                finalAssessmentContent, final_assessment_passing_rate, final_assessment_max_attempts,
+                courseId, siteId
+            ]
         );
         
         await db.query('DELETE FROM course_signatories WHERE course_id = ?', [courseId]);
@@ -281,12 +289,10 @@ export async function PUT(
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                const contentToStore = lessonData.type === 'quiz' ? transformQuestionsToDbFormat(lessonData.questions || []) : lessonData.content ?? null;
-                
                 if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
+                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, `order` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
                 } else {
-                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                    await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
                 }
             }
         }

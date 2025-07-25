@@ -1,5 +1,4 @@
 
-
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { z } from 'zod'
@@ -18,29 +17,22 @@ function transformQuestionsToDbFormat(questions: any[]) {
     })));
 }
 
-const quizOptionSchema = z.object({
+const assessmentQuestionOptionSchema = z.object({
   text: z.string(),
 });
 
-const quizQuestionSchema = z.object({
+const assessmentQuestionSchema = z.object({
   text: z.string(),
-  options: z.array(quizOptionSchema),
-  correctOptionIndex: z.coerce.number(),
-});
-
-const finalAssessmentQuestionSchema = z.object({
-  text: z.string(),
-  options: z.array(quizOptionSchema),
+  options: z.array(assessmentQuestionOptionSchema),
   correctOptionIndex: z.coerce.number(),
 });
 
 const lessonSchema = z.object({
   title: z.string(),
-  type: z.enum(["video", "document", "quiz"]),
+  type: z.enum(["video", "document"]),
   content: z.string().optional().nullable(),
   imagePath: z.string().optional().nullable(),
   documentPath: z.string().optional().nullable(),
-  questions: z.array(quizQuestionSchema).optional(),
 });
 
 const moduleSchema = z.object({
@@ -62,9 +54,13 @@ const courseSchema = z.object({
   modules: z.array(moduleSchema),
   branchSignatories: z.record(z.string(), z.array(z.number()).default([])).default({}),
   targetSiteIds: z.array(z.string()).optional(),
-  passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  max_attempts: z.coerce.number().min(1).optional().nullable(),
-  final_assessment_questions: z.array(finalAssessmentQuestionSchema).optional(),
+  
+  pre_test_questions: z.array(assessmentQuestionSchema).optional(),
+  pre_test_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+
+  final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
+  final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
+  final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -87,14 +83,13 @@ const courseSchema = z.object({
     message: "A course must be available to at least one audience (Internal or Public).",
     path: ["is_public"], 
 }).refine(data => {
-    // If there are assessment questions, then passing rate and max attempts are required.
     if ((data.final_assessment_questions?.length ?? 0) > 0) {
-        return data.passing_rate !== null && data.passing_rate !== undefined && data.max_attempts !== null && data.max_attempts !== undefined;
+        return data.final_assessment_passing_rate !== null && data.final_assessment_passing_rate !== undefined && data.final_assessment_max_attempts !== null && data.final_assessment_max_attempts !== undefined;
     }
     return true;
 }, {
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
-    path: ["passing_rate"], // Or point to a more general location.
+    path: ["final_assessment_passing_rate"],
 });
 
 export async function GET() {
@@ -108,14 +103,11 @@ export async function GET() {
 
     let courses;
     if (user.type === 'External') {
-        // External users see only public courses from their branch database.
         const [rows] = await db.query<RowDataPacket[]>(`
             SELECT * FROM courses WHERE is_public = 1 AND site_id = ? ORDER BY title ASC
         `, [siteId]);
         courses = rows;
     } else { // Employee or Admin
-        // Branch users see all internal or public courses from their branch's database.
-        // Price is explicitly nulled to ensure they don't see payment options.
         const [rows] = await db.query<RowDataPacket[]>(`
             SELECT id, title, description, category, imagePath, startDate, endDate, is_public, is_internal,
                    NULL as price
@@ -133,18 +125,33 @@ export async function GET() {
   }
 }
 
-// Helper function to contain the course creation logic for a single DB.
 const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForCourse: string, siteIdForSignatories: string) => {
     await db.query('START TRANSACTION');
     try {
         const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
+
+        const preTestContent = (payload.pre_test_questions && payload.pre_test_questions.length > 0)
+            ? transformQuestionsToDbFormat(payload.pre_test_questions)
+            : null;
+
         const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
             ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
             : null;
 
         const [courseResult] = await db.query<ResultSetHeader>(
-            'INSERT INTO courses (site_id, title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price, passing_rate, max_attempts, final_assessment_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, coursePriceForThisBranch, payload.passing_rate, payload.max_attempts, finalAssessmentContent]
+            `INSERT INTO courses (
+                site_id, title, description, category, imagePath, venue, startDate, endDate, 
+                is_internal, is_public, price, 
+                pre_test_content, pre_test_passing_rate,
+                final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, 
+                payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, 
+                coursePriceForThisBranch, 
+                preTestContent, payload.pre_test_passing_rate,
+                finalAssessmentContent, payload.final_assessment_passing_rate, payload.final_assessment_max_attempts
+            ]
         );
         const courseId = courseResult.insertId;
         if (!courseId) throw new Error('Failed to create course');
@@ -162,8 +169,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                const contentToStore = lessonData.type === 'quiz' ? transformQuestionsToDbFormat(lessonData.questions || []) : lessonData.content ?? null;
-                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, contentToStore, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content ?? null, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.query('COMMIT');
@@ -190,7 +196,6 @@ export async function POST(request: NextRequest) {
 
     const db = await getDb();
 
-    // --- Client Admin Logic ---
     if (!isSuperAdmin) {
         try {
             await createCourseInDb(db, coursePayload, sessionSiteId, sessionSiteId);
@@ -201,8 +206,6 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // --- Super Admin Logic ---
-    // Step 1: Create in Main Branch. This is the critical master copy.
     try {
         await createCourseInDb(db, coursePayload, 'main', 'main');
     } catch (error) {
@@ -210,11 +213,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create the master course.', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
 
-    // Step 2: Replicate to other selected branches.
     const targetSiteIds = coursePayload.targetSiteIds || [];
     const replicationErrors = [];
 
-    // Also publish to 'external' if the course is public
     const effectiveTargetSites = new Set(targetSiteIds);
     if (coursePayload.is_public) {
         effectiveTargetSites.add('external');
@@ -223,7 +224,6 @@ export async function POST(request: NextRequest) {
     for (const targetSiteId of effectiveTargetSites) {
         if (targetSiteId === 'main') continue;
         try {
-            // Use the target site ID for the course record, but use the main branch's signatories.
             await createCourseInDb(db, coursePayload, targetSiteId, 'main');
         } catch (error) {
             const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -232,13 +232,12 @@ export async function POST(request: NextRequest) {
         }
     }
     
-    // Step 3: Respond to the client with the outcome.
     if (replicationErrors.length > 0) {
         return NextResponse.json({
-            success: true, // Master course was created, so overall action is a partial success.
+            success: true,
             message: 'Master course created, but failed to publish to some other branches.',
             details: replicationErrors.join('\n')
-        }, { status: 207 }); // 207 Multi-Status
+        }, { status: 207 });
     }
 
     return NextResponse.json({ success: true, message: `Course created in main branch and published to ${effectiveTargetSites.size} other branch(es).` }, { status: 201 });
