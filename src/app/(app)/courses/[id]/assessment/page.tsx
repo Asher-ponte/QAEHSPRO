@@ -206,21 +206,26 @@ export default function AssessmentPage() {
 
 
     const startWarning = (message: string) => {
-        // Debounce to prevent rapid firing of warnings
         if (Date.now() - lastProctoringEventTime.current < 2000) return; 
         lastProctoringEventTime.current = Date.now();
         
-        if (showFocusWarning && isCountdownActive) return;
+        // Don't start a new warning if one is already active.
+        if (isCountdownActive) return;
 
         setProctoringMessage(message);
-        setFocusCountdown(10);
         setShowFocusWarning(true);
-        setIsCountdownActive(true); // This will trigger the useEffect above to start the timer
+        setFocusCountdown(10);
+        setIsCountdownActive(true);
     };
 
     const stopWarning = () => {
+        // Only act if a countdown is running.
         if (isCountdownActive) {
-            setIsCountdownActive(false); // This will stop the timer via the useEffect cleanup
+            setIsCountdownActive(false); 
+            // The useEffect cleanup will clear the interval.
+            // Then we can reset the state for the next warning.
+            setFocusCountdown(10);
+            setShowFocusWarning(false);
         }
     };
 
@@ -458,9 +463,6 @@ export default function AssessmentPage() {
     };
 
     const FocusWarningDialog = () => {
-        const handleCloseWarning = () => {
-            setShowFocusWarning(false);
-        };
         return (
             <AlertDialog open={showFocusWarning}>
                 <AlertDialogContent>
@@ -475,17 +477,12 @@ export default function AssessmentPage() {
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            {isCountdownActive ? "Return to compliance immediately or the exam will be terminated in:" : "Timer paused. Close this warning to continue."}
+                            Return to compliance immediately or the exam will be terminated in:
                         </div>
                          <div className="text-6xl font-bold text-destructive">
                             {focusCountdown}
                         </div>
                     </div>
-                    <AlertDialogFooter>
-                        {!isCountdownActive && (
-                            <AlertDialogAction onClick={handleCloseWarning}>I Understand, Resume Exam</AlertDialogAction>
-                        )}
-                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         )
