@@ -7,12 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building, HardDrive, HeartPulse } from "lucide-react"
+import { BookOpen, Users, BarChart, Settings, PlusCircle, Ribbon, Library, Banknote, CreditCard, Building, HardDrive, HeartPulse, CheckCircle, XCircle } from "lucide-react"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/session"
 import { getDb } from "@/lib/db"
 import { getAllSites, getSiteById } from "@/lib/sites"
 import type { RowDataPacket } from "mysql2"
+import { cn } from "@/lib/utils"
 
 
 export default async function AdminPage() {
@@ -21,7 +22,22 @@ export default async function AdminPage() {
         return <p className="p-4">Session not found. Please log in.</p>;
     }
     
-    const db = await getDb();
+    let db;
+    let dbStatus = { connected: false, error: 'Not checked' };
+
+    // Perform a quick DB health check for super admin
+    if (isSuperAdmin) {
+        try {
+            db = await getDb();
+            await db.query('SELECT 1');
+            dbStatus = { connected: true, error: '' };
+        } catch (e) {
+            dbStatus = { connected: false, error: e instanceof Error ? e.message : 'An unknown error occurred' };
+        }
+    } else {
+        db = await getDb();
+    }
+    
     const currentSite = await getSiteById(siteId);
     const allSites = await getAllSites();
 
@@ -155,6 +171,23 @@ export default async function AdminPage() {
                     </CardContent>
                 </Card>
            ))}
+           {isSuperAdmin && (
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Database Status</CardTitle>
+                    <HardDrive className={cn("h-4 w-4", dbStatus.connected ? "text-green-500" : "text-destructive")} />
+                </CardHeader>
+                <CardContent>
+                    <div className={cn("text-2xl font-bold flex items-center gap-2", dbStatus.connected ? "text-green-600" : "text-destructive")}>
+                        {dbStatus.connected ? <CheckCircle /> : <XCircle />}
+                        {dbStatus.connected ? "Connected" : "Disconnected"}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate" title={dbStatus.error}>
+                        {dbStatus.connected ? 'Connection successful.' : 'Could not connect to DB.'}
+                    </p>
+                </CardContent>
+            </Card>
+           )}
         </div>
       </div>
 
