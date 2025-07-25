@@ -59,7 +59,7 @@ export async function GET(
         }
         // --- END ACCESS CONTROL ---
 
-        const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, passing_rate, max_attempts, final_assessment_content FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, final_assessment_passing_rate, final_assessment_max_attempts, final_assessment_content FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
         const course = courseRows[0];
         
         if (!course || !course.final_assessment_content) {
@@ -85,8 +85,8 @@ export async function GET(
         return NextResponse.json({
             courseTitle: course.title,
             questions: questionsForStudent,
-            passingRate: course.passing_rate,
-            maxAttempts: course.max_attempts,
+            passingRate: course.final_assessment_passing_rate,
+            maxAttempts: course.final_assessment_max_attempts,
             attempts: attempts,
         });
 

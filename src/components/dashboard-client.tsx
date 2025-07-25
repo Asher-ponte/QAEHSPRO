@@ -195,7 +195,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                         <div className="flex flex-grow items-center gap-4">
                             <div className="relative h-16 w-24 flex-shrink-0">
                                 <Image
-                                    src={course.imagePath || 'https://placehold.co/200x150'}
+                                    src={course.imagePath || 'https://picsum.photos/200/150'}
                                     alt={course.title}
                                     fill
                                     className="rounded-md object-cover"
@@ -235,7 +235,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                         <div className="flex flex-grow items-center gap-4">
                             <div className="relative h-16 w-24 flex-shrink-0">
                                 <Image
-                                    src={course.imagePath || 'https://placehold.co/200x150'}
+                                    src={course.imagePath || 'https://picsum.photos/200/150'}
                                     alt={course.title}
                                     fill
                                     className="rounded-md object-cover"

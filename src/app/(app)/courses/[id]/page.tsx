@@ -415,7 +415,7 @@ export default function CourseDetailPage() {
             <Card className="overflow-hidden">
                 <div className="w-full aspect-video relative">
                     <Image
-                    src={course.imagePath || 'https://placehold.co/600x400'}
+                    src={course.imagePath || 'https://picsum.photos/600/400'}
                     alt={course.title}
                     fill
                     className="object-cover"
