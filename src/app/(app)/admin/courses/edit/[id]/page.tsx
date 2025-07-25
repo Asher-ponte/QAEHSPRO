@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { PdfUpload } from "@/components/pdf-upload"
+import { Separator } from "@/components/ui/separator"
 
 interface SignatoryOption {
     id: number;
@@ -878,45 +879,47 @@ export default function EditCoursePage() {
             
             <Card>
                 <CardHeader>
-                    <CardTitle>Pre-test</CardTitle>
-                    <CardDescription>
-                        Edit the pre-test for this course.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                    <FormField
-                        control={form.control}
-                        name="pre_test_passing_rate"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Passing Rate (%)</FormLabel>
-                                <FormControl>
-                                    <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
-                                </FormControl>
-                                <FormDescription>The minimum score required to pass.</FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <div>
-                        <Label>Pre-test Questions</Label>
-                        <FormDescription className="mb-4">Edit the pre-test questions below.</FormDescription>
-                        <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
                     <CardTitle>Course Content</CardTitle>
                     <CardDescription>
-                        Add or edit modules and lessons.
+                        A user must pass the pre-test to access this content.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
+                <CardContent className="space-y-6">
+                    <Card className="p-4 bg-muted/50">
+                        <CardHeader className="p-0 mb-4">
+                             <CardTitle className="text-lg">Pre-test</CardTitle>
+                             <CardDescription>
+                                This is the first thing a user sees. Create a pre-test for this course.
+                             </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0 space-y-8">
+                             <FormField
+                                control={form.control}
+                                name="pre_test_passing_rate"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Passing Rate (%)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
+                                        </FormControl>
+                                        <FormDescription>The minimum score required to pass.</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div>
+                                <Label>Pre-test Questions</Label>
+                                <FormDescription className="mb-4">Edit the pre-test questions below.</FormDescription>
+                                <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Separator />
+                    
+                    <div>
                         {fields.map((field, index) => (
-                            <Card key={field.id} className="p-4 border-dashed relative">
+                            <Card key={field.id} className="p-4 border-dashed relative mb-6">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -950,7 +953,6 @@ export default function EditCoursePage() {
                     <Button
                         type="button"
                         variant="outline"
-                        className="mt-6"
                         onClick={() => append({ title: "", lessons: [{ title: "", type: "document", content: "" }] })}
                     >
                         <Plus className="mr-2 h-4 w-4" /> Add Module
@@ -1020,4 +1022,3 @@ export default function EditCoursePage() {
     </div>
   )
 }
-

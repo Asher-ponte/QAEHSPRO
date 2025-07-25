@@ -1021,44 +1021,46 @@ export default function CreateCoursePage() {
                 </Card>
             )}
             
-            <Card>
-                <CardHeader>
-                    <CardTitle>Pre-test</CardTitle>
-                    <CardDescription>
-                        Create a pre-test for this course. This is the first thing a user sees.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                    <FormField
-                        control={form.control}
-                        name="pre_test_passing_rate"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Passing Rate (%)</FormLabel>
-                                <FormControl>
-                                    <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
-                                </FormControl>
-                                <FormDescription>The minimum score required to pass.</FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <div>
-                        <Label>Pre-test Questions</Label>
-                        <FormDescription className="mb-4">Build the pre-test questions below.</FormDescription>
-                        <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
+             <Card>
                 <CardHeader>
                     <CardTitle>Course Content</CardTitle>
                     <CardDescription>
-                        Add modules and lessons. A user must pass the pre-test to access this content.
+                        A user must pass the pre-test to access this content.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
+                    <Card className="p-4 bg-muted/50">
+                        <CardHeader className="p-0 mb-4">
+                             <CardTitle className="text-lg">Pre-test</CardTitle>
+                             <CardDescription>
+                                This is the first thing a user sees. Create a pre-test for this course.
+                             </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0 space-y-8">
+                             <FormField
+                                control={form.control}
+                                name="pre_test_passing_rate"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Passing Rate (%)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" placeholder="e.g., 80" {...field} value={field.value ?? ''} />
+                                        </FormControl>
+                                        <FormDescription>The minimum score required to pass.</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div>
+                                <Label>Pre-test Questions</Label>
+                                <FormDescription className="mb-4">Build the pre-test questions below.</FormDescription>
+                                <AssessmentQuestionBuilder name="pre_test_questions" control={form.control} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    
+                    <Separator />
+
                     <div className="space-y-6">
                         {fields.map((field, index) => (
                             <Card key={field.id} className="p-4 border-dashed relative">
@@ -1095,7 +1097,6 @@ export default function CreateCoursePage() {
                     <Button
                         type="button"
                         variant="outline"
-                        className="mt-6"
                         onClick={() => append({ title: "", lessons: [{ title: "", type: "document", content: "", questions: [] }] })}
                     >
                         <Plus className="mr-2 h-4 w-4" /> Add Module
