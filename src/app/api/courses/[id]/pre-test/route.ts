@@ -11,14 +11,27 @@ interface DbQuizQuestion {
 
 async function hasAccess(db: any, user: any, courseId: number) {
     if (user.role === 'Admin') return true;
+    
+    // Check for direct enrollment
     const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
-    if (enrollmentRows.length > 0) return true;
-    if (user.type === 'External') {
-        const [transactionRows] = await db.query<RowDataPacket[]>(`SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`, [user.id, courseId]);
-        if (transactionRows.length > 0) return true;
+    if (enrollmentRows.length > 0) {
+        return true;
     }
+    
+    // For external users, also check for a valid transaction
+    if (user.type === 'External') {
+        const [transactionRows] = await db.query<RowDataPacket[]>(
+            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+            [user.id, courseId]
+        );
+        if (transactionRows.length > 0) {
+            return true;
+        }
+    }
+
     return false;
 }
+
 
 export async function GET(
     request: NextRequest, 
@@ -51,12 +64,16 @@ export async function GET(
         
         let questionsForStudent: { text: string; options: { text: string }[] }[] = [];
         try {
-            const dbQuestions: DbQuizQuestion[] = JSON.parse(course.pre_test_content);
-            questionsForStudent = dbQuestions.map(q => ({
-                text: q.text,
-                options: q.options.map(opt => ({ text: opt.text }))
-            }));
+            // Add a check to handle null or empty content before parsing
+            if (course.pre_test_content) {
+                const dbQuestions: DbQuizQuestion[] = JSON.parse(course.pre_test_content);
+                questionsForStudent = dbQuestions.map(q => ({
+                    text: q.text,
+                    options: q.options.map(opt => ({ text: opt.text }))
+                }));
+            }
         } catch (e) {
+             console.error("Failed to parse pre-test questions:", e);
              return NextResponse.json({ error: 'Failed to parse pre-test questions.' }, { status: 500 });
         }
         
