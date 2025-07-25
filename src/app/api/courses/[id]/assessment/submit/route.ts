@@ -88,8 +88,8 @@ export async function POST(
         const passed = scorePercentage >= course.final_assessment_passing_rate;
 
         await db.query(
-            'INSERT INTO final_assessment_attempts (user_id, course_id, site_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [user.id, courseId, course.site_id, score, dbQuestions.length, passed, new Date()]
+            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [user.id, courseId, score, dbQuestions.length, passed, new Date()]
         );
         
         let certificateId: number | null = null;
