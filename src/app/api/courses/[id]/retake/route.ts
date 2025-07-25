@@ -47,8 +47,8 @@ export async function POST(
 
         // Also delete previous final assessment attempts for this user and course
         await connection.query(
-            'DELETE FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? AND site_id = ?',
-            [userId, courseId, siteId]
+            'DELETE FROM final_assessment_attempts WHERE user_id = ? AND course_id = ?',
+            [userId, courseId]
         );
 
         // We no longer delete the certificate. It remains as a historical record.
