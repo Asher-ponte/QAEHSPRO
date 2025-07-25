@@ -170,7 +170,6 @@ export default function AssessmentPage() {
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastProctoringEventTime = useRef<number>(Date.now());
     const [proctoringMessage, setProctoringMessage] = useState("You have navigated away from the exam page.");
-    const [isProctoringPaused, setIsProctoringPaused] = useState(false);
 
 
     // --- MediaPipe State ---
@@ -194,8 +193,7 @@ export default function AssessmentPage() {
         }
         setIsCountdownActive(false);
         setFocusCountdown(10);
-        // Don't hide the dialog immediately, let the user dismiss it.
-        setIsProctoringPaused(true);
+        // Do not hide the dialog, let the user dismiss it.
     };
 
     const startWarning = (message: string) => {
@@ -203,18 +201,13 @@ export default function AssessmentPage() {
         if (Date.now() - lastProctoringEventTime.current < 2000) return;
         lastProctoringEventTime.current = Date.now();
         
-        // Don't start a new warning if one is already active or paused.
-        if (isCountdownActive || isProctoringPaused) return;
+        // Don't start a new warning if one is already active
+        if (isCountdownActive) return;
 
         setProctoringMessage(message);
         setShowFocusWarning(true);
         setFocusCountdown(10);
         setIsCountdownActive(true);
-    };
-
-    const resumeProctoring = () => {
-        setShowFocusWarning(false);
-        setIsProctoringPaused(false);
     };
 
     // This effect manages the countdown timer itself.
@@ -244,6 +237,8 @@ export default function AssessmentPage() {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 startWarning("You have switched to another tab or window.");
+            } else {
+                 stopWarning();
             }
         };
 
@@ -252,9 +247,7 @@ export default function AssessmentPage() {
         };
 
         const handleMouseEnter = () => {
-            if(isCountdownActive) {
-                stopWarning();
-            }
+            stopWarning();
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
@@ -266,7 +259,7 @@ export default function AssessmentPage() {
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
         };
-    }, [hasAgreedToRules, isLoading, isCountdownActive]);
+    }, [hasAgreedToRules, isLoading]);
 
     // --- MediaPipe FaceLandmarker Initialization ---
     useEffect(() => {
@@ -318,24 +311,19 @@ export default function AssessmentPage() {
         }
 
         const predictWebcam = () => {
+            if (!isMounted || !faceLandmarker) return;
             const video = videoRef.current;
-            if (!isMounted || !faceLandmarker || !video || video.paused || video.videoWidth === 0) {
-                 if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
-                return;
-            }
-            
-            const result: FaceLandmarkerResult = faceLandmarker.detectForVideo(video, performance.now());
-            
-            if (result.faceLandmarks.length === 0) {
-                startWarning("Your face is not visible to the camera.");
-            } else if (isLookingAway(result.faceLandmarks)) {
-                 startWarning("Please keep your eyes on the screen.");
-            } else {
-                 if(isCountdownActive) {
+            if (video && video.readyState >= 2) {
+                const result: FaceLandmarkerResult = faceLandmarker.detectForVideo(video, performance.now());
+                
+                if (result.faceLandmarks.length === 0) {
+                    startWarning("Your face is not visible to the camera.");
+                } else if (isLookingAway(result.faceLandmarks)) {
+                    startWarning("Please keep your eyes on the screen.");
+                } else {
                     stopWarning();
                 }
             }
-
             if (isMounted) animationFrameId.current = requestAnimationFrame(predictWebcam);
         };
         
@@ -348,7 +336,7 @@ export default function AssessmentPage() {
             stream?.getTracks().forEach(track => track.stop());
             if (videoRef.current) videoRef.current.srcObject = null;
         };
-    }, [faceLandmarker, hasAgreedToRules, toast, isCountdownActive]);
+    }, [faceLandmarker, hasAgreedToRules, toast]);
 
 
     const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
@@ -486,9 +474,9 @@ export default function AssessmentPage() {
                     </AlertDialogHeader>
                     <div className="bg-destructive/10 p-6 rounded-lg text-center">
                          <div className="text-sm text-muted-foreground mb-2">
-                            {isProctoringPaused
-                                ? 'Compliance detected. You may resume.'
-                                : 'Return to compliance immediately or the exam will be terminated in:'
+                            {isCountdownActive
+                                ? 'Return to compliance immediately or the exam will be terminated in:'
+                                : 'Compliance detected. You may resume.'
                             }
                         </div>
                          <div className="text-6xl font-bold text-destructive">
@@ -497,8 +485,8 @@ export default function AssessmentPage() {
                     </div>
                      <AlertDialogFooter>
                         <Button
-                            onClick={resumeProctoring}
-                            disabled={!isProctoringPaused}
+                            onClick={() => setShowFocusWarning(false)}
+                            disabled={isCountdownActive}
                             className="w-full"
                         >
                             I Understand, Resume Exam
@@ -719,5 +707,3 @@ export default function AssessmentPage() {
         </div>
     )
 }
-
-    
