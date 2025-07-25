@@ -104,8 +104,8 @@ export async function POST(
             } else {
                 const today = new Date();
                 const [certResult] = await db.query<ResultSetHeader>(
-                    `INSERT INTO certificates (user_id, course_id, site_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, ?, 'completion')`,
-                    [user.id, courseId, course.site_id, today, '']
+                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
+                    [user.id, courseId, today, '']
                 );
                 certificateId = certResult.insertId;
 
