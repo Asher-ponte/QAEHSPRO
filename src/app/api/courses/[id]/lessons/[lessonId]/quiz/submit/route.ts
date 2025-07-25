@@ -66,7 +66,7 @@ export async function POST(
 
         await db.query('START TRANSACTION');
 
-        const [lessonRows] = await db.query<any[]>('SELECT l.content, c.site_id FROM lessons l JOIN modules m ON l.module_id = m.id JOIN courses c ON m.course_id = c.id WHERE l.id = ? AND l.type = "quiz"', [lessonId]);
+        const [lessonRows] = await db.query<any[]>('SELECT content FROM lessons WHERE id = ? AND type = "quiz"', [lessonId]);
         const lesson = lessonRows[0];
         if (!lesson || !lesson.content) {
             await db.query('ROLLBACK');
@@ -91,9 +91,10 @@ export async function POST(
             }
         });
         
+        // **FIX:** Removed the `site_id` column from the INSERT statement as it does not exist in the `quiz_attempts` table.
         await db.query(
-            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, site_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, lessonId, courseId, lesson.site_id, score, dbQuestions.length, new Date().toISOString()]
+            'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
         );
         
         const passed = score === dbQuestions.length;
@@ -127,7 +128,6 @@ export async function POST(
                 if (hasFinalAssessment) {
                     redirectToAssessment = true;
                 } 
-                // NOTE: Certificate logic is removed. It only happens after final assessment.
             }
 
             const [allLessonsRows] = await db.query<any[]>(
