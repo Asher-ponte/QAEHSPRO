@@ -120,9 +120,10 @@ async function getDashboardData() {
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
         let continueLessonId: number | null = firstUncompletedLesson?.id || courseLessons[0]?.id || null;
         
-        // If all lessons are complete and there's an assessment, link should point to assessment page.
-        if (hasFinalAssessment && completedLessonsCount === totalLessons) {
-            continueLessonId = null; // Special value to indicate going to assessment page
+        // If all lessons are complete and there's an assessment to be taken, nullify the lesson ID.
+        // The UI will use this null value to show the "Start Final Assessment" button.
+        if (hasFinalAssessment && completedLessonsCount === totalLessons && !hasPassedAssessment) {
+            continueLessonId = null;
         }
 
         return {
