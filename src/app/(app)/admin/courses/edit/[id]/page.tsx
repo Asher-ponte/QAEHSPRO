@@ -124,12 +124,15 @@ type CourseFormValues = z.infer<typeof courseSchema>
 function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
     const [signatories, setSignatories] = useState<SignatoryOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { site } = useSession();
 
     useEffect(() => {
+        if (!site) return;
         const fetchAllSignatories = async () => {
             setIsLoading(true);
             try {
-                const res = await fetch('/api/admin/signatories');
+                // Fetch signatories specific to the current site context
+                const res = await fetch(`/api/admin/signatories?siteId=${site.id}`);
                 if (!res.ok) throw new Error("Failed to load signatories");
                 setSignatories(await res.json());
             } catch (error) {
@@ -139,7 +142,7 @@ function SignatoriesField({ control }: { control: Control<CourseFormValues> }) {
             }
         };
         fetchAllSignatories();
-    }, []);
+    }, [site]);
 
     return (
         <FormField
@@ -660,6 +663,7 @@ export default function EditCoursePage() {
             const data = await res.json();
             form.reset({
                 ...data,
+                price: data.price ?? undefined,
                 is_internal: !!data.is_internal,
                 is_public: !!data.is_public,
                 signatoryIds: data.signatoryIds || [],
@@ -733,6 +737,7 @@ export default function EditCoursePage() {
       });
       
       router.push('/admin/courses');
+      router.refresh();
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
@@ -1104,3 +1109,5 @@ export default function EditCoursePage() {
     </div>
   )
 }
+
+    
