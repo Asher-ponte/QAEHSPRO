@@ -232,7 +232,7 @@ export default function CourseDetailPage() {
     let buttonDisabled = false;
     let Icon = null;
 
-    if (course.isCompleted && course.transactionStatus?.status === 'completed') {
+    if (course.isCompleted) {
         return (
             <Button className="w-full" disabled>
                 <CheckCircle className="mr-2 h-4 w-4" />
@@ -402,3 +402,5 @@ export default function CourseDetailPage() {
     </div>
   )
 }
+
+    
