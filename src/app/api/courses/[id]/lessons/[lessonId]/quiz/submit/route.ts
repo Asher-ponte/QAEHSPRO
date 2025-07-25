@@ -17,13 +17,35 @@ interface DbQuizQuestion {
     options: { text: string; isCorrect: boolean }[];
 }
 
+// Helper for access check
+async function hasAccess(db: any, user: any, courseId: number) {
+    if (user.role === 'Admin') return true;
+    
+    // Check for direct enrollment
+    const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
+    if (enrollmentRows.length > 0) {
+        return true;
+    }
+    
+    // For external users, also check for a valid transaction
+    if (user.type === 'External') {
+        const [transactionRows] = await db.query<RowDataPacket[]>(
+            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+            [user.id, courseId]
+        );
+        if (transactionRows.length > 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 export async function POST(
     request: NextRequest, 
     { params }: { params: { lessonId: string, id: string } }
 ) {
     const { user } = await getCurrentSession();
-    console.log('Session user:', user);
     if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
@@ -33,113 +55,121 @@ export async function POST(
         const { lessonId: lessonIdStr, id: courseIdStr } = params;
         const lessonId = parseInt(lessonIdStr, 10);
         const courseId = parseInt(courseIdStr, 10);
-        console.log('Params:', { lessonId, courseId });
 
-        const [lessonRows] = await db.query<any[]>(`SELECT l.content FROM lessons l JOIN modules m ON l.module_id = m.id WHERE l.id = ? AND l.type = 'quiz' AND m.course_id = ?`, [lessonId, courseId]);
-        console.log('Lesson query result:', lessonRows);
-
-        const lesson = lessonRows[0];
-        if (!lesson || !lesson.content) {
-            console.log('Lesson content missing:', lesson);
-            await db.query('ROLLBACK');
-            return NextResponse.json({ error: 'Quiz not found or has no content.' }, { status: 404 });
+        if (isNaN(lessonId) || isNaN(courseId)) {
+            return NextResponse.json({ error: 'Invalid course or lesson ID.' }, { status: 400 });
         }
 
-        let dbQuestions: DbQuizQuestion[];
-        try {
-            dbQuestions = JSON.parse(lesson.content);
-            console.log('Parsed questions:', dbQuestions);
-        } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-            console.error('JSON parse error:', errorMessage);
-            await db.query('ROLLBACK');
-            return NextResponse.json({ error: 'Failed to parse quiz content.' }, { status: 500 });
-        }
+        const userId = user.id;
 
+        const canAccess = await hasAccess(db, user, courseId);
+        if (!canAccess) {
+             return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
+        }
+        
         const body = await request.json();
         const parsedBody = quizSubmissionSchema.safeParse(body);
         if (!parsedBody.success) {
             return NextResponse.json({ error: 'Invalid submission format' }, { status: 400 });
         }
         const { answers } = parsedBody.data;
-        console.log('Submitted answers:', answers);
 
         await db.query('START TRANSACTION');
-        console.log('Transaction started');
 
+        const [lessonRows] = await db.query<any[]>(`
+            SELECT l.content 
+            FROM lessons l
+            JOIN modules m ON l.module_id = m.id
+            WHERE l.id = ? AND l.type = 'quiz' AND m.course_id = ?
+        `, [lessonId, courseId]);
+
+        const lesson = lessonRows[0];
+        if (!lesson || !lesson.content) {
+            await db.query('ROLLBACK');
+            return NextResponse.json({ error: 'Quiz not found or has no content.' }, { status: 404 });
+        }
+        
+        let dbQuestions: DbQuizQuestion[];
+        try {
+            dbQuestions = JSON.parse(lesson.content);
+        } catch (e) {
+            await db.query('ROLLBACK');
+            return NextResponse.json({ error: 'Failed to parse quiz content.' }, { status: 500 });
+        }
+        
         let score = 0;
-        const correctlyAnsweredIndices: number[] = [];
         dbQuestions.forEach((question, index) => {
             const correctOptionIndex = question.options.findIndex(opt => opt.isCorrect);
             if (answers[index] === correctOptionIndex) {
                 score++;
-                correctlyAnsweredIndices.push(index);
             }
         });
-        console.log('Calculated score:', score);
-
+        
         await db.query(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [user.id, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
+            [userId, lessonId, courseId, score, dbQuestions.length, new Date().toISOString()]
         );
-        console.log('Quiz attempt inserted');
-
+        
         const passed = score === dbQuestions.length;
         let nextLessonId: number | null = null;
         let redirectToAssessment = false;
-
+        
         if (passed) {
-            const [totalLessonsRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(l.id) as count FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`, [courseId]);
-            console.log('Total lessons query result:', totalLessonsRows);
-
-            const [progressRows] = await db.query<any[]>(`SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`, [user.id, lessonId]);
-            console.log('Progress query result:', progressRows);
-
+            const [totalLessonsRows] = await db.query<RowDataPacket[]>(
+                `SELECT COUNT(l.id) as count FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?`,
+                [courseId]
+            );
+            const totalLessons = totalLessonsRows[0]?.count ?? 0;
+            const [progressRows] = await db.query<any[]>(`SELECT completed FROM user_progress WHERE user_id = ? AND lesson_id = ?`, [userId, lessonId]);
+            const wasAlreadyCompleted = progressRows[0]?.completed === 1;
+            
+            const [completedCountRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(up.lesson_id) as count FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1`, [userId, courseId]);
+            const oldCompletedCount = completedCountRows[0]?.count ?? 0;
+            
             await db.query(
                 'INSERT INTO user_progress (user_id, lesson_id, completed) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE completed = 1',
-                [user.id, lessonId]
+                [userId, lessonId]
             );
-            console.log('User progress updated');
 
-            const [allLessonsRows] = await db.query<any[]>(`SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m.order ASC, l.order ASC`, [courseId]);
-            console.log('All lessons query result:', allLessonsRows);
-            
-            const wasAlreadyCompleted = progressRows[0]?.completed === 1;
-            const oldCompletedCount = (await db.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM user_progress up JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id WHERE up.user_id = ? AND m.course_id = ? AND up.completed = 1', [user.id, courseId]))[0][0].count;
             const newCompletedCount = wasAlreadyCompleted ? oldCompletedCount : oldCompletedCount + 1;
-            
-            if (newCompletedCount >= totalLessonsRows[0].count) {
-                 const [courseInfoRows] = await db.query<any[]>(`SELECT final_assessment_content FROM courses WHERE id = ?`, [courseId]);
-                 const courseInfo = courseInfoRows[0];
-                 const hasFinalAssessment = !!courseInfo?.final_assessment_content;
-                 if (hasFinalAssessment) {
+
+            if (newCompletedCount >= totalLessons) {
+                const [courseInfoRows] = await db.query<any[]>(`SELECT final_assessment_content FROM courses WHERE id = ?`, [courseId]);
+                const courseInfo = courseInfoRows[0];
+                const hasFinalAssessment = !!courseInfo?.final_assessment_content;
+
+                if (hasFinalAssessment) {
                     redirectToAssessment = true;
-                }
+                } 
             }
+
+            const [allLessonsRows] = await db.query<any[]>(
+                `SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ? ORDER BY m.\`order\` ASC, l.\`order\` ASC`,
+                [courseId]
+            );
+            const allLessonsOrdered = allLessonsRows.map(l => l.id);
+            const currentIndex = allLessonsOrdered.findIndex(l_id => l_id === lessonId);
             
-            const allLessonsOrdered = allLessonsRows.map((l: any) => l.id);
-            const currentIndex = allLessonsOrdered.findIndex((l_id: number) => l_id === lessonId);
             if (currentIndex !== -1 && currentIndex < allLessonsOrdered.length - 1) {
                 nextLessonId = allLessonsOrdered[currentIndex + 1];
             }
         }
-
+        
         await db.query('COMMIT');
-        console.log('Transaction committed');
 
         return NextResponse.json({
             score,
             total: dbQuestions.length,
             passed,
-            correctlyAnsweredIndices,
             nextLessonId,
             redirectToAssessment,
         });
 
     } catch (error) {
-        const errorStack = error instanceof Error ? error.stack : 'No stack available';
-        console.error('Unhandled error:', errorStack);
-        await db.query('ROLLBACK').catch(e => console.error('Rollback failed:', e));
+        await db.query('ROLLBACK').catch(e => console.error("Rollback failed", e));
+        
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error("Failed to process quiz submission. Error: ", errorMessage, error);
         return NextResponse.json({ error: 'Failed to process quiz submission' }, { status: 500 });
     }
 }

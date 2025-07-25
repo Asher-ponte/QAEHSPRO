@@ -94,16 +94,8 @@ const QuizContent = ({
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<number, number>>({});
     const [showResults, setShowResults] = useState(false);
-    const [correctlyAnswered, setCorrectlyAnswered] = useState<Set<number>>(new Set());
-    const [lastScore, setLastScore] = useState<{ correct: number, total: number } | null>(null);
+    const [lastAttempt, setLastAttempt] = useState<{ score: number, total: number, passed: boolean } | null>(null);
     const { toast } = useToast();
-
-    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
-        setAnswers(prev => ({
-            ...prev,
-            [questionIndex]: optionIndex,
-        }));
-    };
 
     useEffect(() => {
         if (lesson.content) {
@@ -112,11 +104,15 @@ const QuizContent = ({
                 setQuestions(parsedQuestions);
 
                 if (lesson.completed) {
-                    const allQuestionIndices = new Set(Array.from({length: parsedQuestions.length}, (_, i) => i));
-                    setCorrectlyAnswered(allQuestionIndices);
                     setShowResults(true);
-                    setLastScore({ correct: parsedQuestions.length, total: parsedQuestions.length });
+                    setLastAttempt({ score: parsedQuestions.length, total: parsedQuestions.length, passed: true });
+                } else {
+                    // If lesson is not completed, reset the state for a new attempt
+                    setAnswers({});
+                    setShowResults(false);
+                    setLastAttempt(null);
                 }
+
             } catch (error) {
                 console.error("Failed to parse quiz content:", error);
                 toast({ variant: "destructive", title: "Error", description: "Could not load quiz questions." });
@@ -125,26 +121,12 @@ const QuizContent = ({
         }
     }, [lesson.content, lesson.completed, toast]);
 
-    const canSubmit = useMemo(() => {
-        if (!questions.length) return false;
-        // Check if all non-locked questions have an answer
-        for (let i = 0; i < questions.length; i++) {
-            if (!correctlyAnswered.has(i) && answers[i] === undefined) {
-                return false;
-            }
-        }
-        return true;
-    }, [questions, answers, correctlyAnswered]);
-
-    const allCorrect = useMemo(() => {
-        if (!questions.length) return false;
-        return correctlyAnswered.size === questions.length;
-    }, [correctlyAnswered, questions.length]);
+    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
+        setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
+    };
 
     const handleSubmit = async () => {
-        if (isSubmitting) return;
         setIsSubmitting(true);
-
         try {
             const res = await fetch(`/api/courses/${lesson.course_id}/lessons/${lesson.id}/quiz/submit`, {
                 method: 'POST',
@@ -157,19 +139,18 @@ const QuizContent = ({
                 throw new Error(data.error || "Failed to submit quiz.");
             }
             
-            // This now correctly reflects the server's response.
-            if(data.passed) {
-                setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
+            setShowResults(true);
+            setLastAttempt({ score: data.score, total: data.total, passed: data.passed });
+
+            if (data.passed) {
                 onQuizPass(data);
             } else {
-                 setLastScore({ correct: data.score, total: data.total });
-                 setCorrectlyAnswered(new Set(data.correctlyAnsweredIndices));
-                 toast({
-                    title: "Some answers are incorrect",
-                    description: `You got ${data.score} out of ${data.total}. The correct answers have been locked. Please try again.`,
+                toast({
+                    title: "Attempt Recorded",
+                    description: `You scored ${data.score} out of ${data.total}. Please try again.`,
+                    variant: "destructive"
                 });
             }
-            setShowResults(true);
 
         } catch (error) {
             const msg = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -178,84 +159,91 @@ const QuizContent = ({
             setIsSubmitting(false);
         }
     };
-    
+
     const handleRetry = () => {
+        setAnswers({});
         setShowResults(false);
-        setLastScore(null);
+        setLastAttempt(null);
     };
+
+    const canSubmit = useMemo(() => {
+        return Object.keys(answers).length === questions.length;
+    }, [answers, questions]);
 
     if (!questions.length) {
         return <p>This quiz is empty or failed to load.</p>;
     }
     
+    // UI for when the user has completed the quiz (either in a previous session or this one)
+    if (lesson.completed || (showResults && lastAttempt?.passed)) {
+        return (
+             <Card className="p-4 bg-green-100 dark:bg-green-900/30 border-green-500">
+                <CardHeader className="p-0">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="h-6 w-6 text-green-600"/>
+                        <CardTitle className="text-xl">Quiz Passed!</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0 pt-2">
+                    <p>Congratulations! You can now proceed to the next lesson.</p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // UI for after a failed attempt
+    if (showResults && lastAttempt && !lastAttempt.passed) {
+         return (
+             <Card className="p-4 bg-orange-100 dark:bg-orange-900/30 border-orange-500 text-center">
+                <CardHeader className="p-0">
+                    <div className="flex items-center justify-center gap-2">
+                        <XCircle className="h-6 w-6 text-orange-600"/>
+                        <CardTitle className="text-xl">Attempt Incomplete</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0 pt-2 space-y-4">
+                     <p>You scored {lastAttempt.score} out of {lastAttempt.total}. You must answer all questions correctly to pass.</p>
+                     <Button onClick={handleRetry} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                        Try Again
+                    </Button>
+                </CardContent>
+            </Card>
+        );
+    }
+    
+    // UI for an active quiz attempt
     return (
         <div className="space-y-8">
-            {showResults && lastScore && !lesson.completed && (
-                <Card className={`p-4 ${allCorrect ? 'bg-green-100 dark:bg-green-900/30 border-green-500' : 'bg-orange-100 dark:bg-orange-900/30 border-orange-500'}`}>
-                    <CardHeader className="p-0">
-                        <CardTitle className="text-xl">
-                            {allCorrect ? "Quiz Passed!" : `You have ${lastScore.correct} of ${lastScore.total} correct`}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0 pt-2">
-                        {allCorrect 
-                          ? <p>Congratulations! You can now proceed to the next lesson.</p> 
-                          : <p>The correct answers have been locked. Please correct the remaining answers and submit again.</p>
-                        }
-                    </CardContent>
-                </Card>
-            )}
-
-            {questions.map((q, qIndex) => {
-                const isLocked = lesson.completed || (showResults && correctlyAnswered.has(qIndex));
-                const isIncorrectAfterSubmit = showResults && answers[qIndex] !== undefined && !isLocked;
-
-                return (
-                    <div key={qIndex} className={cn("p-4 border rounded-lg bg-background/50 transition-colors",
-                      isLocked && "border-green-500 bg-green-500/10",
-                      isIncorrectAfterSubmit && "border-red-500 bg-red-500/10",
-                    )}>
-                        <div className="flex items-center font-semibold mb-4">
-                            {isLocked && <CheckCircle className="h-5 w-5 mr-2 text-green-500 flex-shrink-0" />}
-                            {isIncorrectAfterSubmit && <XCircle className="h-5 w-5 mr-2 text-red-500 flex-shrink-0" />}
-                            <p>{qIndex + 1}. {q.text}</p>
-                        </div>
-                        <RadioGroup 
-                            onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value, 10))}
-                            value={answers[qIndex]?.toString()}
-                            disabled={isLocked || isSubmitting}
-                            className="space-y-2"
-                        >
-                            {q.options.map((opt, oIndex) => (
-                                <div key={oIndex} className="flex items-center space-x-3">
-                                    <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
-                                    <Label 
-                                      htmlFor={`q${qIndex}o${oIndex}`} 
-                                      className={cn("flex-grow cursor-pointer", isLocked || isSubmitting ? "cursor-default" : "")}
-                                    >
-                                        {opt.text}
-                                    </Label>
-                                </div>
-                            ))}
-                        </RadioGroup>
-                    </div>
-                )
-            })}
-
-            {!lesson.completed && (
-                <div className="flex justify-center gap-4 mt-6">
-                    {showResults && !allCorrect ? (
-                         <Button onClick={handleRetry}>
-                            Try Again
-                         </Button>
-                    ) : (
-                        <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting || allCorrect}>
-                           {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                           {allCorrect ? 'Quiz Passed' : 'Submit Quiz'}
-                        </Button>
-                    )}
+            {questions.map((q, qIndex) => (
+                <div key={qIndex} className="p-4 border rounded-lg bg-background/50">
+                    <p className="font-semibold mb-4">{qIndex + 1}. {q.text}</p>
+                    <RadioGroup 
+                        onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value))}
+                        value={answers[qIndex]?.toString()}
+                        disabled={isSubmitting}
+                        className="space-y-2"
+                    >
+                        {q.options.map((opt, oIndex) => (
+                            <div key={oIndex} className="flex items-center space-x-3">
+                                <RadioGroupItem value={oIndex.toString()} id={`q${qIndex}o${oIndex}`} />
+                                <Label 
+                                  htmlFor={`q${qIndex}o${oIndex}`} 
+                                  className={cn("flex-grow font-normal", isSubmitting ? "cursor-default" : "cursor-pointer")}
+                                >
+                                    {opt.text}
+                                </Label>
+                            </div>
+                        ))}
+                    </RadioGroup>
                 </div>
-            )}
+            ))}
+            <div className="flex justify-center mt-6">
+                 <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                    Submit Quiz
+                </Button>
+            </div>
         </div>
     );
 };
