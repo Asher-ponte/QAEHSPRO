@@ -5,10 +5,11 @@ import { useState, type ChangeEvent, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Trash2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Upload, Trash2, Image as ImageIcon, Search } from "lucide-react";
 import Image from "next/image";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { StorageBrowser } from "./storage-browser";
 
 interface ImageUploadProps {
     onUploadComplete: (path: string) => void;
@@ -20,6 +21,7 @@ interface ImageUploadProps {
 export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPath = 'Upload/' }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isBrowserOpen, setIsBrowserOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     
@@ -71,6 +73,11 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPat
         }
     }
 
+    const handleFileSelectFromBrowser = (url: string) => {
+        onUploadComplete(url);
+        setImagePreview(url);
+    }
+
     return (
         <div className="flex flex-col gap-2">
             <div className="w-full h-48 border-2 border-dashed rounded-lg flex items-center justify-center bg-muted/50 relative overflow-hidden">
@@ -116,10 +123,22 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPat
                 ref={fileInputRef}
                 className="hidden"
             />
-            <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
-               <Upload className="mr-2 h-4 w-4" />
-               <span>{imagePreview ? 'Change Image' : 'Upload Image'}</span>
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
+                   <Upload className="mr-2 h-4 w-4" />
+                   <span>{imagePreview ? 'Change' : 'Upload'}</span>
+                </Button>
+                 <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => setIsBrowserOpen(true)}>
+                   <Search className="mr-2 h-4 w-4" />
+                   <span>Browse</span>
+                </Button>
+            </div>
+            <StorageBrowser 
+                open={isBrowserOpen}
+                onOpenChange={setIsBrowserOpen}
+                onFileSelect={handleFileSelectFromBrowser}
+                fileType="image"
+            />
         </div>
     );
 }

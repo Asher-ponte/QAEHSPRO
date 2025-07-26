@@ -5,9 +5,10 @@ import { useState, type ChangeEvent, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Trash2, FileText } from "lucide-react";
+import { Loader2, Upload, Trash2, FileText, Search } from "lucide-react";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { StorageBrowser } from "./storage-browser";
 
 interface PdfUploadProps {
     onUploadComplete: (path: string) => void;
@@ -18,6 +19,7 @@ interface PdfUploadProps {
 export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [filePath, setFilePath] = useState<string | null>(null);
+    const [isBrowserOpen, setIsBrowserOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     
@@ -67,6 +69,11 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
         if (onRemove) {
             onRemove();
         }
+    }
+
+    const handleFileSelectFromBrowser = (url: string) => {
+        onUploadComplete(url);
+        setFilePath(url);
     }
 
     const getFileName = (path: string | null) => {
@@ -119,10 +126,22 @@ export function PdfUpload({ onUploadComplete, initialPath, onRemove }: PdfUpload
                 ref={fileInputRef}
                 className="hidden"
             />
-            <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
-               <Upload className="mr-2 h-4 w-4" />
-               <span>{filePath ? 'Change PDF' : 'Upload PDF'}</span>
-            </Button>
+             <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
+                   <Upload className="mr-2 h-4 w-4" />
+                   <span>{filePath ? 'Change' : 'Upload'}</span>
+                </Button>
+                 <Button type="button" variant="outline" size="sm" className="w-full" disabled={isUploading} onClick={() => setIsBrowserOpen(true)}>
+                   <Search className="mr-2 h-4 w-4" />
+                   <span>Browse</span>
+                </Button>
+            </div>
+             <StorageBrowser 
+                open={isBrowserOpen}
+                onOpenChange={setIsBrowserOpen}
+                onFileSelect={handleFileSelectFromBrowser}
+                fileType="pdf"
+            />
         </div>
     );
 }
