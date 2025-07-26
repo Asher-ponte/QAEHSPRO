@@ -1,20 +1,31 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import type { RowDataPacket } from 'mysql2';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const { user, isSuperAdmin } = await getCurrentSession();
     if (!user || !isSuperAdmin) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    const mainOnly = request.nextUrl.searchParams.get('mainOnly') === 'true';
+
     try {
         const db = await getDb();
-        const [courses] = await db.query<RowDataPacket[]>(
-            `SELECT id, title FROM courses WHERE site_id != 'main' ORDER BY title ASC`
-        );
+        
+        let query;
+        let params: string[] = [];
+
+        if (mainOnly) {
+            query = `SELECT id, title FROM courses WHERE site_id = ? ORDER BY title ASC`;
+            params.push('main');
+        } else {
+            query = `SELECT id, title FROM courses WHERE site_id != 'main' ORDER BY title ASC`;
+        }
+
+        const [courses] = await db.query<RowDataPacket[]>(query, params);
         
         const formattedCourses = courses.map(c => ({
             id: c.id,

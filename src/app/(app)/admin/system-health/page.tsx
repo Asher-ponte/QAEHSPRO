@@ -28,6 +28,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface TestResult {
     name: string;
@@ -183,6 +185,133 @@ function AutomatedTestRunner() {
                     </div>
                 </CardContent>
             </Card>
+        </div>
+    )
+}
+
+function CourseEditTestRunner() {
+    const { toast } = useToast();
+    const [mainCourses, setMainCourses] = useState<TestItem[]>([]);
+    const [targetSites, setTargetSites] = useState<TestItem[]>([]);
+    
+    const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+    const [newTitle, setNewTitle] = useState('');
+    const [selectedSiteIds, setSelectedSiteIds] = useState<number[]>([]);
+    
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [testResult, setTestResult] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [coursesRes, sitesRes] = await Promise.all([
+                    fetch('/api/admin/debug/courses?mainOnly=true'),
+                    fetch('/api/admin/debug/sites'),
+                ]);
+                if (!coursesRes.ok || !sitesRes.ok) throw new Error("Failed to fetch initial debug data.");
+                setMainCourses(await coursesRes.json());
+                setTargetSites(await sitesRes.json());
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load debug data.' });
+            }
+        };
+        fetchData();
+    }, [toast]);
+
+    const handleSubmitTest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setTestResult(null);
+        try {
+            const payload = {
+                courseId: Number(selectedCourseId),
+                newTitle,
+                publishToSiteIds: selectedSiteIds.map(String) // API expects strings
+            };
+            
+            const res = await fetch('/api/admin/debug/course-edit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const resultData = await res.json();
+            if (!res.ok) {
+                throw new Error(resultData.details || resultData.error || "Test submission failed.");
+            }
+            setTestResult(resultData);
+             toast({ title: 'Test Complete', description: resultData.message });
+
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Test Failed', description: error instanceof Error ? error.message : "An unknown error occurred." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+         <div className="space-y-6">
+            <form onSubmit={handleSubmitTest}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Course Edit & Publish Test</CardTitle>
+                        <CardDescription>Simulate editing a master course and publishing it to other branches.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="test-course-edit">Master Course to Edit</Label>
+                                <Select value={selectedCourseId} onValueChange={setSelectedCourseId} name="test-course-edit">
+                                    <SelectTrigger><SelectValue placeholder="Select a Course" /></SelectTrigger>
+                                    <SelectContent>{mainCourses.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new-title">New Title (for testing)</Label>
+                                <Input id="new-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Enter a temporary new title" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Publish to Branches</Label>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 border rounded-md max-h-48 overflow-y-auto">
+                                {targetSites.map(site => (
+                                    <div key={site.id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`site-${site.id}`}
+                                            checked={selectedSiteIds.includes(site.id)}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedSiteIds(prev =>
+                                                    checked ? [...prev, site.id] : prev.filter(id => id !== site.id)
+                                                );
+                                            }}
+                                        />
+                                        <Label htmlFor={`site-${site.id}`} className="font-normal">{site.name}</Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </CardContent>
+                    <CardContent>
+                         <Button type="submit" disabled={isSubmitting || !selectedCourseId || !newTitle}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Run Test
+                        </Button>
+                    </CardContent>
+                </Card>
+            </form>
+            {testResult && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Course Edit Test Results</CardTitle>
+                         <CardDescription>{testResult.message}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(testResult.simulation, null, 2)}
+                        </pre>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
@@ -472,6 +601,7 @@ function DebugTestRunner() {
                 <h2 className="text-2xl font-bold font-headline">End-to-End Test Runner</h2>
                 <p className="text-muted-foreground">Manually trigger and debug core application flows. All database operations are rolled back.</p>
             </div>
+            <CourseEditTestRunner />
             <QuizTestRunner />
             <FinalAssessmentTestRunner />
         </div>
