@@ -1,5 +1,4 @@
 
-
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -28,14 +27,33 @@ export async function GET(
             return NextResponse.json({ error: 'Certificate not found or you do not have permission to view it.' }, { status: 404 });
         }
         
-        const certificateSiteId = certificate.site_id;
+        const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, site_id FROM users WHERE id = ?', [certificate.user_id]);
+        const certificateHolder = userRows[0];
+        if (!certificateHolder) {
+            return NextResponse.json({ error: 'Associated user not found for this certificate.' }, { status: 404 });
+        }
+
+        let certificateSiteId: string;
+        let course = null;
+
+        if (certificate.course_id) {
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue, site_id FROM courses WHERE id = ?', [certificate.course_id]);
+            course = courseRows[0];
+            if (!course) {
+                return NextResponse.json({ error: 'Associated course not found for this certificate.' }, { status: 404 });
+            }
+            certificateSiteId = course.site_id;
+        } else {
+            // For recognition certificates, the site is the user's home site
+            certificateSiteId = certificateHolder.site_id;
+        }
 
         // --- Payment Verification Logic ---
-        if (sessionUser.type === 'External' && certificate.course_id) {
-            const [courseRows] = await db.query<RowDataPacket[]>('SELECT price FROM courses WHERE id = ?', [certificate.course_id]);
-            const course = courseRows[0];
+        if (sessionUser.type === 'External' && certificate.course_id && course) {
+            const [coursePriceRows] = await db.query<RowDataPacket[]>('SELECT price FROM courses WHERE id = ?', [certificate.course_id]);
+            const courseWithPrice = coursePriceRows[0];
             
-            if (course && course.price > 0) {
+            if (courseWithPrice && courseWithPrice.price > 0) {
                 const [transactionRows] = await db.query<RowDataPacket[]>(
                     `SELECT status FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`,
                     [sessionUser.id, certificate.course_id]
@@ -48,16 +66,7 @@ export async function GET(
             }
         }
         // --- End Payment Verification ---
-
-        const [userRows] = await db.query<RowDataPacket[]>('SELECT username, fullName FROM users WHERE id = ?', [certificate.user_id]);
-        const certificateHolder = userRows[0];
         
-        let course = null;
-        if (certificate.course_id) {
-            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue FROM courses WHERE id = ?', [certificate.course_id]);
-            course = courseRows[0];
-        }
-
         const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', [certificate.id]);
         const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
         
@@ -99,12 +108,12 @@ export async function GET(
             companyLogo2Path: companyLogo2Path,
             siteId: certificateSiteId,
             user: {
-                username: certificateHolder?.username || 'Unknown User',
-                fullName: certificateHolder?.fullName || null
+                username: certificateHolder.username,
+                fullName: certificateHolder.fullName || null
             },
             course: course ? {
-                title: course?.title || 'Unknown Course',
-                venue: course?.venue || null,
+                title: course.title || 'Unknown Course',
+                venue: course.venue || null,
             } : null,
             signatories: signatories,
         };

@@ -24,39 +24,57 @@ interface CertificateData {
 export async function GET(request: NextRequest): Promise<NextResponse<CertificateData | { error: string }>> {
     const { searchParams } = new URL(request.url);
     const number = searchParams.get('number');
-    const siteId = searchParams.get('siteId');
+    const siteIdParam = searchParams.get('siteId');
 
-    if (!number || !siteId) {
+    if (!number || !siteIdParam) {
         return NextResponse.json({ error: 'Certificate number and site ID are required.' }, { status: 400 });
     }
     
     const allSites = await getAllSites();
-    if (!allSites.some(s => s.id === siteId)) {
+    if (!allSites.some(s => s.id === siteIdParam)) {
         return NextResponse.json({ error: 'Invalid site specified.' }, { status: 400 });
     }
     
     try {
         const db = await getDb();
         
+        // Find certificate by number, joining user to get user's home site_id
         const [certificateRows] = await db.query<RowDataPacket[]>(
-            `SELECT * FROM certificates WHERE certificate_number = ? AND site_id = ?`,
-            [number, siteId]
+            `SELECT c.*, u.site_id as user_site_id
+             FROM certificates c
+             JOIN users u ON c.user_id = u.id
+             WHERE c.certificate_number = ?`,
+            [number]
         );
         const certificate = certificateRows[0];
 
         if (!certificate) {
             return NextResponse.json({ error: 'Certificate not found.' }, { status: 404 });
         }
+
+        let certificateSiteId: string;
+        let course = null;
+
+        if (certificate.course_id) {
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue, site_id FROM courses WHERE id = ?', certificate.course_id);
+            course = courseRows[0];
+            if (!course) {
+                return NextResponse.json({ error: 'Associated course not found.' }, { status: 404 });
+            }
+            certificateSiteId = course.site_id;
+        } else {
+            // For recognition certs, the site context is the user's home site
+            certificateSiteId = certificate.user_site_id;
+        }
         
+        // Validate that the site derived from the data matches the one in the URL param
+        if (certificateSiteId !== siteIdParam) {
+            return NextResponse.json({ error: 'Certificate and site ID mismatch. Invalid.' }, { status: 400 });
+        }
+
         const [userRows] = await db.query<RowDataPacket[]>('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         const user = userRows[0];
         
-        let course = null;
-        if (certificate.course_id) {
-            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
-            course = courseRows[0];
-        }
-
         const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
         const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
         let signatories = [];
@@ -72,7 +90,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<Certificat
         
         const [settingsRows] = await db.query<RowDataPacket[]>(
             "SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')",
-            [siteId]
+            [certificateSiteId]
         );
         
         const settingsMap = settingsRows.reduce((acc, s) => {
@@ -95,7 +113,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<Certificat
             companyAddress: companyAddress,
             companyLogoPath: companyLogoPath,
             companyLogo2Path: companyLogo2Path,
-            siteId: siteId,
+            siteId: certificateSiteId,
             user: {
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null,
