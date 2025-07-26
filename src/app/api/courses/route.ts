@@ -101,11 +101,13 @@ export async function GET() {
 
     let courses;
     if (user.type === 'External') {
+        // External users should see all public courses from all sites.
         const [rows] = await db.query<RowDataPacket[]>(`
-            SELECT * FROM courses WHERE is_public = 1 AND site_id = ? ORDER BY title ASC
-        `, [siteId]);
+            SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
+        `);
         courses = rows;
     } else { // Employee or Admin
+        // Internal users only see courses from their assigned site.
         const [rows] = await db.query<RowDataPacket[]>(`
             SELECT id, title, description, category, imagePath, startDate, endDate, is_public, is_internal,
                    NULL as price
