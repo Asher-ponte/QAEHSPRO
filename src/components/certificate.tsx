@@ -25,8 +25,12 @@ interface CertificateData {
 
 export function Certificate({ data }: { data: CertificateData }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+    const [absoluteLogoUrl, setAbsoluteLogoUrl] = useState<string | null>(null);
 
     useEffect(() => {
+        // Construct absolute URL for the background logo on the client side.
+        setAbsoluteLogoUrl(`${window.location.origin}/images/logo.png`);
+
         if (data.certificateNumber && data.siteId) {
             const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}&siteId=${data.siteId}`;
             QRCode.toDataURL(validationUrl, {
@@ -46,7 +50,9 @@ export function Certificate({ data }: { data: CertificateData }) {
     return (
         <div id="certificate-print-area" className="w-full overflow-x-auto">
             <div id="certificate-to-download" className="w-[1123px] mx-auto p-4 border-4 border-primary rounded-lg shadow-lg bg-card text-card-foreground relative font-serif aspect-[297/210]">
-                <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: "url(/images/logo.png)"}}></div>
+                {absoluteLogoUrl && (
+                    <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: `url(${absoluteLogoUrl})`}}></div>
+                )}
 
                 <div className="relative z-10 flex flex-col h-full text-center">
                     {/* Header */}
@@ -60,6 +66,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                         sizes="100vw"
                                         fill
                                         className="object-contain"
+                                        crossOrigin="anonymous"
                                     />
                                 </div>
                             )}
@@ -71,6 +78,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                         sizes="100vw"
                                         fill
                                         className="object-contain"
+                                        crossOrigin="anonymous"
                                     />
                                 </div>
                             )}
@@ -117,7 +125,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                     <footer className="flex justify-between items-end gap-x-8 gap-y-4">
                         <div className="flex flex-col items-center text-center">
                             {qrCodeDataUrl && (
-                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={80} height={80} />
+                                <Image src={qrCodeDataUrl} alt="Certificate Validation QR Code" width={80} height={80} crossOrigin="anonymous" />
                             )}
                             {data.certificateNumber && (
                                 <p className="text-xs text-muted-foreground mt-1">
@@ -136,6 +144,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                                             sizes="100vw"
                                             fill
                                             className="object-contain invert-0 dark:invert"
+                                            crossOrigin="anonymous"
                                         />
                                     </div>
                                     <div className="border-t border-foreground pt-1 w-full">
