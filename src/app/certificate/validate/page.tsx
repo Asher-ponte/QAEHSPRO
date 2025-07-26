@@ -1,4 +1,5 @@
 
+
 import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -16,6 +17,7 @@ interface CertificateData {
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
+  siteId: string;
   user: { username: string; fullName: string | null };
   course: { title: string; venue: string | null } | null;
   signatories: { name: string; position: string | null; signatureImagePath: string }[];

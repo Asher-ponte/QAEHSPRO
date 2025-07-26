@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -96,6 +97,7 @@ export async function GET(
             companyAddress: companyAddress,
             companyLogoPath: companyLogoPath,
             companyLogo2Path: companyLogo2Path,
+            siteId: certificateSiteId,
             user: {
                 username: certificateHolder?.username || 'Unknown User',
                 fullName: certificateHolder?.fullName || null

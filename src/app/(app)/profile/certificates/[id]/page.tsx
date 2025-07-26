@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -21,9 +22,12 @@ interface CertificateData {
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
-  user: { username: string };
-  course: { title: string };
+  user: { username: string; fullName: string | null };
+  course: { title: string; venue: string | null } | null;
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
+  type: 'completion' | 'recognition';
+  reason: string | null;
+  siteId: string;
 }
 
 function CertificateSkeleton() {
@@ -125,12 +129,10 @@ export default function CertificatePage() {
 
         // We want to fill the width of the PDF page, and let the height be calculated
         // based on the original aspect ratio to avoid distortion.
-        const imgWidth = pdfWidth;
-        const imgHeight = imgWidth / canvasRatio;
+        let imgWidth = pdfWidth;
+        let imgHeight = imgWidth / canvasRatio;
 
         // In case the calculated height is more than the pdf height, we should fit by height instead.
-        let finalImgWidth = imgWidth;
-        let finalImgHeight = imgHeight;
         if (imgHeight > pdfHeight) {
             finalImgHeight = pdfHeight;
             finalImgWidth = finalImgHeight * canvasRatio;
@@ -177,7 +179,7 @@ export default function CertificatePage() {
       </div>
 
       {isLoading && <CertificateSkeleton />}
-      {!isLoading && data && (
+      {data && (
         <div className="w-full overflow-x-auto">
             <Certificate data={data} />
         </div>

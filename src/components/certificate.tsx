@@ -21,6 +21,7 @@ interface CertificateData {
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
   type: 'completion' | 'recognition';
   reason: string | null;
+  siteId: string;
 }
 
 export function Certificate({ data }: { data: CertificateData }) {
@@ -28,8 +29,8 @@ export function Certificate({ data }: { data: CertificateData }) {
     const { site } = useSession();
 
     useEffect(() => {
-        if (data.certificateNumber && site?.id) {
-            const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}&siteId=${site.id}`;
+        if (data.certificateNumber && data.siteId) {
+            const validationUrl = `${window.location.origin}/certificate/validate?number=${data.certificateNumber}&siteId=${data.siteId}`;
             QRCode.toDataURL(validationUrl, {
                 errorCorrectionLevel: 'M',
                 width: 128,
@@ -42,7 +43,7 @@ export function Certificate({ data }: { data: CertificateData }) {
                 console.error("Failed to generate QR code", err);
             });
         }
-    }, [data.certificateNumber, site?.id]);
+    }, [data.certificateNumber, data.siteId]);
 
     return (
         <div id="certificate-print-area" className="w-full overflow-x-auto">

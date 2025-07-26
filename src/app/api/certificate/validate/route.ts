@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getAllSites } from "@/lib/sites";
@@ -14,6 +15,7 @@ interface CertificateData {
   companyAddress: string | null;
   companyLogoPath: string | null;
   companyLogo2Path: string | null;
+  siteId: string;
   user: { username: string; fullName: string | null };
   course: { title: string; venue: string | null } | null;
   signatories: { name: string; position: string | null; signatureImagePath: string }[];
@@ -93,6 +95,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<Certificat
             companyAddress: companyAddress,
             companyLogoPath: companyLogoPath,
             companyLogo2Path: companyLogo2Path,
+            siteId: siteId,
             user: {
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null,
