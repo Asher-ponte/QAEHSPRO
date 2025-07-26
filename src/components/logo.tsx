@@ -8,21 +8,9 @@ export function Logo() {
   const [logoUrl, setLogoUrl] = useState("/images/logo.png");
 
   useEffect(() => {
-    async function fetchMainLogo() {
-        try {
-            // The main app logo is stored in the settings of the 'main' site.
-            const res = await fetch(`/api/admin/settings?siteId=main`);
-            if (res.ok) {
-                const settings = await res.json();
-                if (settings.companyLogoPath) {
-                    setLogoUrl(settings.companyLogoPath);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch main logo, using default.", error);
-        }
-    }
-    fetchMainLogo();
+    // Append a timestamp to the logo URL to bust the browser cache.
+    // This ensures that when a new logo is uploaded, the browser fetches the new version.
+    setLogoUrl(`/images/logo.png?t=${new Date().getTime()}`);
   }, []);
 
   return (
