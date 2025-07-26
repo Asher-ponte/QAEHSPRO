@@ -112,7 +112,7 @@ const courseUpdateSchema = z.object({
     path: ["final_assessment_passing_rate"],
 });
 
-const createCourseInDb = async (db: any, payload: z.infer<typeof courseUpdateSchema>, siteIdForCourse: string, siteIdForSignatories: string) => {
+const createCourseInDb = async (db: any, payload: z.infer<typeof courseUpdateSchema>, siteIdForCourse: string) => {
     await db.query('START TRANSACTION');
     try {
         const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
@@ -183,7 +183,7 @@ export async function GET(
             return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
         }
 
-        const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ? AND site_id = ?', [courseId, siteId]);
+        const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
         const course = courseRows[0] as any;
         if (!course) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
@@ -298,11 +298,11 @@ export async function PUT(
                 title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, 
                 is_internal = ?, is_public = ?, price = ?, 
                 final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
-             WHERE id = ? AND site_id = ?`,
+             WHERE id = ?`,
             [
                 title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price,
                 finalAssessmentContent, final_assessment_passing_rate, final_assessment_max_attempts,
-                courseId, siteId
+                courseId
             ]
         );
         
@@ -359,7 +359,7 @@ export async function PUT(
         if (isSuperAdmin && publishToSiteIds && publishToSiteIds.length > 0) {
             for (const targetSiteId of publishToSiteIds) {
                 try {
-                    await createCourseInDb(db, parsedData.data, targetSiteId, 'main');
+                    await createCourseInDb(db, parsedData.data, targetSiteId);
                 } catch (error) {
                      const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
                      console.error(errorMessage);
