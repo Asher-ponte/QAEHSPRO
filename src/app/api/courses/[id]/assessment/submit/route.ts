@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const submissionSchema = z.object({
@@ -96,12 +96,16 @@ export async function POST(
         let retakeRequired = false;
 
         if (passed) {
-            const [existingCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
-            const existingCertificate = existingCertificateRows[0];
-            
-            if (existingCertificate) {
-                certificateId = existingCertificate.id;
+            const oneDayAgo = subDays(new Date(), 1);
+
+            const [recentCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND completion_date > ?', [user.id, courseId, oneDayAgo]);
+            const recentCertificate = recentCertificateRows[0];
+
+            if (recentCertificate) {
+                // A certificate was already issued very recently, likely due to a resubmit. Reuse it.
+                certificateId = recentCertificate.id;
             } else {
+                // No recent certificate exists, so create a new one.
                 const today = new Date();
                 const datePrefix = format(today, 'yyyyMMdd');
                 const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
