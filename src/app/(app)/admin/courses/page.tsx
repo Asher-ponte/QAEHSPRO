@@ -505,7 +505,7 @@ function RetrainingDialog({ course, siteId, siteName, open, onOpenChange, onInit
 }
 
 function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdminView | null; open: boolean; onOpenChange: (open: boolean) => void }) {
-    const { isSuperAdmin, site: currentSite } = useSession();
+    const { user, isSuperAdmin, site: currentSite } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
     const [selectedSiteId, setSelectedSiteId] = useState(course?.siteId || currentSite?.id);
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
@@ -606,6 +606,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     }, [progressData, filter, showNotCompleted]);
 
     const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || course?.siteName || currentSite?.name || '';
+    const canRetrain = (isSuperAdmin || user?.role === 'Admin') && selectedSiteId !== 'external';
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -726,7 +727,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                 </div>
                 <DialogFooter className="sm:justify-between">
                     <div>
-                        {isSuperAdmin && (
+                        {canRetrain && (
                             <Button variant="destructive" onClick={() => setShowRetrainingDialog(true)}>
                                 <RefreshCcw className="mr-2 h-4 w-4" />
                                 Initiate Re-Training
@@ -736,7 +737,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                     <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
                 
-                 {isSuperAdmin && selectedSiteId && (
+                 {canRetrain && selectedSiteId && (
                     <RetrainingDialog
                         course={course}
                         siteId={selectedSiteId}

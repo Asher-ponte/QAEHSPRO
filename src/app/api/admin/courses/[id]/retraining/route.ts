@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -37,7 +38,13 @@ export async function POST(
                  return NextResponse.json({ error: `Course "${courseTitle}" not found in the selected branch.` }, { status: 404 });
             }
             effectiveCourseId = course.id;
+        } else if (isSuperAdmin && !targetSiteId) {
+            // Super admin viewing their own branch's progress view
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT id FROM courses WHERE id = ?', [effectiveCourseId]);
+            const course = courseRows[0];
+            effectiveSiteId = course.site_id;
         }
+
 
         if (isNaN(effectiveCourseId)) {
             return NextResponse.json({ error: 'Course ID must be a number.' }, { status: 400 });
