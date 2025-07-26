@@ -29,7 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -89,7 +89,7 @@ function UpdateStatusDialog({
                 rejectionReason: values.rejectionReason,
             };
 
-            if (action === 'rejected' && !payload.rejectionReason) {
+            if (action === 'rejected' && (!payload.rejectionReason || payload.rejectionReason.trim() === '')) {
                 form.setError("rejectionReason", { type: "manual", message: "Rejection reason is required." });
                 setIsSubmitting(false);
                 return;
@@ -280,9 +280,12 @@ export default function PaymentManagementPage() {
                     <TableCell>
                       {tx.proof_image_path ? (
                         <Dialog>
-                          <DialogContent className="max-w-4xl">
-                              <Image src={tx.proof_image_path} alt={`Proof for transaction ${tx.id}`} width={800} height={600} className="w-full h-auto object-contain" />
-                          </DialogContent>
+                            <DialogTrigger asChild>
+                               <Button variant="outline" size="sm">View</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl">
+                                <Image src={tx.proof_image_path} alt={`Proof for transaction ${tx.id}`} width={800} height={600} className="w-full h-auto object-contain" />
+                            </DialogContent>
                         </Dialog>
                       ) : (
                         <span className="text-muted-foreground text-xs">N/A</span>
@@ -326,5 +329,3 @@ export default function PaymentManagementPage() {
     </div>
   )
 }
-
-    
