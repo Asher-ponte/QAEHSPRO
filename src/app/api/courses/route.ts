@@ -109,8 +109,7 @@ export async function GET() {
     } else { // Employee or Admin
         // Internal users only see courses from their assigned site.
         const [rows] = await db.query<RowDataPacket[]>(`
-            SELECT id, title, description, category, imagePath, startDate, endDate, is_public, is_internal,
-                   NULL as price
+            SELECT *
             FROM courses 
             WHERE (is_internal = 1 OR is_public = 1) AND site_id = ?
             ORDER BY title ASC

@@ -289,6 +289,8 @@ export async function PUT(
         const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
             ? transformQuestionsToDbFormat(final_assessment_questions)
             : null;
+        
+        const effectivePrice = is_public ? price : null;
 
         db = await getDb();
         await db.query('START TRANSACTION');
@@ -300,7 +302,7 @@ export async function PUT(
                 final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
              WHERE id = ?`,
             [
-                title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, price,
+                title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, effectivePrice,
                 finalAssessmentContent, final_assessment_passing_rate, final_assessment_max_attempts,
                 courseId
             ]
