@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useState, useEffect } from "react";
@@ -94,7 +95,7 @@ export function StorageBrowser({ open, onOpenChange, onFileSelect, fileType }: S
                            filteredFiles.map(file => (
                                 <button key={file.url} onClick={() => handleSelect(file.url)} className="relative aspect-square w-full group border rounded-md overflow-hidden flex flex-col items-center justify-center text-center p-2 hover:bg-accent hover:text-accent-foreground transition-colors">
                                     {fileType === 'image' ? (
-                                        <Image src={file.url} alt={file.name} fill className="object-contain" sizes="200px" />
+                                        <Image src={file.url} alt={file.name} sizes="100vw" fill className="object-contain" />
                                     ) : (
                                         <FileText className="h-16 w-16" />
                                     )}

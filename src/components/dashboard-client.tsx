@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -197,6 +198,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                 <Image
                                     src={course.imagePath || 'https://picsum.photos/200/150'}
                                     alt={course.title}
+                                    sizes="100vw"
                                     fill
                                     className="rounded-md object-cover"
                                     data-ai-hint="course thumbnail"
@@ -237,6 +239,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                 <Image
                                     src={course.imagePath || 'https://picsum.photos/200/150'}
                                     alt={course.title}
+                                    sizes="100vw"
                                     fill
                                     className="rounded-md object-cover"
                                     data-ai-hint="course thumbnail"

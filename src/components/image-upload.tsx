@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useState, type ChangeEvent, useRef, useEffect } from "react";
@@ -91,6 +92,7 @@ export function ImageUpload({ onUploadComplete, initialPath, onRemove, uploadPat
                         <Image
                             src={imagePreview}
                             alt="Image preview"
+                            sizes="100vw"
                             fill
                             className="object-contain"
                         />

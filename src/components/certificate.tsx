@@ -6,7 +6,6 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { format } from "date-fns"
 import QRCode from "qrcode"
-import { useSession } from "@/hooks/use-session"
 
 interface CertificateData {
   id: number;
@@ -26,7 +25,6 @@ interface CertificateData {
 
 export function Certificate({ data }: { data: CertificateData }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
-    const { site } = useSession();
 
     useEffect(() => {
         if (data.certificateNumber && data.siteId) {

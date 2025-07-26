@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -381,6 +382,7 @@ export default function CourseDetailPage() {
                     <Image
                     src={course.imagePath || 'https://placehold.co/600x400'}
                     alt={course.title}
+                    sizes="100vw"
                     fill
                     className="object-cover"
                     data-ai-hint="course cover"

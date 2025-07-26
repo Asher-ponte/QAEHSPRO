@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useEffect, useState } from "react"
@@ -284,7 +285,7 @@ export default function PaymentManagementPage() {
                                <Button variant="outline" size="sm">View</Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-4xl">
-                                <Image src={tx.proof_image_path} alt={`Proof for transaction ${tx.id}`} width={800} height={600} className="w-full h-auto object-contain" />
+                                <Image src={tx.proof_image_path} alt={`Proof for transaction ${tx.id}`} width={800} height={600} sizes="100vw" className="w-full h-auto object-contain" />
                             </DialogContent>
                         </Dialog>
                       ) : (
