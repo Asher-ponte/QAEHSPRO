@@ -1,46 +1,11 @@
 
-
 import { Suspense } from "react"
 import { Certificate } from "@/components/certificate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { getAllSites } from "@/lib/sites";
-
-interface CertificateData {
-  id: number;
-  completion_date: string;
-  certificateNumber: string | null;
-  type: 'completion' | 'recognition';
-  reason: string | null;
-  companyName: string;
-  companyAddress: string | null;
-  companyLogoPath: string | null;
-  companyLogo2Path: string | null;
-  siteId: string;
-  user: { username: string; fullName: string | null };
-  course: { title: string; venue: string | null } | null;
-  signatories: { name: string; position: string | null; signatureImagePath: string }[];
-}
-
-async function fetchCertificateData(number: string, siteId: string): Promise<{ data: CertificateData | null; error: string | null }> {
-    try {
-        const url = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/certificate/validate?number=${number}&siteId=${siteId}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        
-        const responseData = await res.json();
-        
-        if (!res.ok) {
-            return { data: null, error: responseData.error || `Failed to fetch data, status: ${res.status}` };
-        }
-
-        return { data: responseData, error: null };
-
-    } catch (error) {
-        console.error("Failed to validate certificate:", error);
-        return { data: null, error: 'Failed to retrieve certificate data due to a network or server error.' };
-    }
-}
+import { getCertificateDataForValidation, type CertificateData } from "@/lib/certificate";
 
 
 async function CertificateValidator({ certificateNumber, siteId }: { certificateNumber?: string | string[], siteId?: string | string[] }) {
@@ -82,7 +47,7 @@ async function CertificateValidator({ certificateNumber, siteId }: { certificate
         )
     }
 
-    const { data, error } = await fetchCertificateData(certificateNumber, siteId);
+    const { data, error } = await getCertificateDataForValidation(certificateNumber, siteId);
 
     if (error) {
          return (
