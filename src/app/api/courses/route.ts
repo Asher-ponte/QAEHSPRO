@@ -156,7 +156,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
         }
 
         for (const [moduleIndex, moduleData] of payload.modules.entries()) {
-            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, \`order\`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
@@ -165,7 +165,7 @@ const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, 
                     ? transformQuestionsToDbFormat(lessonData.questions)
                     : lessonData.content ?? null;
 
-                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
         await db.query('COMMIT');
