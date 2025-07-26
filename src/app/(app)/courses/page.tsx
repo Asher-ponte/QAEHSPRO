@@ -127,7 +127,7 @@ export default function CoursesPage() {
           filteredCourses.map((course) => {
               const status = getCourseStatus(course.startDate, course.endDate);
               const isActionable = !status || status.text === 'Active';
-              const isPaidCourse = course.is_public && course.price && course.price > 0;
+              const isPaidCourse = course.is_public && typeof course.price === 'number' && course.price > 0;
               const isExternalUser = user?.type === 'External';
               const hasAccess = userCourseIds.has(Number(course.id));
 
@@ -169,9 +169,9 @@ export default function CoursesPage() {
                      {status && status.text !== 'Active' && (
                         <Badge variant={status.variant} className="absolute top-2 right-2">{status.text}</Badge>
                     )}
-                     {isExternalUser && isPaidCourse && !hasAccess && (
+                     {isExternalUser && isPaidCourse && !hasAccess && typeof course.price === 'number' && (
                          <Badge variant="default" className="absolute top-2 left-2">
-                            ₱{course.price?.toFixed(2)}
+                            ₱{course.price.toFixed(2)}
                          </Badge>
                      )}
                     </CardHeader>
