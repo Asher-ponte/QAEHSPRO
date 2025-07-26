@@ -28,6 +28,7 @@ import { ImageUpload } from "@/components/image-upload"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { PdfUpload } from "@/components/pdf-upload"
 import { Separator } from "@/components/ui/separator"
+import type { Site } from "@/lib/sites"
 
 interface SignatoryOption {
     id: number;
@@ -80,6 +81,8 @@ const courseSchema = z.object({
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
+
+  publishToSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -114,6 +117,111 @@ const courseSchema = z.object({
 
 
 type CourseFormValues = z.infer<typeof courseSchema>
+
+
+function PublishToBranchesField({ control, courseTitle, courseSiteId }: { control: Control<CourseFormValues>, courseTitle: string, courseSiteId: string | undefined }) {
+    const [allSites, setAllSites] = useState<Site[]>([]);
+    const [publishedSiteIds, setPublishedSiteIds] = useState<Set<string>>(new Set());
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+    
+    useEffect(() => {
+        if (courseSiteId !== 'main') return;
+
+        const fetchBranchData = async () => {
+            setIsLoading(true);
+            try {
+                const [sitesRes, coursesRes] = await Promise.all([
+                    fetch('/api/sites'),
+                    fetch('/api/admin/courses') // Fetch all courses to check where this one exists
+                ]);
+
+                if (!sitesRes.ok || !coursesRes.ok) {
+                    throw new Error("Failed to load branch or course data.");
+                }
+
+                const allSitesData: Site[] = await sitesRes.json();
+                const allCoursesData: { title: string, siteId: string }[] = await coursesRes.json();
+
+                // Get all sites except 'main'
+                setAllSites(allSitesData.filter(s => s.id !== 'main'));
+                
+                // Find all siteIds where a course with the same title exists
+                const existingCourseSites = new Set(
+                    allCoursesData
+                        .filter(c => c.title === courseTitle && c.siteId !== 'main')
+                        .map(c => c.siteId)
+                );
+                setPublishedSiteIds(existingCourseSites);
+
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load branch publishing information.' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchBranchData();
+    }, [courseSiteId, courseTitle, toast]);
+
+    if (isLoading || courseSiteId !== 'main') {
+        return null; // Or a skeleton loader
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Publish to Branches</CardTitle>
+                <CardDescription>
+                    Select additional branches to publish a copy of this course to. Existing copies will be updated when you save.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <FormField
+                    control={control}
+                    name="publishToSiteIds"
+                    render={() => (
+                        <FormItem>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                                {allSites.map((site) => {
+                                    const isAlreadyPublished = publishedSiteIds.has(site.id);
+                                    return (
+                                         <FormField
+                                            key={site.id}
+                                            control={control}
+                                            name="publishToSiteIds"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={isAlreadyPublished || field.value?.includes(site.id)}
+                                                            disabled={isAlreadyPublished}
+                                                            onCheckedChange={(checked) => {
+                                                                const currentValue = field.value || [];
+                                                                return checked
+                                                                    ? field.onChange([...currentValue, site.id])
+                                                                    : field.onChange(currentValue.filter((value) => value !== site.id));
+                                                            }}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className="font-normal">
+                                                        {site.name}
+                                                         {isAlreadyPublished && <span className="text-xs text-muted-foreground block">(Already published)</span>}
+                                                    </FormLabel>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </CardContent>
+        </Card>
+    )
+}
 
 
 function SignatoriesField({ control, siteId }: { control: Control<CourseFormValues>; siteId: string | undefined }) {
@@ -500,6 +608,7 @@ export default function EditCoursePage() {
   const courseId = params.id;
   const [courseSiteId, setCourseSiteId] = useState<string | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
+  const [courseTitle, setCourseTitle] = useState("");
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -533,6 +642,7 @@ export default function EditCoursePage() {
       final_assessment_questions: [],
       final_assessment_passing_rate: 80,
       final_assessment_max_attempts: 3,
+      publishToSiteIds: [],
     },
     mode: "onChange"
   });
@@ -555,8 +665,10 @@ export default function EditCoursePage() {
                 is_public: !!data.is_public,
                 signatoryIds: data.signatoryIds || [],
                 final_assessment_questions: data.final_assessment_questions || [],
+                publishToSiteIds: [],
             });
             setCourseSiteId(data.site_id);
+            setCourseTitle(data.title);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
             toast({
@@ -592,16 +704,17 @@ export default function EditCoursePage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "An unknown error occurred" }));
-        const message = errorData.details ? JSON.stringify(errorData.details, null, 2) : (errorData.error || "Failed to update course");
+        const message = errorData.details ? `${errorData.details}` : (errorData.error || "Failed to update course");
         throw new Error(message);
       }
       
-      const updatedCourse = await response.json();
+      const resJson = await response.json();
 
       toast({
         variant: "default",
-        title: "Course Updated!",
-        description: `The course "${values.title}" has been successfully updated.`,
+        title: response.status === 207 ? "Partial Success" : "Course Updated!",
+        description: resJson.message || `The course "${values.title}" has been successfully updated.`,
+        duration: response.status === 207 ? 8000 : 5000,
       });
       
       router.push('/admin/courses');
@@ -614,6 +727,7 @@ export default function EditCoursePage() {
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
             description: errorMessage,
+            duration: 8000
         });
     } finally {
         setIsSubmitting(false);
@@ -850,6 +964,12 @@ export default function EditCoursePage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <PublishToBranchesField 
+                control={form.control} 
+                courseTitle={courseTitle} 
+                courseSiteId={courseSiteId} 
+            />
 
             <Card>
                 <CardHeader>

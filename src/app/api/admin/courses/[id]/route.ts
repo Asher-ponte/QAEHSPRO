@@ -79,6 +79,8 @@ const courseUpdateSchema = z.object({
   final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
   final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
   final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
+
+  publishToSiteIds: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.startDate && data.endDate) {
         return new Date(data.endDate) >= new Date(data.startDate);
@@ -109,6 +111,59 @@ const courseUpdateSchema = z.object({
     message: "Passing Rate and Max Attempts are required when there are assessment questions.",
     path: ["final_assessment_passing_rate"],
 });
+
+const createCourseInDb = async (db: any, payload: z.infer<typeof courseUpdateSchema>, siteIdForCourse: string, siteIdForSignatories: string) => {
+    await db.query('START TRANSACTION');
+    try {
+        const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
+
+        const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
+            ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
+            : null;
+
+        const [courseResult] = await db.query<ResultSetHeader>(
+            `INSERT INTO courses (
+                site_id, title, description, category, imagePath, venue, startDate, endDate, 
+                is_internal, is_public, price, 
+                final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, 
+                payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, 
+                coursePriceForThisBranch, 
+                finalAssessmentContent, payload.final_assessment_passing_rate, payload.final_assessment_max_attempts
+            ]
+        );
+        const courseId = courseResult.insertId;
+        if (!courseId) throw new Error('Failed to create course');
+        
+        // Signatories for new branch copies should come from the main branch
+        const signatoryIds = payload.signatoryIds || [];
+        if (signatoryIds.length > 0) {
+            for (const signatoryId of signatoryIds) {
+                await db.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [courseId, signatoryId]);
+            }
+        }
+
+        for (const [moduleIndex, moduleData] of payload.modules.entries()) {
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
+            const moduleId = moduleResult.insertId;
+            if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
+
+            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+                 const lessonContent = lessonData.type === 'quiz' && lessonData.questions
+                    ? transformQuestionsToDbFormat(lessonData.questions)
+                    : lessonData.content ?? null;
+
+                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+            }
+        }
+        await db.query('COMMIT');
+    } catch (e) {
+        await db.query('ROLLBACK');
+        throw e; // rethrow
+    }
+};
 
 
 export async function GET(
@@ -205,7 +260,7 @@ export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { user, siteId } = await getCurrentSession();
+    const { user, siteId, isSuperAdmin } = await getCurrentSession();
     if (user?.role !== 'Admin' || !siteId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
@@ -227,7 +282,8 @@ export async function PUT(
         const { 
             title, description, category, modules, imagePath, venue, startDate, endDate, 
             is_internal, is_public, price, signatoryIds, 
-            final_assessment_questions, final_assessment_passing_rate, final_assessment_max_attempts 
+            final_assessment_questions, final_assessment_passing_rate, final_assessment_max_attempts,
+            publishToSiteIds
         } = parsedData.data;
         
         const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
@@ -297,9 +353,34 @@ export async function PUT(
             }
         }
         await db.query('COMMIT');
+        
+        // --- Handle Publishing to New Branches ---
+        const replicationErrors: string[] = [];
+        if (isSuperAdmin && publishToSiteIds && publishToSiteIds.length > 0) {
+            for (const targetSiteId of publishToSiteIds) {
+                try {
+                    await createCourseInDb(db, parsedData.data, targetSiteId, 'main');
+                } catch (error) {
+                     const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
+                     console.error(errorMessage);
+                     replicationErrors.push(errorMessage);
+                }
+            }
+        }
+        
+        if (replicationErrors.length > 0) {
+            return NextResponse.json({
+                success: true,
+                message: 'Main course updated, but failed to publish to some new branches.',
+                details: replicationErrors.join('\n')
+            }, { status: 207 });
+        }
        
         const [updatedCourseRows] = await db.query<any[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
-        return NextResponse.json(updatedCourseRows[0], { status: 200 });
+        return NextResponse.json({
+            ...updatedCourseRows[0],
+            message: 'Course updated successfully.'
+        }, { status: 200 });
 
     } catch (error) {
         if (db) {
