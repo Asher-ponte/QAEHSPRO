@@ -22,9 +22,8 @@ export async function GET(request: NextRequest) {
             query = `SELECT id, title FROM courses WHERE site_id = ? ORDER BY title ASC`;
             params.push('main');
         } else {
-            // Get all courses except those in 'main' for other tests
-            query = `SELECT id, title FROM courses WHERE site_id != ? ORDER BY title ASC`;
-            params.push('main');
+            // Get all courses
+            query = `SELECT id, title FROM courses ORDER BY title ASC`;
         }
 
         const [courses] = await db.query<RowDataPacket[]>(query, params);

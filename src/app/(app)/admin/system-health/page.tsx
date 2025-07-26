@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, CheckCircle, XCircle, Loader2, Play, TestTube, Send, Server, Database, Columns, Workflow, Beaker } from "lucide-react"
+import { ArrowLeft, CheckCircle, XCircle, Loader2, Play, TestTube, Send, Server, Database, Columns, Workflow, Beaker, Award } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -594,6 +594,91 @@ function FinalAssessmentTestRunner() {
     )
 }
 
+function CertificateTestRunner() {
+    const { toast } = useToast();
+    const [certificates, setCertificates] = useState<TestItem[]>([]);
+    const [selectedCertificateId, setSelectedCertificateId] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [testResult, setTestResult] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await fetch('/api/admin/debug/certificates');
+                if (!res.ok) throw new Error("Failed to fetch initial debug data.");
+                setCertificates(await res.json());
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load certificate data.' });
+            }
+        };
+        fetchData();
+    }, [toast]);
+
+    const handleSubmitTest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setTestResult(null);
+        try {
+            const res = await fetch(`/api/admin/system-health?test=certificate&id=${selectedCertificateId}`);
+            const resultData = await res.json();
+            if (!res.ok) {
+                throw new Error(resultData.details || resultData.error || "Test submission failed.");
+            }
+            setTestResult(resultData);
+            toast({ title: 'Test Complete', description: resultData.message });
+        } catch (error) {
+            const err = error instanceof Error ? error.message : "An unknown error occurred.";
+            setTestResult({ error: "Client-side fetch error", details: err });
+            toast({ variant: 'destructive', title: 'Test Failed', description: err });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <form onSubmit={handleSubmitTest}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Certificate Generation Test</CardTitle>
+                        <CardDescription>
+                            Select a certificate to simulate the data-gathering process and see exactly what information is being retrieved from the database to generate it.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="test-certificate">Certificate</Label>
+                            <Select value={selectedCertificateId} onValueChange={setSelectedCertificateId} name="test-certificate">
+                                <SelectTrigger><SelectValue placeholder="Select a Certificate to Test" /></SelectTrigger>
+                                <SelectContent>{certificates.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex items-end">
+                            <Button type="submit" disabled={isSubmitting || !selectedCertificateId}>
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                Run Test
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </form>
+            {testResult && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Certificate Test Results</CardTitle>
+                        <CardDescription>{testResult.message || testResult.error}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(testResult.simulation, null, 2)}
+                        </pre>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
+}
+
 function DebugTestRunner() {
     return (
          <div className="space-y-6">
@@ -604,6 +689,7 @@ function DebugTestRunner() {
             <CourseEditTestRunner />
             <QuizTestRunner />
             <FinalAssessmentTestRunner />
+            <CertificateTestRunner />
         </div>
     )
 }

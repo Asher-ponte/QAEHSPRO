@@ -1,7 +1,7 @@
 
 'use server';
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -97,11 +97,60 @@ async function runEndToEndTest(db: any): Promise<string> {
 }
 
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const { user, isSuperAdmin } = await getCurrentSession();
     if (!user || !isSuperAdmin) {
         return NextResponse.json({ error: 'Unauthorized: Super Admin access required' }, { status: 403 });
     }
+    
+    const testToRun = request.nextUrl.searchParams.get('test');
+
+    if (testToRun === 'certificate') {
+        const certificateId = request.nextUrl.searchParams.get('id');
+        if (!certificateId) {
+            return NextResponse.json({ error: 'Certificate ID is required for this test.' }, { status: 400 });
+        }
+        const db = await getDb();
+        const testLog: any = { certificateId: certificateId, steps: [] };
+
+        try {
+            const [certRows] = await db.query<RowDataPacket[]>('SELECT * FROM certificates WHERE id = ?', [certificateId]);
+            const certificate = certRows[0];
+            if (!certificate) throw new Error('Certificate not found in database.');
+            testLog.steps.push({ name: 'Fetch Certificate Record', status: 'success', data: certificate });
+
+            const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName FROM users WHERE id = ?', [certificate.user_id]);
+            if (userRows.length === 0) throw new Error('Associated user not found.');
+            testLog.steps.push({ name: 'Fetch User Record', status: 'success', data: userRows[0] });
+
+            if (certificate.course_id) {
+                 const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue FROM courses WHERE id = ?', [certificate.course_id]);
+                 if (courseRows.length === 0) throw new Error('Associated course not found.');
+                 testLog.steps.push({ name: 'Fetch Course Record', status: 'success', data: courseRows[0] });
+            }
+
+            const [settingsRows] = await db.query<RowDataPacket[]>("SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')", [certificate.site_id]);
+            const settingsMap = settingsRows.reduce((acc, s) => ({ ...acc, [s.key]: s.value }), {});
+            testLog.steps.push({ name: 'Fetch Platform Settings', status: 'success', data: settingsMap });
+
+            const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', [certificate.id]);
+            const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
+            testLog.steps.push({ name: 'Fetch Signatory Links', status: 'success', data: { signatoryIds } });
+            
+            if (signatoryIds.length > 0) {
+                 const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id, name, position, signatureImagePath FROM signatories WHERE id IN (?)', [signatoryIds]);
+                 testLog.steps.push({ name: 'Fetch Signatory Details', status: 'success', data: signatoryRows });
+            }
+
+            return NextResponse.json({ message: 'Certificate data fetch simulation complete.', simulation: testLog });
+
+        } catch(error) {
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            testLog.steps.push({ name: 'Test Failed', status: 'failed', details: errorMessage });
+            return NextResponse.json({ error: 'Test failed during execution.', details: errorMessage, simulation: testLog }, { status: 500 });
+        }
+    }
+
 
     const db = await getDb();
 
