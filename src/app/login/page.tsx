@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, LogIn, UserPlus } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PasswordInput } from "@/components/password-input"
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required." }),
@@ -121,7 +122,7 @@ function LoginForm() {
                     <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <PasswordInput placeholder="••••••••" {...field} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -236,7 +237,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Password</FormLabel>
                                     <FormControl>
-                                        <Input type="password" placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -249,7 +250,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Confirm Password</FormLabel>
                                     <FormControl>
-                                        <Input type="password" placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

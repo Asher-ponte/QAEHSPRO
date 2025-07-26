@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSession } from "@/hooks/use-session"
+import { PasswordInput } from "@/components/password-input"
 
 const profileFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -193,7 +194,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Current Password</FormLabel>
                                                 <FormControl>
-                                                    <Input type="password" {...field} />
+                                                    <PasswordInput {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -206,7 +207,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>New Password</FormLabel>
                                                 <FormControl>
-                                                    <Input type="password" {...field} />
+                                                    <PasswordInput {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -219,7 +220,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Confirm New Password</FormLabel>
                                                 <FormControl>
-                                                    <Input type="password" {...field} />
+                                                    <PasswordInput {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

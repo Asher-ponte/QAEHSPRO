@@ -72,6 +72,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import type { Site } from "@/lib/sites"
 import { useSession } from "@/hooks/use-session"
+import { PasswordInput } from "@/components/password-input"
 
 interface User {
   id: number;
@@ -252,7 +253,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Password</FormLabel>
                                     <FormControl>
-                                        <Input type="password" placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -471,7 +472,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>New Password</FormLabel>
                                     <FormControl>
-                                        <Input type="password" {...field} />
+                                        <PasswordInput {...field} />
                                     </FormControl>
                                     <FormDescription>
                                         Leave blank to keep the current password.
