@@ -127,18 +127,14 @@ export default function CertificatePage() {
         const canvasHeight = canvas.height;
         const canvasRatio = canvasWidth / canvasHeight;
 
-        // We want to fill the width of the PDF page, and let the height be calculated
-        // based on the original aspect ratio to avoid distortion.
-        let imgWidth = pdfWidth;
-        let imgHeight = imgWidth / canvasRatio;
+        let finalImgWidth = pdfWidth;
+        let finalImgHeight = finalImgWidth / canvasRatio;
 
-        // In case the calculated height is more than the pdf height, we should fit by height instead.
-        if (imgHeight > pdfHeight) {
+        if (finalImgHeight > pdfHeight) {
             finalImgHeight = pdfHeight;
             finalImgWidth = finalImgHeight * canvasRatio;
         }
         
-        // Center the image on the page
         const xOffset = (pdfWidth - finalImgWidth) / 2;
         const yOffset = (pdfHeight - finalImgHeight) / 2;
 
