@@ -103,14 +103,17 @@ export async function POST(
                 certificateId = existingCertificate.id;
             } else {
                 const today = new Date();
+                const datePrefix = format(today, 'yyyyMMdd');
+                const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+                const count = countRows[0]?.count ?? 0;
+                const nextSerial = count + 1;
+                const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+
                 const [certResult] = await db.query<ResultSetHeader>(
-                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
-                    [user.id, courseId, today, '']
+                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, site_id) VALUES (?, ?, ?, ?, 'completion', ?)`,
+                    [user.id, courseId, today, certificateNumber, course.site_id]
                 );
                 certificateId = certResult.insertId;
-
-                const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(certificateId).padStart(4, '0')}`;
-                await db.query('UPDATE certificates SET certificate_number = ? WHERE id = ?', [certificateNumber, certificateId]);
 
                 const [courseSignatoryRows] = await db.query<any[]>(`SELECT signatory_id FROM course_signatories WHERE course_id = ?`, [courseId]);
                 if (courseSignatoryRows.length > 0) {
