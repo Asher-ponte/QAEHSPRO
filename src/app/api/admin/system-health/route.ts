@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
 
     const schemaTests = [
         runTest('Users Schema', 'Schema Integrity', () => checkSchema(db, 'users', ['id', 'username', 'password', 'role', 'type', 'site_id'])),
-        runTest('Courses Schema', 'Schema Integrity', () => checkSchema(db, 'courses', ['id', 'site_id', 'title', 'is_public', 'is_internal', 'pre_test_content', 'final_assessment_content'])),
+        runTest('Courses Schema', 'Schema Integrity', () => checkSchema(db, 'courses', ['id', 'site_id', 'title', 'is_public', 'is_internal', 'final_assessment_content'])),
         runTest('Lessons Schema', 'Schema Integrity', () => checkSchema(db, 'lessons', ['id', 'module_id', 'title', 'type', 'content', 'order'])),
         runTest('Enrollments Schema', 'Schema Integrity', () => checkSchema(db, 'enrollments', ['user_id', 'course_id'])),
         runTest('User Progress Schema', 'Schema Integrity', () => checkSchema(db, 'user_progress', ['user_id', 'lesson_id', 'completed'])),
