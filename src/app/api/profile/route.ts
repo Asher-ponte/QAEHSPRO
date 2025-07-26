@@ -7,7 +7,19 @@ import type { RowDataPacket } from 'mysql2';
 
 const profileSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).refine(data => {
+    if (data.newPassword || data.currentPassword || data.confirmPassword) {
+        return data.newPassword === data.confirmPassword;
+    }
+    return true;
+}, {
+    message: "New passwords do not match.",
+    path: ["confirmPassword"],
 });
+
 
 export async function PUT(request: NextRequest) {
     const { user, siteId } = await getCurrentSession();
@@ -24,14 +36,33 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { fullName } = parsedData.data;
+        const { fullName, currentPassword, newPassword } = parsedData.data;
         
+        // Update full name
         await db.query(
             "UPDATE users SET fullName = ? WHERE id = ? AND site_id = ?",
             [fullName, user.id, siteId]
         );
+        
+        // Conditionally update password
+        if (newPassword && currentPassword) {
+            const [userRows] = await db.query<RowDataPacket & { password?: string }[]>(
+                "SELECT password FROM users WHERE id = ?",
+                [user.id]
+            );
+            const userWithPassword = userRows[0];
 
-        const [updatedUserRows] = await db.query<RowDataPacket[]>("SELECT id, username, fullName, department, position, role FROM users WHERE id = ?", user.id);
+            if (!userWithPassword || userWithPassword.password !== currentPassword) {
+                return NextResponse.json({ error: 'Incorrect current password.' }, { status: 403 });
+            }
+
+            await db.query(
+                "UPDATE users SET password = ? WHERE id = ?",
+                [newPassword, user.id]
+            );
+        }
+
+        const [updatedUserRows] = await db.query<RowDataPacket[]>("SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE id = ?", user.id);
         const updatedUser = updatedUserRows[0];
 
         return NextResponse.json(updatedUser);

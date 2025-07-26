@@ -32,7 +32,31 @@ import { useSession } from "@/hooks/use-session"
 
 const profileFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
-})
+  currentPassword: z.string().optional(),
+  newPassword: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).refine(data => {
+    // If one password field is filled, all should be
+    if (data.newPassword || data.confirmPassword || data.currentPassword) {
+        return data.newPassword && data.confirmPassword && data.currentPassword;
+    }
+    return true;
+}, {
+    message: "Please fill all password fields to change your password.",
+    path: ["currentPassword"], // Show error on the first field
+}).refine(data => data.newPassword === data.confirmPassword, {
+    message: "New passwords do not match.",
+    path: ["confirmPassword"],
+}).refine(data => {
+    if (data.newPassword && data.newPassword.length < 6) {
+        return false;
+    }
+    return true;
+}, {
+    message: "New password must be at least 6 characters.",
+    path: ["newPassword"],
+});
+
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
@@ -44,13 +68,21 @@ export default function ProfilePage() {
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
         defaultValues: {
-            fullName: ""
+            fullName: "",
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
         }
     });
 
     useEffect(() => {
         if (user) {
-            form.reset({ fullName: user.fullName || user.username || "" });
+            form.reset({ 
+                fullName: user.fullName || user.username || "",
+                currentPassword: "",
+                newPassword: "",
+                confirmPassword: ""
+            });
         }
     }, [user, form]);
 
@@ -69,12 +101,19 @@ export default function ProfilePage() {
             }
             toast({
                 title: "Profile Updated",
-                description: "Your full name has been saved successfully.",
+                description: "Your information has been saved successfully.",
             });
             // Update the user context with the new name
             if (user) {
                 setUser({ ...user, fullName: updatedUser.fullName });
             }
+            // Reset password fields
+            form.reset({
+                ...form.getValues(),
+                currentPassword: "",
+                newPassword: "",
+                confirmPassword: "",
+            })
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -96,55 +135,111 @@ export default function ProfilePage() {
                     <div>
                         <h1 className="text-3xl font-bold font-headline">My Profile</h1>
                         <p className="text-muted-foreground">
-                            Update your personal information.
+                            Update your personal information and password.
                         </p>
                     </div>
                 </div>
             </div>
-            <Card>
-                <CardHeader>
-                <CardTitle>Personal Details</CardTitle>
-                <CardDescription>This information will appear on your certificates.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? (
-                        <div className="space-y-4 max-w-sm">
-                            <Skeleton className="h-6 w-32" />
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                    ) : (
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-sm">
-                                <FormField
-                                    control={form.control}
-                                    name="fullName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Full Name</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="e.g. John Doe" {...field} />
-                                            </FormControl>
-                                             <FormDescription>
-                                                This name will be displayed on your certificates of completion.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Save className="mr-2 h-4 w-4" />
-                                    )}
-                                    Save Changes
-                                </Button>
-                            </form>
-                        </Form>
-                    )}
-                </CardContent>
-            </Card>
+             <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                        <CardTitle>Personal Details</CardTitle>
+                        <CardDescription>This information will appear on your certificates.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? (
+                                <div className="space-y-4 max-w-sm">
+                                    <Skeleton className="h-6 w-32" />
+                                    <Skeleton className="h-10 w-full" />
+                                </div>
+                            ) : (
+                                <div className="max-w-sm">
+                                    <FormField
+                                        control={form.control}
+                                        name="fullName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Full Name</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="e.g. John Doe" {...field} />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    This name will be displayed on your certificates of completion.
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Change Password</CardTitle>
+                            <CardDescription>Leave these fields blank to keep your current password.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           {isLoading ? (
+                                <Skeleton className="h-48 w-full max-w-sm" />
+                           ) : (
+                               <div className="space-y-4 max-w-sm">
+                                    <FormField
+                                        control={form.control}
+                                        name="currentPassword"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Current Password</FormLabel>
+                                                <FormControl>
+                                                    <Input type="password" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                     <FormField
+                                        control={form.control}
+                                        name="newPassword"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>New Password</FormLabel>
+                                                <FormControl>
+                                                    <Input type="password" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                     <FormField
+                                        control={form.control}
+                                        name="confirmPassword"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Confirm New Password</FormLabel>
+                                                <FormControl>
+                                                    <Input type="password" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                               </div>
+                           )}
+                        </CardContent>
+                    </Card>
+                    
+                    <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                        )}
+                        Save Changes
+                    </Button>
+                </form>
+            </Form>
         </div>
     )
 }
