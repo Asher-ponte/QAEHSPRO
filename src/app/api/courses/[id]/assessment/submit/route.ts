@@ -107,6 +107,7 @@ export async function POST(
             } else {
                 // No recent certificate exists, so create a new one.
                 const today = new Date();
+                const completionDateFormatted = format(today, 'yyyy-MM-dd HH:mm:ss');
                 const datePrefix = format(today, 'yyyyMMdd');
                 const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
                 const count = countRows[0]?.count ?? 0;
@@ -115,7 +116,7 @@ export async function POST(
 
                 const [certResult] = await db.query<ResultSetHeader>(
                     `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, site_id) VALUES (?, ?, ?, ?, 'completion', ?)`,
-                    [user.id, courseId, today, certificateNumber, course.site_id]
+                    [user.id, courseId, completionDateFormatted, certificateNumber, course.site_id]
                 );
                 certificateId = certResult.insertId;
 
