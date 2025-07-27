@@ -428,7 +428,7 @@ export default function AssessmentPage() {
     };
 
     const canSubmit = useMemo(() => {
-        if (!assessmentData) return false;
+        if (!assessmentData?.questions) return false;
         return Object.keys(answers).length === assessmentData.questions.length;
     }, [answers, assessmentData]);
 
