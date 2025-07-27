@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -124,13 +125,17 @@ export async function GET(request: NextRequest) {
             const certificateUser = userRows[0];
             testLog.steps.push({ name: 'Fetch User Record', status: 'success', data: certificateUser });
 
-            let certificateSiteId: string | null = certificate.site_id;
+            let certificateSiteId: string | null = null;
             
             if (certificate.course_id) {
-                 const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue FROM courses WHERE id = ?', [certificate.course_id]);
+                 const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue, site_id FROM courses WHERE id = ?', [certificate.course_id]);
                  if (courseRows.length === 0) throw new Error('Associated course not found.');
-                 testLog.steps.push({ name: 'Fetch Course Record', status: 'success', data: courseRows[0] });
+                 const courseData = courseRows[0];
+                 certificateSiteId = courseData.site_id;
+                 testLog.steps.push({ name: 'Fetch Course Record', status: 'success', data: courseData });
             } else {
+                 // For recognition certificates, the site is the user's home site
+                 certificateSiteId = certificateUser.site_id;
                  testLog.steps.push({ name: 'Fetch Course Record', status: 'skipped', details: 'Recognition certificate, no course.'});
             }
             
