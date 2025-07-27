@@ -41,8 +41,9 @@ export async function POST(request: NextRequest) {
         if (userRows.length === 0) throw new Error(`User with ID ${userId} not found in site ${siteId}.`);
         simulationLog.steps.push({ name: 'Verify User Exists', status: 'success', data: userRows[0] });
 
-        const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id FROM signatories WHERE id IN (?) AND site_id = ?', [signatoryIds, siteId]);
-        if (signatoryRows.length !== signatoryIds.length) throw new Error('One or more selected signatories do not exist in the target site.');
+        // Corrected Query: Removed the incorrect site_id check
+        const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id FROM signatories WHERE id IN (?)', [signatoryIds]);
+        if (signatoryRows.length !== signatoryIds.length) throw new Error('One or more selected signatories do not exist.');
         simulationLog.steps.push({ name: 'Verify Signatories Exist', status: 'success', data: { found: signatoryRows.length } });
         
         const date = new Date();
