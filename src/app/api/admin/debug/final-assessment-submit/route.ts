@@ -85,7 +85,6 @@ export async function POST(request: NextRequest) {
         );
         
         let certificateInsertId = null;
-        let certificateNumber = null;
         let certificateData = null;
 
         if (passed) {
