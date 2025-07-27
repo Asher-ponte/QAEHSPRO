@@ -477,6 +477,7 @@ function FinalAssessmentTestRunner() {
     const [selectedCourse, setSelectedCourse] = useState<string>('');
     const [answers, setAnswers] = useState<string>('{}');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoadingAnswers, setIsLoadingAnswers] = useState(false);
     const [testResult, setTestResult] = useState<any>(null);
 
     useEffect(() => {
@@ -495,6 +496,27 @@ function FinalAssessmentTestRunner() {
         };
         fetchData();
     }, [toast]);
+    
+    const handleLoadAnswers = async () => {
+        if (!selectedCourse) {
+            toast({ variant: "destructive", title: "Error", description: "Please select a course first." });
+            return;
+        }
+        setIsLoadingAnswers(true);
+        try {
+            const res = await fetch(`/api/admin/debug/correct-answers?courseId=${selectedCourse}`);
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to load correct answers.");
+            }
+            setAnswers(JSON.stringify(data.answers, null, 2));
+            toast({ title: "Success", description: "Correct answers loaded." });
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: error instanceof Error ? error.message : "Could not load answers." });
+        } finally {
+            setIsLoadingAnswers(false);
+        }
+    };
     
     const handleSubmitTest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -542,23 +564,31 @@ function FinalAssessmentTestRunner() {
                         <CardTitle>Final Assessment Submission Test</CardTitle>
                         <CardDescription>Simulate a specific user submitting answers to a course's final assessment. This tests grading and certificate generation logic.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="fa-test-user">User</Label>
-                            <Select value={selectedUser} onValueChange={setSelectedUser} name="fa-test-user">
-                                <SelectTrigger><SelectValue placeholder="Select a User" /></SelectTrigger>
-                                <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}</SelectContent>
-                            </Select>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <Label htmlFor="fa-test-user">User</Label>
+                                <Select value={selectedUser} onValueChange={setSelectedUser} name="fa-test-user">
+                                    <SelectTrigger><SelectValue placeholder="Select a User" /></SelectTrigger>
+                                    <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fa-test-course">Course</Label>
+                                <Select value={selectedCourse} onValueChange={setSelectedCourse} name="fa-test-course">
+                                    <SelectTrigger><SelectValue placeholder="Select a Course" /></SelectTrigger>
+                                    <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="fa-test-course">Course</Label>
-                            <Select value={selectedCourse} onValueChange={setSelectedCourse} name="fa-test-course">
-                                <SelectTrigger><SelectValue placeholder="Select a Course" /></SelectTrigger>
-                                <SelectContent>{courses.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </div>
-                         <div className="space-y-2 col-span-1 lg:col-span-2">
-                            <Label htmlFor="fa-test-answers">Answers (JSON)</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="fa-test-answers">Answers (JSON)</Label>
+                                <Button type="button" variant="link" size="sm" onClick={handleLoadAnswers} disabled={!selectedCourse || isLoadingAnswers}>
+                                     {isLoadingAnswers && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                     Load Correct Answers
+                                </Button>
+                            </div>
                             <Textarea
                                 id="fa-test-answers"
                                 value={answers}
