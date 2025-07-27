@@ -1,20 +1,31 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import type { RowDataPacket } from 'mysql2';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const { user, isSuperAdmin } = await getCurrentSession();
     if (!user || !isSuperAdmin) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
+    const siteId = request.nextUrl.searchParams.get('siteId');
 
     try {
         const db = await getDb();
-        const [users] = await db.query<RowDataPacket[]>(
-            `SELECT id, fullName, username FROM users WHERE site_id != 'main' ORDER BY fullName ASC`
-        );
+
+        let query;
+        let params: string[] = [];
+
+        if (siteId) {
+            query = `SELECT id, fullName, username FROM users WHERE site_id = ? ORDER BY fullName ASC`;
+            params.push(siteId);
+        } else {
+             query = `SELECT id, fullName, username FROM users WHERE site_id != 'main' ORDER BY fullName ASC`;
+        }
+
+        const [users] = await db.query<RowDataPacket[]>(query, params);
 
         const formattedUsers = users.map(u => ({
             id: u.id,

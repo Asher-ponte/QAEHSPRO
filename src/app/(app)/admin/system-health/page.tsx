@@ -672,7 +672,7 @@ function CertificateTestRunner() {
                     <CardHeader>
                         <CardTitle>Certificate Generation Test</CardTitle>
                         <CardDescription>
-                            Select a certificate to simulate the data-gathering process and see exactly what information is being retrieved from the database to generate it.
+                            Select an existing certificate to simulate the data-gathering process and see exactly what information would be used to generate it.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -709,6 +709,165 @@ function CertificateTestRunner() {
     );
 }
 
+function RecognitionCertificateTestRunner() {
+    const { toast } = useToast();
+    const [sites, setSites] = useState<TestItem[]>([]);
+    const [users, setUsers] = useState<TestItem[]>([]);
+    const [signatories, setSignatories] = useState<TestItem[]>([]);
+    
+    const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [reason, setReason] = useState('');
+    const [selectedSignatoryIds, setSelectedSignatoryIds] = useState<number[]>([]);
+    
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [testResult, setTestResult] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchSites = async () => {
+            try {
+                const res = await fetch('/api/admin/debug/sites');
+                if (!res.ok) throw new Error("Failed to fetch sites.");
+                setSites(await res.json());
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load sites.' });
+            }
+        };
+        fetchSites();
+    }, [toast]);
+    
+    useEffect(() => {
+        if (!selectedSiteId) {
+            setUsers([]);
+            setSignatories([]);
+            setSelectedUserId('');
+            setSelectedSignatoryIds([]);
+            return;
+        }
+        const fetchSiteData = async () => {
+             try {
+                const [usersRes, sigsRes] = await Promise.all([
+                    fetch(`/api/admin/debug/users?siteId=${selectedSiteId}`),
+                    fetch(`/api/admin/debug/signatories?siteId=${selectedSiteId}`),
+                ]);
+                if (!usersRes.ok || !sigsRes.ok) throw new Error("Failed to fetch site-specific data.");
+                setUsers(await usersRes.json());
+                setSignatories(await sigsRes.json());
+                setSelectedUserId('');
+                setSelectedSignatoryIds([]);
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load user or signatory data for the selected branch.' });
+            }
+        };
+        fetchSiteData();
+    }, [selectedSiteId, toast]);
+
+    const handleSubmitTest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setTestResult(null);
+        try {
+            const payload = {
+                userId: Number(selectedUserId),
+                siteId: selectedSiteId,
+                reason,
+                signatoryIds: selectedSignatoryIds,
+            };
+            
+            const res = await fetch('/api/admin/debug/recognition-certificate-create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const resultData = await res.json();
+            if (!res.ok) {
+                throw new Error(resultData.details || resultData.error || "Test submission failed.");
+            }
+            setTestResult(resultData);
+             toast({ title: 'Test Complete', description: resultData.message });
+
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Test Failed', description: error instanceof Error ? error.message : "An unknown error occurred." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+         <div className="space-y-6">
+            <form onSubmit={handleSubmitTest}>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Certificate of Recognition Creation Test</CardTitle>
+                        <CardDescription>Simulate creating a special recognition award for a user.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Branch</Label>
+                                <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                                    <SelectTrigger><SelectValue placeholder="Select a Branch" /></SelectTrigger>
+                                    <SelectContent>{sites.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>User</Label>
+                                <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!selectedSiteId || users.length === 0}>
+                                    <SelectTrigger><SelectValue placeholder="Select a User" /></SelectTrigger>
+                                    <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Reason for Recognition</Label>
+                            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g., Outstanding Performance in Q3" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Signatories</Label>
+                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 border rounded-md max-h-48 overflow-y-auto">
+                                {signatories.length > 0 ? signatories.map(sig => (
+                                    <div key={sig.id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`sig-${sig.id}`}
+                                            checked={selectedSignatoryIds.includes(sig.id)}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedSignatoryIds(prev =>
+                                                    checked ? [...prev, sig.id] : prev.filter(id => id !== sig.id)
+                                                );
+                                            }}
+                                        />
+                                        <Label htmlFor={`sig-${sig.id}`} className="font-normal">{sig.name}</Label>
+                                    </div>
+                                )) : <p className="col-span-full text-sm text-muted-foreground">Select a branch to see signatories.</p>}
+                            </div>
+                        </div>
+                    </CardContent>
+                    <CardContent>
+                         <Button type="submit" disabled={isSubmitting || !selectedSiteId || !selectedUserId || !reason || selectedSignatoryIds.length === 0}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Run Test
+                        </Button>
+                    </CardContent>
+                </Card>
+            </form>
+            {testResult && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Recognition Certificate Test Results</CardTitle>
+                         <CardDescription>{testResult.message}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(testResult.simulation, null, 2)}
+                        </pre>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    )
+}
+
 function DebugTestRunner() {
     return (
          <div className="space-y-6">
@@ -720,6 +879,7 @@ function DebugTestRunner() {
             <QuizTestRunner />
             <FinalAssessmentTestRunner />
             <CertificateTestRunner />
+            <RecognitionCertificateTestRunner />
         </div>
     )
 }
