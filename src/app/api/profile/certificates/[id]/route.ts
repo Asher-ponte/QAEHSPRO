@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -33,7 +34,7 @@ export async function GET(
             return NextResponse.json({ error: 'Associated user not found for this certificate.' }, { status: 404 });
         }
 
-        let certificateSiteId: string;
+        let certificateSiteId: string | null = null;
         let course = null;
 
         if (certificate.course_id) {
@@ -46,6 +47,10 @@ export async function GET(
         } else {
             // For recognition certificates, the site is the user's home site
             certificateSiteId = certificateHolder.site_id;
+        }
+
+        if (!certificateSiteId) {
+             return NextResponse.json({ error: 'Could not determine the site ID for this certificate to fetch settings.' }, { status: 500 });
         }
 
         // --- Payment Verification Logic ---
