@@ -6,6 +6,7 @@ import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { getCertificateDataForValidation } from '@/lib/certificate';
 
 const finalAssessmentTestSchema = z.object({
   userId: z.number(),
@@ -84,17 +85,29 @@ export async function POST(request: NextRequest) {
         );
         
         let certificateInsertId = null;
+        let certificateNumber = null;
+        let certificateData = null;
+
         if (passed) {
-            // Simulate certificate creation
-            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type) VALUES (?, ?, ?, ?, 'completion')`, [testUser.id, courseId, course.site_id, new Date()]);
+            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type, certificate_number) VALUES (?, ?, ?, ?, 'completion', 'SIMULATED')`, [testUser.id, courseId, course.site_id, new Date()]);
             certificateInsertId = certResult.insertId;
+            
+            // Now, fetch the full data payload for this new (temporary) certificate
+            const { data, error } = await getCertificateDataForValidation('SIMULATED', course.site_id);
+             if (error) {
+                console.error("Debug certificate fetch failed:", error);
+                // Don't fail the whole test, just note the error.
+                certificateData = { error: "Failed to fetch certificate data after creation.", details: error };
+            } else {
+                certificateData = data;
+            }
         }
 
         // We will rollback the transaction so this test doesn't permanently affect user data.
         await db.query('ROLLBACK');
 
         return NextResponse.json({
-            message: "Simulation successful. Database changes were rolled back.",
+            message: "Simulation successful. All changes were rolled back.",
             simulation: {
                 userId: testUser.id,
                 courseId,
@@ -108,6 +121,7 @@ export async function POST(request: NextRequest) {
                 assessmentAttemptInsertId: insertResult.insertId,
                 certificateCreated: passed,
                 simulatedCertificateId: certificateInsertId,
+                generatedCertificateData: certificateData, // Add the fetched data to the response
             }
         });
 

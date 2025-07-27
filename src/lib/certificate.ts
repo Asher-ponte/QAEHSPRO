@@ -30,6 +30,8 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         
         const db = await getDb();
         
+        // In the debug runner, we use a placeholder that won't exist in the real DB outside of a transaction.
+        // So we also check for ID as a fallback for the test runner.
         const [certificateRows] = await db.query<RowDataPacket[]>(
             `SELECT c.*
              FROM certificates c

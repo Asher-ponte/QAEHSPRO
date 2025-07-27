@@ -561,8 +561,8 @@ function FinalAssessmentTestRunner() {
             <form onSubmit={handleSubmitTest}>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Final Assessment Submission Test</CardTitle>
-                        <CardDescription>Simulate a specific user submitting answers to a course's final assessment. This tests grading and certificate generation logic.</CardDescription>
+                        <CardTitle>Final Assessment Submission & Certificate Test</CardTitle>
+                        <CardDescription>Simulate a user submitting a final assessment. If they pass, the test will also fetch the full data payload for the certificate that would be generated.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -607,19 +607,31 @@ function FinalAssessmentTestRunner() {
                     </CardContent>
                 </Card>
             </form>
-            {testResult && (
+            {testResult?.simulation?.generatedCertificateData ? (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Final Assessment Test Results</CardTitle>
+                        <CardTitle className="text-green-600">Test Passed & Certificate Data Generated</CardTitle>
+                         <CardDescription>The following data would be used to generate the certificate PDF. All changes were rolled back.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(testResult.simulation.generatedCertificateData, null, 2)}
+                        </pre>
+                    </CardContent>
+                </Card>
+            ) : testResult ? (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Test Results</CardTitle>
                          <CardDescription>{testResult.message}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto">
+                        <pre className="p-4 bg-muted text-sm rounded-md overflow-x-auto whitespace-pre-wrap">
                             {JSON.stringify(testResult.simulation, null, 2)}
                         </pre>
                     </CardContent>
                 </Card>
-            )}
+            ) : null}
         </div>
     )
 }
@@ -670,7 +682,7 @@ function CertificateTestRunner() {
             <form onSubmit={handleSubmitTest}>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Certificate Generation Test</CardTitle>
+                        <CardTitle>Existing Certificate Data Fetch Test</CardTitle>
                         <CardDescription>
                             Select an existing certificate to simulate the data-gathering process and see exactly what information would be used to generate it.
                         </CardDescription>
