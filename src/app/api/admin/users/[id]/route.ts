@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const userUpdateSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
@@ -133,10 +133,10 @@ export async function DELETE(
         return NextResponse.json({ error: 'Unauthorized or invalid site context' }, { status: 403 });
     }
     
-    const { id: userId } = params;
+    const userId = parseInt(params.id, 10);
 
-    if (!userId) {
-        return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    if (isNaN(userId)) {
+        return NextResponse.json({ error: 'User ID must be a number' }, { status: 400 });
     }
 
     const db = await getDb();
@@ -148,12 +148,29 @@ export async function DELETE(
     }
 
     try {
-        const [result]: any = await db.query('DELETE FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+        await db.query('START TRANSACTION');
+        
+        // Delete all related records first
+        await db.query('DELETE FROM user_progress WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM quiz_attempts WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM final_assessment_attempts WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM enrollments WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM certificates WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM transactions WHERE user_id = ?', [userId]);
+        
+        // Finally, delete the user
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM users WHERE id = ? AND site_id = ?', [userId, effectiveSiteId]);
+        
         if (result.affectedRows === 0) {
+            await db.query('ROLLBACK');
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
-        return NextResponse.json({ success: true, message: `User ${userId} deleted.` });
+        
+        await db.query('COMMIT');
+        return NextResponse.json({ success: true, message: `User ${userId} and all their data deleted.` });
+
     } catch (error) {
+        await db.query('ROLLBACK').catch(console.error);
         console.error(`Failed to delete user ${userId}:`, error);
         return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
     }

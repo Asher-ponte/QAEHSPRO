@@ -31,38 +31,27 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         const db = await getDb();
         
         const [certificateRows] = await db.query<RowDataPacket[]>(
-            `SELECT c.*, u.site_id as user_site_id
+            `SELECT c.*
              FROM certificates c
-             JOIN users u ON c.user_id = u.id
-             WHERE c.certificate_number = ?`,
-            [number]
+             WHERE c.certificate_number = ? AND c.site_id = ?`,
+            [number, siteIdParam]
         );
         const certificate = certificateRows[0];
 
         if (!certificate) {
-            return { data: null, error: 'Certificate not found.' };
+            return { data: null, error: 'Certificate not found in the specified site.' };
         }
 
-        let certificateSiteId: string;
         let course = null;
-
         if (certificate.course_id) {
-            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue, site_id FROM courses WHERE id = ?', certificate.course_id);
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
+            if (courseRows.length === 0) return { data: null, error: 'Associated course not found.' };
             course = courseRows[0];
-            if (!course) {
-                return { data: null, error: 'Associated course not found.' };
-            }
-            certificateSiteId = course.site_id;
-        } else {
-            certificateSiteId = certificate.user_site_id;
         }
         
-        if (certificateSiteId !== siteIdParam) {
-            return { data: null, error: 'Certificate and site ID mismatch. Invalid.' };
-        }
-
         const [userRows] = await db.query<RowDataPacket[]>('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
         const user = userRows[0];
+        if (!user) return { data: null, error: 'Associated user not found.' };
         
         const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
         const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
@@ -79,7 +68,7 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         
         const [settingsRows] = await db.query<RowDataPacket[]>(
             "SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')",
-            [certificateSiteId]
+            [certificate.site_id]
         );
         
         const settingsMap = settingsRows.reduce((acc, s) => {
@@ -97,7 +86,7 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
             companyAddress: settingsMap.company_address || null,
             companyLogoPath: settingsMap.company_logo_path || null,
             companyLogo2Path: settingsMap.company_logo_2_path || null,
-            siteId: certificateSiteId,
+            siteId: certificate.site_id,
             user: {
                 username: user?.username || 'Unknown User',
                 fullName: user?.fullName || null,

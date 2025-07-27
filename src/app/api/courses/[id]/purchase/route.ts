@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
+import type { RowDataPacket } from 'mysql2';
 
 const purchaseSchema = z.object({
   proofImagePath: z.string().min(1, { message: "Proof of payment image is required." }),
@@ -28,9 +29,11 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid course ID' }, { status: 400 });
         }
         
-        db = await getDb('external');
+        db = await getDb();
 
-        const course = await db.get('SELECT price FROM courses WHERE id = ? AND is_public = 1', courseId);
+        const [courseRows] = await db.query<RowDataPacket[]>(`SELECT price FROM courses WHERE id = ? AND is_public = 1 AND site_id = 'external'`, [courseId]);
+        const course = courseRows[0];
+        
         if (!course) {
             return NextResponse.json({ error: 'Course not found or is not public.' }, { status: 404 });
         }
@@ -48,19 +51,19 @@ export async function POST(
         }
         const { proofImagePath } = parsedData.data;
 
-        await db.run('BEGIN TRANSACTION');
+        await db.query('START TRANSACTION');
 
-        const existingPending = await db.get(
+        const [existingPending] = await db.query<RowDataPacket[]>(
             `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
             [user.id, courseId]
         );
-        if (existingPending) {
-            await db.run('ROLLBACK');
+        if (existingPending.length > 0) {
+            await db.query('ROLLBACK');
             return NextResponse.json({ error: 'You already have a pending or completed payment for this course.' }, { status: 409 });
         }
 
         // Create the transaction record
-        await db.run(
+        await db.query(
             `INSERT INTO transactions (user_id, course_id, amount, status, transaction_date, proof_image_path, gateway)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
@@ -75,17 +78,17 @@ export async function POST(
         );
 
         // Enroll the user immediately so they can start the course.
-        await db.run(
-            'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
+        await db.query(
+            'INSERT IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
             [user.id, courseId]
         );
         
-        await db.run('COMMIT');
+        await db.query('COMMIT');
 
         return NextResponse.json({ success: true, message: "Payment submitted and course unlocked." });
 
     } catch (error) {
-        if (db) await db.run('ROLLBACK').catch(console.error);
+        if (db) await db.query('ROLLBACK').catch(console.error);
         const details = error instanceof Error ? error.message : 'Unknown server error';
         console.error("Purchase API: CATCH BLOCK ERROR:", { error: details, stack: (error as Error).stack });
         return NextResponse.json({ error: 'Failed to submit payment proof due to a server error.', details }, { status: 500 });

@@ -119,17 +119,26 @@ export async function GET(request: NextRequest) {
             if (!certificate) throw new Error('Certificate not found in database.');
             testLog.steps.push({ name: 'Fetch Certificate Record', status: 'success', data: certificate });
 
-            const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName FROM users WHERE id = ?', [certificate.user_id]);
+            const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, site_id FROM users WHERE id = ?', [certificate.user_id]);
             if (userRows.length === 0) throw new Error('Associated user not found.');
-            testLog.steps.push({ name: 'Fetch User Record', status: 'success', data: userRows[0] });
+            const certificateUser = userRows[0];
+            testLog.steps.push({ name: 'Fetch User Record', status: 'success', data: certificateUser });
 
+            let certificateSiteId: string | null = certificate.site_id;
+            
             if (certificate.course_id) {
                  const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue FROM courses WHERE id = ?', [certificate.course_id]);
                  if (courseRows.length === 0) throw new Error('Associated course not found.');
                  testLog.steps.push({ name: 'Fetch Course Record', status: 'success', data: courseRows[0] });
+            } else {
+                 testLog.steps.push({ name: 'Fetch Course Record', status: 'skipped', details: 'Recognition certificate, no course.'});
+            }
+            
+            if (!certificateSiteId) {
+                throw new Error("Could not determine the site ID for this certificate to fetch settings.");
             }
 
-            const [settingsRows] = await db.query<RowDataPacket[]>("SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')", [certificate.site_id]);
+            const [settingsRows] = await db.query<RowDataPacket[]>("SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')", [certificateSiteId]);
             const settingsMap = settingsRows.reduce((acc, s) => ({ ...acc, [s.key]: s.value }), {});
             testLog.steps.push({ name: 'Fetch Platform Settings', status: 'success', data: settingsMap });
 
@@ -141,6 +150,10 @@ export async function GET(request: NextRequest) {
                  const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id, name, position, signatureImagePath FROM signatories WHERE id IN (?)', [signatoryIds]);
                  testLog.steps.push({ name: 'Fetch Signatory Details', status: 'success', data: signatoryRows });
             }
+
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            const validationUrl = `${appUrl}/certificate/validate?number=${certificate.certificate_number}&siteId=${certificateSiteId}`;
+            testLog.steps.push({ name: 'Prepare QR Code Data', status: 'success', data: { validationUrl } });
 
             return NextResponse.json({ message: 'Certificate data fetch simulation complete.', simulation: testLog });
 
@@ -170,7 +183,7 @@ export async function GET(request: NextRequest) {
         runTest('Enrollments Schema', 'Schema Integrity', () => checkSchema(db, 'enrollments', ['user_id', 'course_id'])),
         runTest('User Progress Schema', 'Schema Integrity', () => checkSchema(db, 'user_progress', ['user_id', 'lesson_id', 'completed'])),
         runTest('Final Assessment Attempts Schema', 'Schema Integrity', () => checkSchema(db, 'final_assessment_attempts', ['id', 'user_id', 'course_id', 'score', 'passed'])),
-        runTest('Certificates Schema', 'Schema Integrity', () => checkSchema(db, 'certificates', ['id', 'user_id', 'course_id', 'certificate_number', 'completion_date'])),
+        runTest('Certificates Schema', 'Schema Integrity', () => checkSchema(db, 'certificates', ['id', 'user_id', 'course_id', 'certificate_number', 'completion_date', 'site_id'])),
     ];
     
     const e2eTests = [

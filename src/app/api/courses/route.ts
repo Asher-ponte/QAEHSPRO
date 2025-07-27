@@ -68,12 +68,12 @@ const courseSchema = z.object({
     message: "End date must be on or after the start date.",
     path: ["endDate"],
 }).refine(data => {
-    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
+    if (data.is_public && data.targetSiteIds?.includes('external') && (data.price === null || data.price === undefined || data.price < 0)) {
         return false;
     }
     return true;
 }, {
-    message: "Price must be a positive number for public courses.",
+    message: "Price must be a positive number for public courses published to the External branch.",
     path: ["price"],
 }).refine(data => {
     return data.is_internal || data.is_public;
@@ -101,9 +101,9 @@ export async function GET() {
 
     let courses;
     if (user.type === 'External') {
-        // External users should see all public courses from all sites.
+        // External users should ONLY see courses from the 'external' site.
         const [rows] = await db.query<RowDataPacket[]>(`
-            SELECT * FROM courses WHERE is_public = 1 ORDER BY title ASC
+            SELECT * FROM courses WHERE is_public = 1 AND site_id = 'external' ORDER BY title ASC
         `);
         courses = rows;
     } else { // Employee or Admin
@@ -127,6 +127,7 @@ export async function GET() {
 const createCourseInDb = async (db: any, payload: z.infer<typeof courseSchema>, siteIdForCourse: string, siteIdForSignatories: string) => {
     await db.query('START TRANSACTION');
     try {
+        // Price is only applicable if the course is being created FOR the 'external' branch.
         const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
 
         const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
@@ -213,15 +214,10 @@ export async function POST(request: NextRequest) {
     const targetSiteIds = coursePayload.targetSiteIds || [];
     const replicationErrors = [];
 
-    const effectiveTargetSites = new Set(targetSiteIds);
-    if (coursePayload.is_public) {
-        effectiveTargetSites.add('external');
-    }
-
-    for (const targetSiteId of effectiveTargetSites) {
+    for (const targetSiteId of targetSiteIds) {
         if (targetSiteId === 'main') continue;
         try {
-            await createCourseInDb(db, coursePayload, targetSiteId, 'main');
+            await createCourseInDb(db, coursePayload, targetSiteId, targetSiteId);
         } catch (error) {
             const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
             console.error(errorMessage);
@@ -237,5 +233,5 @@ export async function POST(request: NextRequest) {
         }, { status: 207 });
     }
 
-    return NextResponse.json({ success: true, message: `Course created in main branch and published to ${effectiveTargetSites.size} other branch(es).` }, { status: 201 });
+    return NextResponse.json({ success: true, message: `Course created in main branch and published to ${targetSiteIds.length} other branch(es).` }, { status: 201 });
 }

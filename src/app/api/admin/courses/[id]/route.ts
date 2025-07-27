@@ -115,6 +115,7 @@ const courseUpdateSchema = z.object({
 const createCourseInDb = async (db: any, payload: z.infer<typeof courseUpdateSchema>, siteIdForCourse: string) => {
     await db.query('START TRANSACTION');
     try {
+        // Price should only be set for the external branch.
         const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
 
         const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
@@ -290,10 +291,15 @@ export async function PUT(
             ? transformQuestionsToDbFormat(final_assessment_questions)
             : null;
         
-        const effectivePrice = is_public ? price : null;
-
         db = await getDb();
         await db.query('START TRANSACTION');
+        
+        const [originalCourseRows] = await db.query<RowDataPacket[]>(`SELECT site_id FROM courses WHERE id = ?`, [courseId]);
+        const originalSiteId = originalCourseRows[0]?.site_id;
+        
+        // Price should only be set if the course is public.
+        // It's saved on the `external` branch version, not the `main` branch one.
+        const effectivePrice = is_public && originalSiteId === 'external' ? price : null;
 
         await db.query(
             `UPDATE courses SET 
@@ -354,7 +360,6 @@ export async function PUT(
                 }
             }
         }
-        await db.query('COMMIT');
         
         // --- Handle Publishing to New Branches ---
         const replicationErrors: string[] = [];
@@ -369,6 +374,8 @@ export async function PUT(
                 }
             }
         }
+        
+        await db.query('COMMIT');
         
         if (replicationErrors.length > 0) {
             return NextResponse.json({
@@ -406,41 +413,33 @@ export async function DELETE(
     let db;
     try {
         db = await getDb();
-        const { id: courseId } = params;
+        const courseId = parseInt(params.id, 10);
+        if (isNaN(courseId)) {
+            return NextResponse.json({ error: 'Course ID must be a number' }, { status: 400 });
+        }
 
-        if (!courseId) {
-            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
-        }
-        
-        let targetSiteId = sessionSiteId;
-        
-        if (isSuperAdmin) {
-            const [courseToDeleteRows] = await db.query<RowDataPacket[]>('SELECT site_id FROM courses WHERE id = ?', [courseId]);
-            if (courseToDeleteRows.length === 0) {
-                return NextResponse.json({ error: 'Course not found anywhere.' }, { status: 404 });
-            }
-            targetSiteId = courseToDeleteRows[0].site_id;
-        }
-        
         await db.query('START TRANSACTION');
         
         const [moduleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
-        const moduleIds = moduleRows.map(m => m.id);
-
-        if (moduleIds.length > 0) {
+        if (moduleRows.length > 0) {
+            const moduleIds = moduleRows.map(m => m.id);
             const [lessonRows] = await db.query<any[]>(`SELECT id FROM lessons WHERE module_id IN (?)`, [moduleIds]);
-            const lessonIds = lessonRows.map(l => l.id);
-
-            if (lessonIds.length > 0) {
+            if (lessonRows.length > 0) {
+                const lessonIds = lessonRows.map(l => l.id);
                 await db.query(`DELETE FROM user_progress WHERE lesson_id IN (?)`, [lessonIds]);
+                await db.query(`DELETE FROM quiz_attempts WHERE lesson_id IN (?)`, [lessonIds]);
             }
-            
             await db.query(`DELETE FROM lessons WHERE module_id IN (?)`, [moduleIds]);
         }
         
         await db.query('DELETE FROM modules WHERE course_id = ?', [courseId]);
+        await db.query('DELETE FROM enrollments WHERE course_id = ?', [courseId]);
+        await db.query('DELETE FROM final_assessment_attempts WHERE course_id = ?', [courseId]);
+        await db.query('DELETE FROM course_signatories WHERE course_id = ?', [courseId]);
+        // Do not delete certificates, they are a historical record. But we need to unlink them.
+        await db.query('UPDATE certificates SET course_id = NULL WHERE course_id = ?', [courseId]);
         
-        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ? AND site_id = ?', [courseId, targetSiteId]);
+        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ?', [courseId]);
 
         if (result.affectedRows === 0) {
              await db.query('ROLLBACK');
@@ -449,7 +448,7 @@ export async function DELETE(
         
         await db.query('COMMIT');
 
-        return NextResponse.json({ success: true, message: `Course ${courseId} deleted successfully.` });
+        return NextResponse.json({ success: true, message: `Course ${courseId} and all its related data deleted successfully.` });
 
     } catch (error) {
         if (db) {
