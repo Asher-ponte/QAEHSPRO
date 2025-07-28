@@ -89,8 +89,8 @@ export async function POST(
         const passed = score === dbQuestions.length;
 
         await db.query(
-            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [user.id, courseId, score, dbQuestions.length, passed, new Date(), course.site_id]
+            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [user.id, courseId, score, dbQuestions.length, passed, new Date()]
         );
         
         let certificateId: number | null = null;

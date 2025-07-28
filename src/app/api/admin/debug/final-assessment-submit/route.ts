@@ -76,12 +76,11 @@ export async function POST(request: NextRequest) {
             }
         });
         
-        const scorePercentage = (score / dbQuestions.length) * 100;
-        const passed = scorePercentage >= course.final_assessment_passing_rate;
+        const passed = score === dbQuestions.length;
 
         const [insertResult] = await db.query<ResultSetHeader>(
-            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [testUser.id, courseId, score, dbQuestions.length, passed, new Date(), course.site_id]
+            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [testUser.id, courseId, score, dbQuestions.length, passed, new Date()]
         );
         
         let certificateInsertId = null;
@@ -114,7 +113,7 @@ export async function POST(request: NextRequest) {
                 score,
                 totalQuestions: dbQuestions.length,
                 passingRateRequired: course.final_assessment_passing_rate,
-                scorePercentage,
+                scorePercentage: (score / dbQuestions.length) * 100,
                 passed,
                 correctlyAnsweredIndices,
                 assessmentAttemptInsertId: insertResult.insertId,
