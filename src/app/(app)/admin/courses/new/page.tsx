@@ -243,6 +243,7 @@ function BranchAvailabilityField({ control }: { control: Control<CourseFormValue
 
 
 function AudienceAndPricing({ control }: { control: Control<CourseFormValues> }) {
+    const { isSuperAdmin } = useSession();
     const isPublic = useWatch({
         control,
         name: "is_public",
@@ -275,32 +276,34 @@ function AudienceAndPricing({ control }: { control: Control<CourseFormValues> })
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={control}
-                    name="is_public"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                            <FormControl>
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                    Public
-                                </FormLabel>
-                                <FormDescription>
-                                    Make this course available to external users for purchase.
-                                </FormDescription>
-                            </div>
-                        </FormItem>
-                    )}
-                />
+                {isSuperAdmin && (
+                    <FormField
+                        control={control}
+                        name="is_public"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel>
+                                        Public
+                                    </FormLabel>
+                                    <FormDescription>
+                                        Make this course available to external users for purchase.
+                                    </FormDescription>
+                                </div>
+                            </FormItem>
+                        )}
+                    />
+                )}
                  <FormMessage>{(control.getFieldState(`is_public`).error as any)?.message}</FormMessage>
             </div>
             
-            {isPublic && (
+            {isPublic && isSuperAdmin && (
                  <FormField
                     control={control}
                     name="price"
