@@ -47,6 +47,7 @@ interface AnalyticsData {
     courseCompletionRateData: AnalyticsDataPayload<{ name: string; "Completion Rate": number }[]>;
     quizPerformanceData: AnalyticsDataPayload<{ name: string; "Average Score": number }[]>;
     userPerformanceData: AnalyticsDataPayload<{ name: string; "Average Score": number }[]>;
+    monthlyCompletionData: AnalyticsDataPayload<{ month: string; Completions: number }[]>;
 }
 
 const enrollmentChartConfig = {
@@ -67,6 +68,13 @@ const performanceChartConfig = {
   "Average Score": {
     label: "Avg. Score (%)",
     color: "hsl(var(--chart-4))",
+  },
+} satisfies ChartConfig
+
+const monthlyCompletionsChartConfig = {
+  Completions: {
+    label: "Completions",
+    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig
 
@@ -94,6 +102,9 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
+            </div>
+            <div className="grid gap-4">
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
@@ -246,6 +257,27 @@ export default function ViewAnalyticsPage() {
                         ))}
                     </div>
                 )}
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Course Completions Over Time</CardTitle>
+                        <CardDescription>Monthly course completions over the last year.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="min-h-[350px]">
+                        {data.monthlyCompletionData.error ? (
+                            <ChartError title="Monthly Completions" error={data.monthlyCompletionData.error} />
+                        ) : (
+                            <ChartContainer config={monthlyCompletionsChartConfig} className="min-h-[300px] w-full">
+                                <LineChart accessibilityLayer data={data.monthlyCompletionData.data ?? []} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                                    <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
+                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                                    <Line dataKey="Completions" type="natural" stroke="var(--color-Completions)" strokeWidth={2} dot={{ fill: "var(--color-Completions)" }} activeDot={{ r: 6 }} />
+                                </LineChart>
+                            </ChartContainer>
+                        )}
+                    </CardContent>
+                </Card>
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>

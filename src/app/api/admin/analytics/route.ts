@@ -28,7 +28,12 @@ async function getAnalyticsForSites(siteIds: string[]) {
             (SELECT COUNT(*) FROM users WHERE site_id IN (?)) as totalUsers,
             (SELECT COUNT(*) FROM courses WHERE site_id IN (?)) as totalCourses,
             (SELECT COUNT(e.user_id) FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE c.site_id IN (?)) as totalEnrollments,
-            (SELECT COUNT(cert.id) FROM certificates cert JOIN courses c ON cert.course_id = c.id WHERE c.site_id IN (?)) as coursesCompleted
+            (
+                SELECT COUNT(cert.id) 
+                FROM certificates cert 
+                JOIN courses c ON cert.course_id = c.id 
+                WHERE c.site_id IN (?)
+            ) as coursesCompleted
     `, [siteIds, siteIds, siteIds, siteIds], "Failed to fetch overall stats");
     const statsData = statsResult.data ? statsResult.data[0] : {};
 
@@ -60,7 +65,8 @@ async function getAnalyticsForSites(siteIds: string[]) {
             ) AS \`Completion Rate\`
         FROM courses c
         LEFT JOIN enrollments e ON c.id = e.course_id
-        WHERE c.site_id IN (?)
+        JOIN users u ON e.user_id = u.id
+        WHERE u.site_id IN (?)
         GROUP BY c.id, c.title
         HAVING COUNT(DISTINCT e.user_id) > 0
         ORDER BY \`Completion Rate\` DESC
@@ -91,12 +97,28 @@ async function getAnalyticsForSites(siteIds: string[]) {
     `, [siteIds], "Failed to fetch Users Needing Improvement");
     const userPerformanceData = userPerformanceResult.data ? userPerformanceResult.data.map((item: any) => ({ ...item, "Average Score": Math.round(item["Average Score"]) })) : null;
 
+    // Monthly Course Completion Data
+    const monthlyCompletionsResult = await runQuery(db, `
+        SELECT 
+            DATE_FORMAT(cert.completion_date, '%Y-%m') as month, 
+            COUNT(cert.id) as Completions
+        FROM certificates cert
+        JOIN courses c ON cert.course_id = c.id
+        WHERE c.site_id IN (?) AND cert.type = 'completion'
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+    `, [siteIds], "Failed to fetch monthly course completions");
+    // Sort ascending for the chart
+    const monthlyCompletionsData = monthlyCompletionsResult.data ? monthlyCompletionsResult.data.reverse() : null;
+
     return {
         stats: { data: statsData, error: statsResult.error },
         courseEnrollmentData: { data: enrollmentResult.data, error: enrollmentResult.error },
         courseCompletionRateData: { data: completionRateResult.data, error: completionRateResult.error },
         quizPerformanceData: { data: quizPerformanceData, error: quizPerformanceResult.error },
         userPerformanceData: { data: userPerformanceData, error: userPerformanceResult.error },
+        monthlyCompletionData: { data: monthlyCompletionsData, error: monthlyCompletionsResult.error },
     };
 }
 
@@ -128,7 +150,8 @@ export async function GET(request: NextRequest) {
                 courseEnrollmentData: { data: [], error: null },
                 courseCompletionRateData: { data: [], error: null },
                 quizPerformanceData: { data: [], error: null },
-                userPerformanceData: { data: [], error: null }
+                userPerformanceData: { data: [], error: null },
+                monthlyCompletionData: { data: [], error: null },
             });
         }
         
