@@ -80,8 +80,11 @@ async function getAnalyticsForSites(siteIds: string[]) {
     // Quiz Performance Data (Bottom 5 Courses)
     const [quizPerformanceResult] = await db.query<RowDataPacket[]>(`
         SELECT c.title as name, AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
-        FROM quiz_attempts qa JOIN courses c ON qa.course_id = c.id
-        WHERE c.site_id IN (?) GROUP BY qa.course_id HAVING COUNT(qa.id) > 2
+        FROM quiz_attempts qa 
+        JOIN courses c ON qa.course_id = c.id
+        WHERE c.site_id IN (?) 
+        GROUP BY qa.course_id, c.title 
+        HAVING COUNT(qa.id) > 2
         ORDER BY "Average Score" ASC LIMIT 5
     `, [siteIds]);
     const quizPerformanceData = quizPerformanceResult.map(item => ({ ...item, "Average Score": Math.round(item["Average Score"]) }));
@@ -89,8 +92,11 @@ async function getAnalyticsForSites(siteIds: string[]) {
     // User Performance Data (Bottom 5 Users)
     const [userPerformanceResult] = await db.query<RowDataPacket[]>(`
         SELECT u.fullName as name, AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
-        FROM quiz_attempts qa JOIN users u ON qa.user_id = u.id
-        WHERE u.site_id IN (?) GROUP BY qa.user_id HAVING COUNT(qa.id) > 2
+        FROM quiz_attempts qa 
+        JOIN users u ON qa.user_id = u.id
+        WHERE u.site_id IN (?) 
+        GROUP BY qa.user_id, u.fullName 
+        HAVING COUNT(qa.id) > 2
         ORDER BY "Average Score" ASC LIMIT 5
     `, [siteIds]);
     const userPerformanceData = userPerformanceResult.map(item => ({ ...item, "Average Score": Math.round(item["Average Score"]) }));
