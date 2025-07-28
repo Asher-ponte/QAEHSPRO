@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import { format, subDays } from 'date-fns';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader, Pool } from 'mysql2/promise';
 
 const submissionSchema = z.object({
   answers: z.record(z.coerce.number()),
@@ -15,7 +15,7 @@ interface DbQuizQuestion {
     options: { text: string; isCorrect: boolean }[];
 }
 
-async function hasAccess(db: any, user: any, courseId: number) {
+async function hasAccess(db: Pool, user: any, courseId: number) {
     if (user.role === 'Admin') return true;
     const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
     if (enrollmentRows.length > 0) return true;
