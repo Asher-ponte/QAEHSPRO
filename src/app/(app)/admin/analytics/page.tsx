@@ -44,7 +44,6 @@ interface AnalyticsData {
         coursesCompleted: number;
     }>;
     courseEnrollmentData: AnalyticsDataPayload<{ name: string; "Enrollments": number }[]>;
-    completionOverTimeData: AnalyticsDataPayload<{ date: string; completions: number }[]>;
     courseCompletionRateData: AnalyticsDataPayload<{ name: string; "Completion Rate": number }[]>;
     quizPerformanceData: AnalyticsDataPayload<{ name: string; "Average Score": number }[]>;
     userPerformanceData: AnalyticsDataPayload<{ name: string; "Average Score": number }[]>;
@@ -54,13 +53,6 @@ const enrollmentChartConfig = {
   Enrollments: {
     label: "Enrollments",
     color: "hsl(var(--chart-1))",
-  },
-} satisfies ChartConfig
-
-const completionChartConfig = {
-  completions: {
-    label: "Completions",
-    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig
 
@@ -107,7 +99,6 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             </div>
-             <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
             <div className="grid gap-4 md:grid-cols-2">
                  <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
                  <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
@@ -303,28 +294,6 @@ export default function ViewAnalyticsPage() {
                         </CardContent>
                     </Card>
                 </div>
-                
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Course Completions Over Time</CardTitle>
-                        <CardDescription>Number of courses completed by users per month.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="min-h-[350px]">
-                        {data.completionOverTimeData.error ? (
-                            <ChartError title="Completions Over Time" error={data.completionOverTimeData.error} />
-                        ) : (
-                            <ChartContainer config={completionChartConfig} className="min-h-[300px] w-full">
-                                <LineChart accessibilityLayer data={data.completionOverTimeData.data ?? []} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                                    <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                                     <ChartLegend content={<ChartLegendContent />} />
-                                    <Line dataKey="completions" type="monotone" stroke="var(--color-completions)" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, fill: 'hsl(var(--background))' }} />
-                                </LineChart>
-                            </ChartContainer>
-                        )}
-                    </CardContent>
-                </Card>
                 
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>

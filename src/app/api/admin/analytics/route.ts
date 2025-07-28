@@ -43,21 +43,6 @@ async function getAnalyticsForSites(siteIds: string[]) {
         ORDER BY \`Enrollments\` DESC
         LIMIT 5
     `, [siteIds], "Failed to fetch Top 5 Most Enrolled Courses");
-
-    // Completion Over Time Data
-    const certificateDatesResult = await runQuery(db, `
-        SELECT completion_date FROM certificates WHERE site_id IN (?) ORDER BY completion_date ASC
-    `, [siteIds], "Failed to fetch completion dates for chart");
-    
-    let completionOverTimeData = [];
-    if (certificateDatesResult.data) {
-        const completionsByMonth = certificateDatesResult.data.reduce((acc: Record<string, number>, cert: any) => {
-            const month = format(startOfMonth(new Date(cert.completion_date)), 'MMM yyyy');
-            acc[month] = (acc[month] || 0) + 1;
-            return acc;
-        }, {});
-        completionOverTimeData = Object.entries(completionsByMonth).map(([date, count]) => ({ date, completions: count }));
-    }
     
     // Course Completion Rate Data (Top 5)
     const completionRateResult = await runQuery(db, `
@@ -109,7 +94,6 @@ async function getAnalyticsForSites(siteIds: string[]) {
     return {
         stats: { data: statsData, error: statsResult.error },
         courseEnrollmentData: { data: enrollmentResult.data, error: enrollmentResult.error },
-        completionOverTimeData: { data: completionOverTimeData, error: certificateDatesResult.error },
         courseCompletionRateData: { data: completionRateResult.data, error: completionRateResult.error },
         quizPerformanceData: { data: quizPerformanceData, error: quizPerformanceResult.error },
         userPerformanceData: { data: userPerformanceData, error: userPerformanceResult.error },
@@ -142,7 +126,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 stats: { data: { totalUsers: 0, totalCourses: 0, totalEnrollments: 0, coursesCompleted: 0 }, error: null },
                 courseEnrollmentData: { data: [], error: null },
-                completionOverTimeData: { data: [], error: null },
                 courseCompletionRateData: { data: [], error: null },
                 quizPerformanceData: { data: [], error: null },
                 userPerformanceData: { data: [], error: null }
