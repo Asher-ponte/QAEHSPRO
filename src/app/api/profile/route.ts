@@ -1,4 +1,6 @@
 
+'use server';
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -7,15 +9,29 @@ import type { RowDataPacket } from 'mysql2';
 
 const profileSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
 }).refine(data => {
-    if (data.newPassword || data.currentPassword || data.confirmPassword) {
-        return data.newPassword === data.confirmPassword;
+    // If one password field is filled, all should be
+    if (data.newPassword || data.confirmPassword || data.currentPassword) {
+        return data.newPassword && data.confirmPassword && data.currentPassword;
     }
     return true;
 }, {
+    message: "Please fill all password fields to change your password.",
+    path: ["currentPassword"], // Show error on the first field
+}).refine(data => {
+    if (data.newPassword && data.newPassword.length < 6) {
+        return false;
+    }
+    return true;
+}, {
+    message: "New password must be at least 6 characters.",
+    path: ["newPassword"],
+}).refine(data => data.newPassword === data.confirmPassword, {
     message: "New passwords do not match.",
     path: ["confirmPassword"],
 });
@@ -36,12 +52,12 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { fullName, currentPassword, newPassword } = parsedData.data;
+        const { fullName, email, phone, currentPassword, newPassword } = parsedData.data;
         
-        // Update full name
+        // Update editable fields
         await db.query(
-            "UPDATE users SET fullName = ? WHERE id = ? AND site_id = ?",
-            [fullName, user.id, siteId]
+            "UPDATE users SET fullName = ?, email = ?, phone = ? WHERE id = ? AND site_id = ?",
+            [fullName, email || null, phone || null, user.id, siteId]
         );
         
         // Conditionally update password

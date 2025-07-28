@@ -33,6 +33,8 @@ import { PasswordInput } from "@/components/password-input"
 
 const profileFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
+  email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
+  phone: z.string().optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
@@ -45,9 +47,6 @@ const profileFormSchema = z.object({
 }, {
     message: "Please fill all password fields to change your password.",
     path: ["currentPassword"], // Show error on the first field
-}).refine(data => data.newPassword === data.confirmPassword, {
-    message: "New passwords do not match.",
-    path: ["confirmPassword"],
 }).refine(data => {
     if (data.newPassword && data.newPassword.length < 6) {
         return false;
@@ -56,6 +55,9 @@ const profileFormSchema = z.object({
 }, {
     message: "New password must be at least 6 characters.",
     path: ["newPassword"],
+}).refine(data => data.newPassword === data.confirmPassword, {
+    message: "New passwords do not match.",
+    path: ["confirmPassword"],
 });
 
 
@@ -70,6 +72,8 @@ export default function ProfilePage() {
         resolver: zodResolver(profileFormSchema),
         defaultValues: {
             fullName: "",
+            email: "",
+            phone: "",
             currentPassword: "",
             newPassword: "",
             confirmPassword: "",
@@ -80,6 +84,8 @@ export default function ProfilePage() {
         if (user) {
             form.reset({ 
                 fullName: user.fullName || user.username || "",
+                email: user.email || "",
+                phone: user.phone || "",
                 currentPassword: "",
                 newPassword: "",
                 confirmPassword: ""
@@ -106,7 +112,11 @@ export default function ProfilePage() {
             });
             // Update the user context with the new name
             if (user) {
-                setUser({ ...user, fullName: updatedUser.fullName });
+                setUser({ ...user, 
+                    fullName: updatedUser.fullName,
+                    email: updatedUser.email,
+                    phone: updatedUser.phone
+                });
             }
             // Reset password fields
             form.reset({
@@ -155,7 +165,7 @@ export default function ProfilePage() {
                                     <Skeleton className="h-10 w-full" />
                                 </div>
                             ) : (
-                                <div className="max-w-sm">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <FormField
                                         control={form.control}
                                         name="fullName"
@@ -172,6 +182,45 @@ export default function ProfilePage() {
                                             </FormItem>
                                         )}
                                     />
+                                    <FormItem>
+                                        <FormLabel>Username</FormLabel>
+                                        <Input value={user?.username || ''} disabled />
+                                        <FormDescription>Your username cannot be changed.</FormDescription>
+                                    </FormItem>
+                                     <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email Address</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="e.g., you@company.com" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                      <FormField
+                                        control={form.control}
+                                        name="phone"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Phone Number</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Your phone number" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                     <FormItem>
+                                        <FormLabel>Department</FormLabel>
+                                        <Input value={user?.department || 'N/A'} disabled />
+                                    </FormItem>
+                                     <FormItem>
+                                        <FormLabel>Position</FormLabel>
+                                        <Input value={user?.position || 'N/A'} disabled />
+                                    </FormItem>
                                 </div>
                             )}
                         </CardContent>
