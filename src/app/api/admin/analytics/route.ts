@@ -54,46 +54,22 @@ async function getAnalyticsForSites(siteIds: string[]) {
         completions: count,
     }));
 
-    // Course Completion Rate Data (Top 5)
-    const [allCoursesForRate] = await db.query<RowDataPacket[]>(`SELECT id, title FROM courses WHERE site_id IN (?)`, [siteIds]);
-
-    let courseCompletionRateData = [];
-    if (allCoursesForRate.length > 0) {
-        const courseIds = allCoursesForRate.map(c => c.id);
-
-        const [lessonsPerCourseResult] = await db.query<RowDataPacket[]>(`
-            SELECT m.course_id, COUNT(l.id) as totalLessons
-            FROM lessons l
-            JOIN modules m ON l.module_id = m.id
-            WHERE m.course_id IN (?) GROUP BY m.course_id
-        `, [courseIds]);
-        const lessonsPerCourse = new Map(lessonsPerCourseResult.map(i => [i.course_id, i.totalLessons]));
-
-        const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (?)`, [courseIds]);
-        const enrollmentsByCourse: Record<number, number[]> = {};
-        for (const e of enrollmentsResult) {
-            enrollmentsByCourse[e.course_id] = [...(enrollmentsByCourse[e.course_id] || []), e.user_id];
-        }
-    
-        const [completedLessonsResult] = await db.query<RowDataPacket[]>(`
-            SELECT m.course_id, up.user_id, COUNT(up.lesson_id) as completedLessons
-            FROM user_progress up
-            JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id
-            WHERE up.completed = 1 AND m.course_id IN (?)
-            GROUP BY m.course_id, up.user_id
-        `, [courseIds]);
-        const completedLessonsMap = new Map<string, number>(completedLessonsResult.map(r => [`${r.course_id}-${r.user_id}`, r.completedLessons]));
-
-        courseCompletionRateData = allCoursesForRate.map(course => {
-            const totalLessons = lessonsPerCourse.get(course.id) || 0;
-            const enrolledUsers = enrollmentsByCourse[course.id] || [];
-            if (enrolledUsers.length === 0 || totalLessons === 0) return { name: course.title, "Completion Rate": 0 };
-            
-            const completedUserCount = enrolledUsers.filter(userId => (completedLessonsMap.get(`${course.id}-${userId}`) || 0) === totalLessons).length;
-            const completionRate = Math.round((completedUserCount / enrolledUsers.length) * 100);
-            return { name: course.title, "Completion Rate": completionRate };
-        }).sort((a, b) => b["Completion Rate"] - a["Completion Rate"]).slice(0, 5);
-    }
+    // Course Completion Rate Data (Top 5) - CORRECTED QUERY
+    const [courseCompletionRateData] = await db.query<RowDataPacket[]>(`
+        SELECT 
+            c.title AS name,
+            IFNULL(ROUND((
+                SUM(CASE WHEN fap.passed = 1 THEN 1 ELSE 0 END) / COUNT(DISTINCT e.user_id)
+            ) * 100), 0) AS "Completion Rate"
+        FROM courses c
+        LEFT JOIN enrollments e ON c.id = e.course_id
+        LEFT JOIN final_assessment_attempts fap ON c.id = fap.course_id AND e.user_id = fap.user_id
+        WHERE c.site_id IN (?)
+        GROUP BY c.id, c.title
+        HAVING COUNT(DISTINCT e.user_id) > 0
+        ORDER BY "Completion Rate" DESC
+        LIMIT 5;
+    `, [siteIds]);
 
     // Quiz Performance Data (Bottom 5 Courses)
     const [quizPerformanceResult] = await db.query<RowDataPacket[]>(`
