@@ -9,23 +9,22 @@ import type { RowDataPacket } from 'mysql2';
 // Helper function to get analytics for a specific site or all sites
 async function getAnalyticsForSites(siteIds: string[]) {
     const db = await getDb();
-    const placeholders = siteIds.length > 0 ? siteIds.map(() => '?').join(',') : '';
-
+    
     // Overall Stats
-    const [totalUsersRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM users WHERE site_id IN (${placeholders})`, siteIds);
+    const [totalUsersRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM users WHERE site_id IN (?)`, [siteIds]);
     const totalUsers = totalUsersRows[0]?.count ?? 0;
 
-    const [totalCoursesRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM courses WHERE site_id IN (${placeholders})`, siteIds);
+    const [totalCoursesRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM courses WHERE site_id IN (?)`, [siteIds]);
     const totalCourses = totalCoursesRows[0]?.count ?? 0;
     
     const [totalEnrollmentsRows] = await db.query<RowDataPacket[]>(`
         SELECT COUNT(e.user_id) as count FROM enrollments e
         JOIN courses c ON e.course_id = c.id
-        WHERE c.site_id IN (${placeholders})
-    `, siteIds);
+        WHERE c.site_id IN (?)
+    `, [siteIds]);
     const totalEnrollments = totalEnrollmentsRows[0]?.count ?? 0;
 
-    const [coursesCompletedRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE site_id IN (${placeholders})`, siteIds);
+    const [coursesCompletedRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE site_id IN (?)`, [siteIds]);
     const coursesCompleted = coursesCompletedRows[0]?.count ?? 0;
 
     // Course Enrollment Data (Top 5)
@@ -33,16 +32,16 @@ async function getAnalyticsForSites(siteIds: string[]) {
         SELECT c.title, COUNT(e.user_id) as enrollmentCount
         FROM courses c
         LEFT JOIN enrollments e ON c.id = e.course_id
-        WHERE c.site_id IN (${placeholders})
+        WHERE c.site_id IN (?)
         GROUP BY c.id
         ORDER BY enrollmentCount DESC
         LIMIT 5
-    `, siteIds);
+    `, [siteIds]);
     
     // Completion Over Time Data
     const [certificateDates] = await db.query<RowDataPacket & { completion_date: string }[]>(`
-        SELECT completion_date FROM certificates WHERE site_id IN (${placeholders}) ORDER BY completion_date ASC
-    `, siteIds);
+        SELECT completion_date FROM certificates WHERE site_id IN (?) ORDER BY completion_date ASC
+    `, [siteIds]);
 
     const completionsByMonth = certificateDates.reduce((acc, cert) => {
         const month = format(startOfMonth(new Date(cert.completion_date)), 'MMM yyyy');
@@ -56,22 +55,21 @@ async function getAnalyticsForSites(siteIds: string[]) {
     }));
 
     // Course Completion Rate Data (Top 5)
-    const [allCoursesForRate] = await db.query<RowDataPacket[]>(`SELECT id, title FROM courses WHERE site_id IN (${placeholders})`, siteIds);
+    const [allCoursesForRate] = await db.query<RowDataPacket[]>(`SELECT id, title FROM courses WHERE site_id IN (?)`, [siteIds]);
 
     let courseCompletionRateData = [];
     if (allCoursesForRate.length > 0) {
         const courseIds = allCoursesForRate.map(c => c.id);
-        const coursePlaceholders = courseIds.map(() => '?').join(',');
 
         const [lessonsPerCourseResult] = await db.query<RowDataPacket[]>(`
             SELECT m.course_id, COUNT(l.id) as totalLessons
             FROM lessons l
             JOIN modules m ON l.module_id = m.id
-            WHERE m.course_id IN (${coursePlaceholders}) GROUP BY m.course_id
-        `, courseIds);
+            WHERE m.course_id IN (?) GROUP BY m.course_id
+        `, [courseIds]);
         const lessonsPerCourse = new Map(lessonsPerCourseResult.map(i => [i.course_id, i.totalLessons]));
 
-        const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (${coursePlaceholders})`, courseIds);
+        const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (?)`, [courseIds]);
         const enrollmentsByCourse: Record<number, number[]> = {};
         for (const e of enrollmentsResult) {
             enrollmentsByCourse[e.course_id] = [...(enrollmentsByCourse[e.course_id] || []), e.user_id];
@@ -81,9 +79,9 @@ async function getAnalyticsForSites(siteIds: string[]) {
             SELECT m.course_id, up.user_id, COUNT(up.lesson_id) as completedLessons
             FROM user_progress up
             JOIN lessons l ON up.lesson_id = l.id JOIN modules m ON l.module_id = m.id
-            WHERE up.completed = 1 AND m.course_id IN (${coursePlaceholders})
+            WHERE up.completed = 1 AND m.course_id IN (?)
             GROUP BY m.course_id, up.user_id
-        `, courseIds);
+        `, [courseIds]);
         const completedLessonsMap = new Map<string, number>(completedLessonsResult.map(r => [`${r.course_id}-${r.user_id}`, r.completedLessons]));
 
         courseCompletionRateData = allCoursesForRate.map(course => {
@@ -101,18 +99,18 @@ async function getAnalyticsForSites(siteIds: string[]) {
     const [quizPerformanceResult] = await db.query<RowDataPacket[]>(`
         SELECT c.title as name, AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
         FROM quiz_attempts qa JOIN courses c ON qa.course_id = c.id
-        WHERE c.site_id IN (${placeholders}) GROUP BY qa.course_id HAVING COUNT(qa.id) > 2
+        WHERE c.site_id IN (?) GROUP BY qa.course_id HAVING COUNT(qa.id) > 2
         ORDER BY "Average Score" ASC LIMIT 5
-    `, siteIds);
+    `, [siteIds]);
     const quizPerformanceData = quizPerformanceResult.map(item => ({ ...item, "Average Score": Math.round(item["Average Score"]) }));
     
     // User Performance Data (Bottom 5 Users)
     const [userPerformanceResult] = await db.query<RowDataPacket[]>(`
         SELECT u.fullName as name, AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
         FROM quiz_attempts qa JOIN users u ON qa.user_id = u.id
-        WHERE u.site_id IN (${placeholders}) GROUP BY qa.user_id HAVING COUNT(qa.id) > 2
+        WHERE u.site_id IN (?) GROUP BY qa.user_id HAVING COUNT(qa.id) > 2
         ORDER BY "Average Score" ASC LIMIT 5
-    `, siteIds);
+    `, [siteIds]);
     const userPerformanceData = userPerformanceResult.map(item => ({ ...item, "Average Score": Math.round(item["Average Score"]) }));
 
     return {

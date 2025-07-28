@@ -61,7 +61,7 @@ export async function PUT(
             [name, position, signatureImagePath, id, permCheck.effectiveSiteId]
         );
 
-        const [updatedSignatoryRows] = await db.query<RowDataPacket[]>('SELECT * FROM signatories WHERE id = ?', id);
+        const [updatedSignatoryRows] = await db.query<RowDataPacket[]>('SELECT * FROM signatories WHERE id = ?', [id]);
         return NextResponse.json(updatedSignatoryRows[0]);
     } catch (error) {
         console.error(`Failed to update signatory ${id}:`, error);
@@ -88,6 +88,7 @@ export async function DELETE(
     }
 
     try {
+        await db.query('DELETE FROM certificate_signatories WHERE signatory_id = ?', [id]);
         const [result] = await db.query<ResultSetHeader>('DELETE FROM signatories WHERE id = ? AND site_id = ?', [id, permCheck.effectiveSiteId]);
         if (result.affectedRows === 0) {
             return NextResponse.json({ error: 'Signatory not found' }, { status: 404 });

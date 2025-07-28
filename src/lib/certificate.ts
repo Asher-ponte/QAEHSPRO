@@ -70,12 +70,11 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
         let signatories = [];
         if (signatoryIds.length > 0) {
-            const placeholders = signatoryIds.map(() => '?').join(',');
             const [signatoryRows] = await db.query<RowDataPacket[]>(`
                 SELECT s.name, s.position, s.signatureImagePath
                 FROM signatories s
-                WHERE s.id IN (${placeholders})
-            `, signatoryIds);
+                WHERE s.id IN (?)
+            `, [signatoryIds]);
             signatories = signatoryRows;
         }
         

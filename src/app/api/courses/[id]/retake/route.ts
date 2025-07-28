@@ -37,11 +37,10 @@ export async function POST(
         const lessonIds = lessonRows.map(l => l.id);
 
         if (lessonIds.length > 0) {
-            const lessonIdsPlaceholder = lessonIds.map(() => '?').join(',');
             // Delete user progress for all lessons in this course
             await connection.query(
-                `DELETE FROM user_progress WHERE user_id = ? AND lesson_id IN (${lessonIdsPlaceholder})`,
-                [userId, ...lessonIds]
+                `DELETE FROM user_progress WHERE user_id = ? AND lesson_id IN (?)`,
+                [userId, lessonIds]
             );
         }
 

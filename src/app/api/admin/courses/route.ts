@@ -1,9 +1,10 @@
 
-import { NextResponse, type NextRequest } from 'next/server'
+
+import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
 import { getAllSites } from '@/lib/sites';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { RowDataPacket } from 'mysql2';
 
 // Helper function to compute statistics for a list of courses against the database.
 async function getCourseStats(db: any, courses: any[]) {
@@ -12,18 +13,17 @@ async function getCourseStats(db: any, courses: any[]) {
     }
 
     const courseIds = courses.map(c => c.id);
-    const placeholders = courseIds.map(() => '?').join(',');
 
     const [lessonsPerCourseResult] = await db.query<RowDataPacket[]>(`
         SELECT m.course_id, COUNT(l.id) as totalLessons
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
-        WHERE m.course_id IN (${placeholders})
+        WHERE m.course_id IN (?)
         GROUP BY m.course_id
-    `, courseIds);
+    `, [courseIds]);
     const lessonsPerCourse = new Map(lessonsPerCourseResult.map(i => [i.course_id, i.totalLessons]));
 
-    const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (${placeholders})`, courseIds);
+    const [enrollmentsResult] = await db.query<RowDataPacket[]>(`SELECT user_id, course_id FROM enrollments WHERE course_id IN (?)`, [courseIds]);
     const enrollmentsByCourse: Record<number, number[]> = {};
     for (const e of enrollmentsResult) {
         if (!enrollmentsByCourse[e.course_id]) {
@@ -37,9 +37,9 @@ async function getCourseStats(db: any, courses: any[]) {
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id
         JOIN modules m ON l.module_id = m.id
-        WHERE up.completed = 1 AND m.course_id IN (${placeholders})
+        WHERE up.completed = 1 AND m.course_id IN (?)
         GROUP BY m.course_id, up.user_id
-    `, courseIds);
+    `, [courseIds]);
     const completedLessonsMap = new Map<string, number>(); // key: 'courseId-userId'
     completedLessonsResult.forEach(r => {
         completedLessonsMap.set(`${r.course_id}-${r.user_id}`, r.completedLessons);

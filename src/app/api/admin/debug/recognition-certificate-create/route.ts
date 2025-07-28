@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         simulationLog.steps.push({ name: 'Verify User Exists', status: 'success', data: userRows[0] });
 
         // Corrected Query: Removed the incorrect site_id check
-        const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id FROM signatories WHERE id IN (?)', [signatoryIds]);
-        if (signatoryRows.length !== signatoryIds.length) throw new Error('One or more selected signatories do not exist.');
+        const [signatoryRows] = await db.query<RowDataPacket[]>('SELECT id FROM signatories WHERE id IN (?) AND site_id = ?', [signatoryIds, siteId]);
+        if (signatoryRows.length !== signatoryIds.length) throw new Error('One or more selected signatories do not exist in the specified branch.');
         simulationLog.steps.push({ name: 'Verify Signatories Exist', status: 'success', data: { found: signatoryRows.length } });
         
         const date = new Date();

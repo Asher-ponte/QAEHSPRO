@@ -60,28 +60,27 @@ export async function GET() {
     
     // 4. Get data for progress calculation of currently enrolled courses
     const courseIds = enrolledCourses.map(c => c.id);
-    const placeholders = courseIds.map(() => '?').join(',');
 
     const [allLessons] = await db.query<RowDataPacket[]>(`
         SELECT l.id, m.course_id
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
-        WHERE m.course_id IN (${placeholders})
-    `, courseIds);
+        WHERE m.course_id IN (?)
+    `, [courseIds]);
 
     const [completedLessonRows] = await db.query<RowDataPacket[]>(`
         SELECT up.lesson_id
         FROM user_progress up
         JOIN lessons l ON up.lesson_id = l.id
         JOIN modules m ON l.module_id = m.id
-        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (${placeholders})
-    `, [userId, ...courseIds]);
+        WHERE up.user_id = ? AND up.completed = 1 AND m.course_id IN (?)
+    `, [userId, courseIds]);
     const completedLessonIds = new Set(completedLessonRows.map(r => r.lesson_id));
 
     const [passedAssessmentRows] = await db.query<RowDataPacket[]>(`
         SELECT course_id FROM final_assessment_attempts
-        WHERE user_id = ? AND passed = 1 AND course_id IN (${placeholders})
-    `, [userId, ...courseIds]);
+        WHERE user_id = ? AND passed = 1 AND course_id IN (?)
+    `, [userId, courseIds]);
     const passedAssessmentIds = new Set(passedAssessmentRows.map(r => r.course_id));
 
 
@@ -143,4 +142,3 @@ export async function GET() {
     return NextResponse.json({ stats: { totalTrainingsAttended: 0, totalRecognitions: 0, skillsAcquired: 0 }, courses: [] });
   }
 }
-

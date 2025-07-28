@@ -58,10 +58,9 @@ export async function POST(request: NextRequest) {
             const values = userIds.map(userId => [userId, courseId]);
             await connection.query('INSERT IGNORE INTO enrollments (user_id, course_id) VALUES ?', [values]);
         } else if (action === 'unenroll') {
-            const placeholders = userIds.map(() => '?').join(',');
             await connection.query(
-                `DELETE FROM enrollments WHERE course_id = ? AND user_id IN (${placeholders})`,
-                [courseId, ...userIds]
+                `DELETE FROM enrollments WHERE course_id = ? AND user_id IN (?)`,
+                [courseId, userIds]
             );
         }
 

@@ -22,7 +22,12 @@ export async function GET(request: NextRequest) {
             [siteId]
         );
         
-        return NextResponse.json(signatories);
+        const formattedSignatories = signatories.map(s => ({
+            id: s.id,
+            name: s.name,
+        }));
+        
+        return NextResponse.json(formattedSignatories);
     } catch (error) {
         console.error("Failed to fetch signatories for debug:", error);
         return NextResponse.json({ error: 'Failed to fetch signatories' }, { status: 500 });
