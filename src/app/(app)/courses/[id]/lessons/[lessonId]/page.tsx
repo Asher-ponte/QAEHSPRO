@@ -306,10 +306,12 @@ const LessonContent = ({
                                 </DialogContent>
                             </Dialog>
                         )}
-                        <article
-                            className="prose dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: lesson.content || "" }}
-                        />
+                        {lesson.content && (
+                            <article
+                                className="prose dark:prose-invert max-w-none"
+                                dangerouslySetInnerHTML={{ __html: lesson.content }}
+                            />
+                        )}
                     </div>
                 </div>
             );
