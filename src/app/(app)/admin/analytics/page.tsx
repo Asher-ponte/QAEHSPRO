@@ -18,8 +18,6 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -261,7 +259,7 @@ export default function ViewAnalyticsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Course Completions Over Time</CardTitle>
-                        <CardDescription>Monthly course completions over the last year.</CardDescription>
+                        <CardDescription>Tracks monthly course completions to identify learning trends.</CardDescription>
                     </CardHeader>
                     <CardContent className="min-h-[350px]">
                         {data.monthlyCompletionData.error ? (
@@ -283,7 +281,7 @@ export default function ViewAnalyticsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Top 5 Most Enrolled Courses</CardTitle>
-                            <CardDescription>The courses with the highest number of user enrollments.</CardDescription>
+                            <CardDescription>Identifies the most popular courses to understand content demand.</CardDescription>
                         </CardHeader>
                         <CardContent className="min-h-[350px]">
                             {data.courseEnrollmentData.error ? (
@@ -306,7 +304,7 @@ export default function ViewAnalyticsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Top 5 Course Completion Rates</CardTitle>
-                            <CardDescription>The courses with the highest completion rates.</CardDescription>
+                            <CardDescription>Shows which courses are most effective at retaining learners.</CardDescription>
                         </CardHeader>
                         <CardContent className="min-h-[350px]">
                             {data.courseCompletionRateData.error ? (
@@ -331,7 +329,7 @@ export default function ViewAnalyticsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Lowest Performing Courses</CardTitle>
-                            <CardDescription>Courses with the lowest average quiz scores. This could indicate difficult content.</CardDescription>
+                            <CardDescription>Highlights courses where content may need clarification or improvement.</CardDescription>
                         </CardHeader>
                         <CardContent className="min-h-[350px]">
                              {data.quizPerformanceData.error ? (
@@ -353,7 +351,7 @@ export default function ViewAnalyticsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Users Needing Improvement</CardTitle>
-                            <CardDescription>Users with the lowest average quiz scores across all courses.</CardDescription>
+                            <CardDescription>Identifies users who may need additional support or intervention.</CardDescription>
                         </CardHeader>
                         <CardContent className="min-h-[350px]">
                             {data.userPerformanceData.error ? (

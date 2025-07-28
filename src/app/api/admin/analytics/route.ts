@@ -65,8 +65,7 @@ async function getAnalyticsForSites(siteIds: string[]) {
             ) AS \`Completion Rate\`
         FROM courses c
         LEFT JOIN enrollments e ON c.id = e.course_id
-        JOIN users u ON e.user_id = u.id
-        WHERE u.site_id IN (?)
+        WHERE c.site_id IN (?)
         GROUP BY c.id, c.title
         HAVING COUNT(DISTINCT e.user_id) > 0
         ORDER BY \`Completion Rate\` DESC
