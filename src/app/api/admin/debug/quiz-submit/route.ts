@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
             }
         });
         
-        const insertResult = await db.query<ResultSetHeader>(
+        const [insertResult] = await db.query<ResultSetHeader>(
             'INSERT INTO quiz_attempts (user_id, lesson_id, course_id, score, total, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
             [testUser.id, lessonId, courseId, score, dbQuestions.length, new Date()]
         );
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
                 total: dbQuestions.length,
                 passed,
                 correctlyAnsweredIndices,
-                quizAttemptInsertId: insertResult[0].insertId,
+                quizAttemptInsertId: insertResult.insertId,
                 userProgressUpdated: passed
             }
         });
