@@ -28,7 +28,7 @@ async function getAnalyticsForSites(siteIds: string[]) {
             (SELECT COUNT(*) FROM users WHERE site_id IN (?)) as totalUsers,
             (SELECT COUNT(*) FROM courses WHERE site_id IN (?)) as totalCourses,
             (SELECT COUNT(e.user_id) FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE c.site_id IN (?)) as totalEnrollments,
-            (SELECT COUNT(*) FROM certificates WHERE site_id IN (?)) as coursesCompleted
+            (SELECT COUNT(cert.id) FROM certificates cert JOIN courses c ON cert.course_id = c.id WHERE c.site_id IN (?)) as coursesCompleted
     `, [siteIds, siteIds, siteIds, siteIds], "Failed to fetch overall stats");
     const statsData = statsResult.data ? statsResult.data[0] : {};
 
