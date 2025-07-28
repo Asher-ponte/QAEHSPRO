@@ -51,7 +51,7 @@ export async function POST(
         }
         
         const [courseRows] = await db.query<any[]>(
-            'SELECT final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts, site_id FROM courses WHERE id = ?',
+            'SELECT final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts FROM courses WHERE id = ?',
             [courseId]
         );
         const course = courseRows[0];
@@ -114,8 +114,8 @@ export async function POST(
                 const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
 
                 const [certResult] = await db.query<ResultSetHeader>(
-                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, site_id) VALUES (?, ?, ?, ?, 'completion', ?)`,
-                    [user.id, courseId, completionDateFormatted, certificateNumber, course.site_id]
+                    `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,
+                    [user.id, courseId, completionDateFormatted, certificateNumber]
                 );
                 certificateId = certResult.insertId;
 
