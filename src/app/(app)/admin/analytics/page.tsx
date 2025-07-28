@@ -27,6 +27,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/hooks/use-session"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Site } from "@/lib/sites"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 
 interface AnalyticsData {
@@ -97,6 +99,7 @@ function AnalyticsSkeleton() {
 export default function ViewAnalyticsPage() {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const { toast } = useToast();
     const { site: currentSite, isSuperAdmin } = useSession();
     const [sites, setSites] = useState<Site[]>([]);
@@ -130,20 +133,29 @@ export default function ViewAnalyticsPage() {
             if (!selectedSiteId) return;
 
             setIsLoading(true);
+            setErrorMessage(null);
+            setData(null);
+
             try {
                 const res = await fetch(`/api/admin/analytics?siteId=${selectedSiteId}`);
+                const responseData = await res.json();
+                
                 if (!res.ok) {
-                    throw new Error("Failed to fetch analytics data");
+                    const errorDetails = responseData.details ? `: ${responseData.details}` : '';
+                    throw new Error(`${responseData.error || "Failed to fetch analytics data"}${errorDetails}`);
                 }
-                const analyticsData = await res.json();
-                setData(analyticsData);
+                
+                setData(responseData);
+
             } catch (error) {
-                 toast({
+                const msg = error instanceof Error ? error.message : "An unknown error occurred while fetching data.";
+                setErrorMessage(msg);
+                toast({
                     variant: "destructive",
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Could not load analytics.",
+                    title: "Error Loading Analytics",
+                    description: msg,
+                    duration: 8000
                 });
-                 setData(null); // Clear data on error
             } finally {
                 setIsLoading(false);
             }
@@ -410,16 +422,25 @@ export default function ViewAnalyticsPage() {
             </div>
        )}
        
-       {!isLoading && !data && (
+       {!isLoading && errorMessage && (
            <Card className="flex-grow">
              <CardContent className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive" />
                 <h2 className="text-2xl font-semibold">Could not load analytics data.</h2>
-                <p className="text-muted-foreground max-w-sm">
+                <p className="text-muted-foreground max-w-lg">
                    There was an error fetching the analytics data. Please try again later.
                 </p>
+                <Alert variant="destructive" className="max-w-lg text-left">
+                    <AlertTitle>Error Details</AlertTitle>
+                    <AlertDescription className="font-mono text-xs">
+                        {errorMessage}
+                    </AlertDescription>
+                </Alert>
             </CardContent>
            </Card>
        )}
     </div>
   )
 }
+
+    
