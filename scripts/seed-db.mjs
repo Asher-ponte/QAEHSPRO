@@ -1,130 +1,86 @@
 
-// scripts/seed-db.mjs
 import 'dotenv/config';
-import mysql from 'mysql2/promise';
+import { getDb } from '../src/lib/db.js';
 
 /**
- * ==========================================================================================
- * DATABASE SEED SCRIPT
- * ==========================================================================================
+ * =================================================================
+ * DATABASE SEEDING SCRIPT
+ * =================================================================
  *
- * Description:
- * This script initializes the database with essential data for the application to function correctly.
- * It creates the 'main' site required for the Super Admin and an 'external' site for public users.
- * It also creates the default Super Admin user.
+ * This script initializes the database with essential data, such as
+ * the main site and the super admin user.
  *
- * How to Run:
- * 1. Make sure your .env file has the correct database credentials (DB_HOST, DB_USER, etc.).
- * 2. Open your terminal in the project's root directory.
- * 3. Run the command: `npm run db:seed`
+ * It is designed to be run once to set up a new database instance.
  *
- * IMPORTANT:
- * This script is designed to be run only ONCE on a fresh database.
- * Running it again will cause errors because it tries to insert data with IDs that already exist.
+ * ---
  *
- * =================================com=========================================================
+ * To run this script:
+ * 1. Ensure your .env file is correctly configured with your
+ *    database credentials (DB_HOST, DB_USER, etc.).
+ * 2. From your terminal, run the command:
+ *    npm run db:seed
+ *
+ * ---
+ *
+ * What it does:
+ * 1. Connects to the database specified in your .env file.
+ * 2. Inserts the 'main' site, which is required for the super admin.
+ * 3. Inserts the super admin user with the username 'Florante Catapang'
+ *    and password 'Handsome_16'.
+ *
+ * If the 'main' site or the admin user already exist, the script
+ * will skip creating them to avoid errors on subsequent runs.
+ *
  */
+async function seedDatabase() {
+  let db;
+  try {
+    console.log('Connecting to the database...');
+    db = await getDb();
+    console.log('Database connection successful.');
 
-async function main() {
-    // --- Database Connection ---
-    const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
-    for (const varName of requiredEnv) {
-        if (!process.env[varName]) {
-            console.error(`❌ Missing required environment variable for database connection: ${varName}`);
-            process.exit(1);
-        }
+    // 1. Check for and create the 'main' site if it doesn't exist
+    const [mainSiteRows] = await db.query("SELECT * FROM sites WHERE id = 'main'");
+    if (mainSiteRows.length === 0) {
+      console.log("'main' site not found. Creating it...");
+      await db.query("INSERT INTO sites (id, name) VALUES ('main', 'Skills Ascend HQ')");
+      console.log("'main' site created successfully.");
+    } else {
+      console.log("'main' site already exists. Skipping creation.");
     }
 
-    const dbConfig = {
-        host: process.env.DB_HOST,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-        port: parseInt(process.env.DB_PORT || '3306', 10),
-    };
-    
-    let connection;
-    try {
-        console.log('Connecting to database...');
-        connection = await mysql.createConnection(dbConfig);
-        console.log('✅ Connection successful.');
-
-        await connection.beginTransaction();
-        console.log('🚀 Starting database seed...');
-
-        // --- 1. Create Core Sites ---
-        console.log("Inserting core 'main' and 'external' sites...");
-        const sites = [
-            { id: 'main', name: 'QAEHS Pro Academy' },
-            { id: 'external', name: 'External Users' },
-        ];
-        for (const site of sites) {
-            try {
-                await connection.execute(
-                    'INSERT INTO sites (id, name) VALUES (?, ?)',
-                    [site.id, site.name]
-                );
-                console.log(`   - Site '${site.name}' created.`);
-            } catch (error) {
-                if (error.code === 'ER_DUP_ENTRY') {
-                    console.warn(`   - Site '${site.name}' already exists. Skipping.`);
-                } else {
-                    throw error;
-                }
-            }
-        }
-        
-        // --- 2. Create Super Admin User ---
-        console.log("Inserting Super Admin user...");
-        const superAdmin = {
-            id: 1, // Fixed ID for the first user
-            username: 'florante',
-            password: 'password', // IMPORTANT: Change this in the app after first login!
-            site_id: 'main',
-            fullName: 'Florante M. Catapang',
-            role: 'Admin', // Must be 'Admin'
-            type: 'Employee',  // Must be 'Employee' or 'External'
-        };
-        
-        try {
-            await connection.execute(
-                `INSERT INTO users (id, username, password, site_id, fullName, role, type) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    superAdmin.id,
-                    superAdmin.username,
-                    superAdmin.password,
-                    superAdmin.site_id,
-                    superAdmin.fullName,
-                    superAdmin.role,
-                    superAdmin.type
-                ]
-            );
-            console.log(`   - Super Admin user '${superAdmin.username}' created.`);
-        } catch (error) {
-             if (error.code === 'ER_DUP_ENTRY') {
-                console.warn(`   - Super Admin user '${superAdmin.username}' already exists. Skipping.`);
-            } else {
-                throw error;
-            }
-        }
-
-        await connection.commit();
-        console.log('✅ Database seeding completed successfully!');
-
-    } catch (error) {
-        console.error('\n❌ An error occurred during seeding:', error.message);
-        if (connection) {
-            console.log('Attempting to rollback transaction...');
-            await connection.rollback();
-            console.log('Transaction rolled back.');
-        }
-        process.exit(1);
-    } finally {
-        if (connection) {
-            await connection.end();
-        }
+    // 2. Check for and create the super admin user if it doesn't exist
+    const [adminUserRows] = await db.query("SELECT * FROM users WHERE username = ?", ['Florante Catapang']);
+    if (adminUserRows.length === 0) {
+      console.log('Super admin user not found. Creating it...');
+      const adminUserData = {
+        username: 'Florante Catapang',
+        password: 'Handsome_16',
+        site_id: 'main',
+        fullName: 'Florante M. Catapang', // Full name for certificates
+        role: 'Admin', // The role for permissions
+        type: 'Admin', // The user type
+      };
+      await db.query(
+        'INSERT INTO users (username, password, site_id, fullName, role, type) VALUES (?, ?, ?, ?, ?, ?)',
+        [adminUserData.username, adminUserData.password, adminUserData.site_id, adminUserData.fullName, adminUserData.role, adminUserData.type]
+      );
+      console.log('Super admin user "Florante Catapang" created successfully.');
+    } else {
+      console.log('Super admin user "Florante Catapang" already exists. Skipping creation.');
     }
+
+    console.log('Database seeding completed successfully!');
+  } catch (error) {
+    console.error('An error occurred during database seeding:', error);
+    process.exit(1);
+  } finally {
+    if (db) {
+      console.log('Closing database connection...');
+      await db.end();
+    }
+  }
 }
 
-main();
+seedDatabase();
+
