@@ -9,6 +9,7 @@ import type { RowDataPacket } from 'mysql2';
 
 const profileSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
+  username: z.string().min(3, "Username must be at least 3 characters."),
   email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
   phone: z.string().optional(),
   currentPassword: z.string().optional(),
@@ -52,12 +53,21 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
         }
         
-        const { fullName, email, phone, currentPassword, newPassword } = parsedData.data;
+        const { fullName, username, email, phone, currentPassword, newPassword } = parsedData.data;
         
+        // Check if the new username is already taken by another user in the same site
+        const [existingUserRows] = await db.query<RowDataPacket[]>(
+            "SELECT id FROM users WHERE username = ? AND site_id = ? AND id != ?",
+            [username, siteId, user.id]
+        );
+        if (existingUserRows.length > 0) {
+            return NextResponse.json({ error: 'Username is already taken.' }, { status: 409 });
+        }
+
         // Update editable fields
         await db.query(
-            "UPDATE users SET fullName = ?, email = ?, phone = ? WHERE id = ? AND site_id = ?",
-            [fullName, email || null, phone || null, user.id, siteId]
+            "UPDATE users SET fullName = ?, username = ?, email = ?, phone = ? WHERE id = ? AND site_id = ?",
+            [fullName, username, email || null, phone || null, user.id, siteId]
         );
         
         // Conditionally update password

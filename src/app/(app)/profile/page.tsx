@@ -33,6 +33,7 @@ import { PasswordInput } from "@/components/password-input"
 
 const profileFormSchema = z.object({
   fullName: z.string().min(3, { message: "Full name must be at least 3 characters." }),
+  username: z.string().min(3, { message: "Username must be at least 3 characters." }),
   email: z.string().email({ message: "Please enter a valid email." }).optional().or(z.literal('')),
   phone: z.string().optional(),
   currentPassword: z.string().optional(),
@@ -72,6 +73,7 @@ export default function ProfilePage() {
         resolver: zodResolver(profileFormSchema),
         defaultValues: {
             fullName: "",
+            username: "",
             email: "",
             phone: "",
             currentPassword: "",
@@ -83,7 +85,8 @@ export default function ProfilePage() {
     useEffect(() => {
         if (user) {
             form.reset({ 
-                fullName: user.fullName || user.username || "",
+                fullName: user.fullName || "",
+                username: user.username || "",
                 email: user.email || "",
                 phone: user.phone || "",
                 currentPassword: "",
@@ -114,6 +117,7 @@ export default function ProfilePage() {
             if (user) {
                 setUser({ ...user, 
                     fullName: updatedUser.fullName,
+                    username: updatedUser.username,
                     email: updatedUser.email,
                     phone: updatedUser.phone
                 });
@@ -182,11 +186,20 @@ export default function ProfilePage() {
                                             </FormItem>
                                         )}
                                     />
-                                    <FormItem>
-                                        <FormLabel>Username</FormLabel>
-                                        <Input value={user?.username || ''} disabled />
-                                        <FormDescription>Your username cannot be changed.</FormDescription>
-                                    </FormItem>
+                                     <FormField
+                                        control={form.control}
+                                        name="username"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Username</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="e.g. jdoe" {...field} />
+                                                </FormControl>
+                                                <FormDescription>This is how you will log in.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                      <FormField
                                         control={form.control}
                                         name="email"
@@ -216,10 +229,12 @@ export default function ProfilePage() {
                                      <FormItem>
                                         <FormLabel>Department</FormLabel>
                                         <Input value={user?.department || 'N/A'} disabled />
+                                        <FormDescription>Your department cannot be changed here.</FormDescription>
                                     </FormItem>
                                      <FormItem>
                                         <FormLabel>Position</FormLabel>
                                         <Input value={user?.position || 'N/A'} disabled />
+                                         <FormDescription>Your position cannot be changed here.</FormDescription>
                                     </FormItem>
                                 </div>
                             )}
