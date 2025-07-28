@@ -30,30 +30,41 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         
         const db = await getDb();
         
-        // In the debug runner, we use a placeholder that won't exist in the real DB outside of a transaction.
-        // So we also check for ID as a fallback for the test runner.
         const [certificateRows] = await db.query<RowDataPacket[]>(
-            `SELECT c.*
-             FROM certificates c
-             WHERE c.certificate_number = ? AND c.site_id = ?`,
-            [number, siteIdParam]
+            `SELECT * FROM certificates WHERE certificate_number = ?`,
+            [number]
         );
         const certificate = certificateRows[0];
 
         if (!certificate) {
-            return { data: null, error: 'Certificate not found in the specified site.' };
-        }
-
-        let course = null;
-        if (certificate.course_id) {
-            const [courseRows] = await db.query<RowDataPacket[]>('SELECT title, venue FROM courses WHERE id = ?', certificate.course_id);
-            if (courseRows.length === 0) return { data: null, error: 'Associated course not found.' };
-            course = courseRows[0];
+            return { data: null, error: 'Certificate not found.' };
         }
         
-        const [userRows] = await db.query<RowDataPacket[]>('SELECT username, fullName FROM users WHERE id = ?', certificate.user_id);
-        const user = userRows[0];
-        if (!user) return { data: null, error: 'Associated user not found.' };
+        const [userRows] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, site_id FROM users WHERE id = ?', [certificate.user_id]);
+        const certificateUser = userRows[0];
+        if (!userRows[0]) return { data: null, error: 'Associated user not found.' };
+
+        let certificateSiteId: string | null = null;
+        let course = null;
+
+        if (certificate.course_id) {
+            const [courseRows] = await db.query<RowDataPacket[]>('SELECT id, title, venue, site_id FROM courses WHERE id = ?', [certificate.course_id]);
+            if (courseRows.length === 0) return { data: null, error: 'Associated course not found.' };
+            course = courseRows[0];
+            certificateSiteId = course.site_id;
+        } else {
+            // For recognition certificates, the site is the user's home site.
+            certificateSiteId = certificateUser.site_id;
+        }
+
+        // Final validation check: Does the certificate's actual site match the one provided in the URL?
+        if (certificateSiteId !== siteIdParam) {
+            return { data: null, error: `Certificate is valid, but for a different branch.` };
+        }
+
+        if (!certificateSiteId) {
+             return { data: null, error: 'Could not determine the site for this certificate.' };
+        }
         
         const [signatoryIdRows] = await db.query<RowDataPacket[]>('SELECT signatory_id FROM certificate_signatories WHERE certificate_id = ?', certificate.id);
         const signatoryIds = signatoryIdRows.map(s => s.signatory_id);
@@ -70,7 +81,7 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
         
         const [settingsRows] = await db.query<RowDataPacket[]>(
             "SELECT `key`, value FROM app_settings WHERE site_id = ? AND `key` IN ('company_name', 'company_logo_path', 'company_logo_2_path', 'company_address')",
-            [certificate.site_id]
+            [certificateSiteId]
         );
         
         const settingsMap = settingsRows.reduce((acc, s) => {
@@ -88,10 +99,10 @@ export async function getCertificateDataForValidation(number: string, siteIdPara
             companyAddress: settingsMap.company_address || null,
             companyLogoPath: settingsMap.company_logo_path || null,
             companyLogo2Path: settingsMap.company_logo_2_path || null,
-            siteId: certificate.site_id,
+            siteId: certificateSiteId,
             user: {
-                username: user?.username || 'Unknown User',
-                fullName: user?.fullName || null,
+                username: certificateUser?.username || 'Unknown User',
+                fullName: certificateUser?.fullName || null,
             },
             course: course ? {
                 title: course?.title,
