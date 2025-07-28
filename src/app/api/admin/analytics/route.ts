@@ -61,20 +61,10 @@ async function getAnalyticsForSites(siteIds: string[]) {
             IFNULL(
                 ROUND(
                     (
-                        SELECT COUNT(DISTINCT up.user_id) 
-                        FROM user_progress up
-                        JOIN lessons l_inner ON up.lesson_id = l_inner.id
-                        JOIN modules m_inner ON l_inner.module_id = m_inner.id
-                        WHERE m_inner.course_id = c.id
-                          AND up.completed = 1
-                        GROUP BY m_inner.course_id
-                        HAVING COUNT(DISTINCT l_inner.id) = (
-                            SELECT COUNT(*) 
-                            FROM lessons l_total 
-                            JOIN modules m_total ON l_total.module_id = m_total.id
-                            WHERE m_total.course_id = c.id
-                        )
-                    ) / COUNT(DISTINCT e.user_id) * 100
+                        SELECT COUNT(DISTINCT faa.user_id)
+                        FROM final_assessment_attempts faa
+                        WHERE faa.course_id = c.id AND faa.passed = 1
+                    ) / NULLIF(COUNT(DISTINCT e.user_id), 0) * 100
                 ), 
                 0
             ) AS \`Completion Rate\`
