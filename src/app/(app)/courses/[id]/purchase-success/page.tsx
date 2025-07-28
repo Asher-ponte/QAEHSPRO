@@ -136,4 +136,9 @@ function PurchaseSuccessContent() {
 export default function PurchaseSuccessPage() {
     return (
         <div className="flex items-center justify-center min-h-[60vh]">
-            <Suspense fallback={<Loader2 className="h-16 w-16 animate-spin text-primary
+            <Suspense fallback={<Loader2 className="h-16 w-16 animate-spin text-primary" />}>
+                <PurchaseSuccessContent />
+            </Suspense>
+        </div>
+    )
+}
