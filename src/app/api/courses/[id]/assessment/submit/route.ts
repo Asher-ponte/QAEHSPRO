@@ -84,8 +84,7 @@ export async function POST(
             }
         });
         
-        const scorePercentage = (score / dbQuestions.length) * 100;
-        const passed = scorePercentage >= course.final_assessment_passing_rate;
+        const passed = score === dbQuestions.length;
 
         await db.query(
             'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
@@ -98,14 +97,12 @@ export async function POST(
         if (passed) {
             const oneDayAgo = subDays(new Date(), 1);
 
-            const [recentCertificateRows] = await db.query<any[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND completion_date > ?', [user.id, courseId, oneDayAgo]);
+            const [recentCertificateRows] = await db.query<any[]>(`SELECT id FROM certificates WHERE user_id = ? AND course_id = ? AND completion_date > ?`, [user.id, courseId, oneDayAgo]);
             const recentCertificate = recentCertificateRows[0];
 
             if (recentCertificate) {
-                // A certificate was already issued very recently, likely due to a resubmit. Reuse it.
                 certificateId = recentCertificate.id;
             } else {
-                // No recent certificate exists, so create a new one.
                 const today = new Date();
                 const completionDateFormatted = format(today, 'yyyy-MM-dd HH:mm:ss');
                 const datePrefix = format(today, 'yyyyMMdd');
@@ -147,6 +144,6 @@ export async function POST(
         await db.query('ROLLBACK').catch(console.error);
         const msg = error instanceof Error ? error.message : "An unknown error occurred.";
         console.error("Failed to submit assessment: ", msg, error);
-        return NextResponse.json({ error: 'Failed to submit assessment' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to submit assessment', details: msg }, { status: 500 });
     }
 }

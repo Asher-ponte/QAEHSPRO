@@ -81,7 +81,7 @@ export default function AssessmentPage() {
     const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [answers, setAnswers] = useState<Record<string, number>>({});
+    const [answers, setAnswers] = useState<Record<number, number>>({});
     
     // State for dialogs
     const [showRetakeConfirm, setShowRetakeConfirm] = useState(false);
@@ -275,7 +275,7 @@ export default function AssessmentPage() {
     }, [faceLandmarker, hasAgreedToRules, toast]);
 
 
-    const handleAnswerChange = (questionIndex: string, optionIndex: number) => {
+    const handleAnswerChange = (questionIndex: number, optionIndex: number) => {
         setAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
     };
 
@@ -290,7 +290,8 @@ export default function AssessmentPage() {
             });
             const result = await res.json();
             if (!res.ok) {
-                throw new Error(result.error || "Failed to submit assessment.");
+                const errorMessage = result.details ? `${result.error}: ${result.details}` : result.error;
+                throw new Error(errorMessage || "Failed to submit assessment.");
             }
             
             setShowSubmitConfirm(false);
@@ -597,7 +598,7 @@ export default function AssessmentPage() {
                         <div key={qIndex} className="p-4 border rounded-lg bg-background/50">
                             <p className="font-semibold mb-4">{qIndex + 1}. {q.text}</p>
                             <RadioGroup 
-                                onValueChange={(value) => handleAnswerChange(qIndex.toString(), parseInt(value, 10))}
+                                onValueChange={(value) => handleAnswerChange(qIndex, parseInt(value, 10))}
                                 value={answers[qIndex]?.toString()}
                                 disabled={isSubmitting}
                                 className="space-y-2"
