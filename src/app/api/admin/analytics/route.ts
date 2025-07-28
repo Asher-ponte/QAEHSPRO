@@ -94,8 +94,8 @@ async function getAnalyticsForSites(siteIds: string[]) {
         SELECT u.fullName as name, AVG(CAST(qa.score AS REAL) / qa.total) * 100 as "Average Score"
         FROM quiz_attempts qa 
         JOIN users u ON qa.user_id = u.id
-        WHERE u.site_id IN (?) 
-        GROUP BY qa.user_id, u.fullName 
+        WHERE u.site_id IN (?)
+        GROUP BY qa.user_id, u.fullName
         HAVING COUNT(qa.id) > 2
         ORDER BY "Average Score" ASC LIMIT 5
     `, [siteIds]);
