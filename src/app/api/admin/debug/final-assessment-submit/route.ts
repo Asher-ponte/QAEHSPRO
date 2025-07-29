@@ -7,6 +7,7 @@ import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { getCertificateDataForValidation } from '@/lib/certificate';
+import { format } from 'date-fns';
 
 const finalAssessmentTestSchema = z.object({
   userId: z.number(),
@@ -85,13 +86,21 @@ export async function POST(request: NextRequest) {
         
         let certificateInsertId = null;
         let certificateData = null;
+        let certificateNumber = 'SIMULATED';
 
         if (passed) {
-            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type, certificate_number) VALUES (?, ?, ?, ?, 'completion', 'SIMULATED')`, [testUser.id, courseId, course.site_id, new Date()]);
+             const date = new Date();
+             const datePrefix = format(date, 'yyyyMMdd');
+             const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+             const count = countRows[0]?.count ?? 0;
+             const nextSerial = count + 1;
+             certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+        
+            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type, certificate_number) VALUES (?, ?, ?, ?, 'completion', ?)`, [testUser.id, courseId, course.site_id, date, certificateNumber]);
             certificateInsertId = certResult.insertId;
             
             // Now, fetch the full data payload for this new (temporary) certificate
-            const { data, error } = await getCertificateDataForValidation('SIMULATED', course.site_id);
+            const { data, error } = await getCertificateDataForValidation(certificateNumber, course.site_id);
              if (error) {
                 console.error("Debug certificate fetch failed:", error);
                 // Don't fail the whole test, just note the error.
