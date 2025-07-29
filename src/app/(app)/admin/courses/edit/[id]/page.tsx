@@ -4,11 +4,12 @@
 import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, CalendarIcon, Loader2, Plus, Trash2, GripVertical } from "lucide-react"
 import Link from "next/link"
 import React, { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { format } from "date-fns"
+import { DragDropContext, Droppable, Draggable, type DropResult } from "react-beautiful-dnd";
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -388,7 +389,7 @@ function SignatoriesField({ control, siteId }: { control: Control<CourseFormValu
 }
 
 function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: Control<CourseFormValues> }) {
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, move } = useFieldArray({
         name: `modules.${moduleIndex}.lessons`,
         control,
     });
@@ -416,137 +417,166 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
 
         setValue(`modules.${moduleIndex}.lessons.${index}`, newLesson);
     }
+    
+    const onDragEnd = (result: DropResult) => {
+        if (!result.destination) {
+            return;
+        }
+        move(result.source.index, result.destination.index);
+    };
 
     return (
         <div className="space-y-4 pl-4 border-l ml-4">
-            {fields.map((field, lessonIndex) => {
-                const lessonType = lessonsInModule[lessonIndex]?.type;
-                return (
-                    <div key={field.id} className="p-4 rounded-md bg-muted/50 relative">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 h-6 w-6"
-                            onClick={() => remove(lessonIndex)}
-                            >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                            <span className="sr-only">Remove Lesson</span>
-                        </Button>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                    control={control}
-                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.title`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Lesson Title</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="e.g., What is Marketing?" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={control}
-                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.type`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Lesson Type</FormLabel>
-                                        <Select onValueChange={(value) => handleTypeChange(value, lessonIndex)} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select lesson type" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="video">Video</SelectItem>
-                                                <SelectItem value="document">Document</SelectItem>
-                                                <SelectItem value="quiz">Quiz</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                             {lessonType === 'quiz' && (
-                                <div>
-                                    <Label>Quiz Questions</Label>
-                                    <FormDescription className="mb-4">Build the quiz questions for this lesson below.</FormDescription>
-                                    <AssessmentQuestionBuilder name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions`} control={control} />
-                                </div>
-                            )}
-                            {lessonType === 'document' && (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    <FormField
-                                        control={control}
-                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Lesson Content</FormLabel>
-                                                <FormControl>
-                                                    <RichTextEditor
-                                                        value={field.value}
-                                                        onChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                <FormDescription>
-                                                   A rich text editor for your lesson content.
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
+             <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId={`lessons-${moduleIndex}`}>
+                    {(provided) => (
+                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+                            {fields.map((field, lessonIndex) => {
+                                const lessonType = lessonsInModule[lessonIndex]?.type;
+                                return (
+                                     <Draggable key={field.id} draggableId={field.id} index={lessonIndex}>
+                                        {(provided, snapshot) => (
+                                            <div
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                className={`p-4 rounded-md bg-muted/50 relative ${snapshot.isDragging ? 'shadow-lg' : ''}`}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                     <div {...provided.dragHandleProps} className="py-2 cursor-grab">
+                                                        <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                                    </div>
+                                                    <div className="flex-grow space-y-4">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <FormField
+                                                                control={control}
+                                                                name={`modules.${moduleIndex}.lessons.${lessonIndex}.title`}
+                                                                render={({ field }) => (
+                                                                    <FormItem>
+                                                                    <FormLabel>Lesson Title</FormLabel>
+                                                                    <FormControl>
+                                                                        <Input placeholder="e.g., What is Marketing?" {...field} />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                            <FormField
+                                                                control={control}
+                                                                name={`modules.${moduleIndex}.lessons.${lessonIndex}.type`}
+                                                                render={({ field }) => (
+                                                                    <FormItem>
+                                                                    <FormLabel>Lesson Type</FormLabel>
+                                                                    <Select onValueChange={(value) => handleTypeChange(value, lessonIndex)} defaultValue={field.value}>
+                                                                        <FormControl>
+                                                                            <SelectTrigger>
+                                                                                <SelectValue placeholder="Select lesson type" />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="video">Video</SelectItem>
+                                                                            <SelectItem value="document">Document</SelectItem>
+                                                                            <SelectItem value="quiz">Quiz</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                    <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        {lessonType === 'quiz' && (
+                                                            <div>
+                                                                <Label>Quiz Questions</Label>
+                                                                <FormDescription className="mb-4">Build the quiz questions for this lesson below.</FormDescription>
+                                                                <AssessmentQuestionBuilder name={`modules.${moduleIndex}.lessons.${lessonIndex}.questions`} control={control} />
+                                                            </div>
+                                                        )}
+                                                        {lessonType === 'document' && (
+                                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                                <FormField
+                                                                    control={control}
+                                                                    name={`modules.${moduleIndex}.lessons.${lessonIndex}.content`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem>
+                                                                            <FormLabel>Lesson Content</FormLabel>
+                                                                            <FormControl>
+                                                                                <RichTextEditor
+                                                                                    value={field.value}
+                                                                                    onChange={field.onChange}
+                                                                                />
+                                                                            </FormControl>
+                                                                            <FormDescription>
+                                                                                A rich text editor for your lesson content.
+                                                                            </FormDescription>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                                <div className="space-y-4">
+                                                                    <FormField
+                                                                        control={control}
+                                                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem>
+                                                                                <FormLabel>Lesson Image</FormLabel>
+                                                                                <FormControl>
+                                                                                    <ImageUpload
+                                                                                        onUploadComplete={(path) => field.onChange(path)}
+                                                                                        initialPath={field.value}
+                                                                                        onRemove={() => field.onChange("")}
+                                                                                    />
+                                                                                </FormControl>
+                                                                                <FormDescription>
+                                                                                    Optional image to display with the lesson content.
+                                                                                </FormDescription>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                    <FormField
+                                                                        control={control}
+                                                                        name={`modules.${moduleIndex}.lessons.${lessonIndex}.documentPath`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem>
+                                                                                <FormLabel>Attach PDF</FormLabel>
+                                                                                <FormControl>
+                                                                                    <PdfUpload
+                                                                                        onUploadComplete={(path) => field.onChange(path)}
+                                                                                        initialPath={field.value}
+                                                                                        onRemove={() => field.onChange("")}
+                                                                                    />
+                                                                                </FormControl>
+                                                                                <FormDescription>
+                                                                                    Optional PDF file for this lesson.
+                                                                                </FormDescription>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6"
+                                                        onClick={() => remove(lessonIndex)}
+                                                        >
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                        <span className="sr-only">Remove Lesson</span>
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         )}
-                                    />
-                                    <div className="space-y-4">
-                                        <FormField
-                                            control={control}
-                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.imagePath`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Lesson Image</FormLabel>
-                                                    <FormControl>
-                                                        <ImageUpload
-                                                            onUploadComplete={(path) => field.onChange(path)}
-                                                            initialPath={field.value}
-                                                            onRemove={() => field.onChange("")}
-                                                        />
-                                                    </FormControl>
-                                                    <FormDescription>
-                                                        Optional image to display with the lesson content.
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={control}
-                                            name={`modules.${moduleIndex}.lessons.${lessonIndex}.documentPath`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Attach PDF</FormLabel>
-                                                    <FormControl>
-                                                        <PdfUpload
-                                                            onUploadComplete={(path) => field.onChange(path)}
-                                                            initialPath={field.value}
-                                                            onRemove={() => field.onChange("")}
-                                                        />
-                                                    </FormControl>
-                                                    <FormDescription>
-                                                        Optional PDF file for this lesson.
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-                            )}
+                                    </Draggable>
+                                )
+                            })}
+                            {provided.placeholder}
                         </div>
-                    </div>
-                )
-            })}
+                    )}
+                </Droppable>
+            </DragDropContext>
              <Button
                 type="button"
                 variant="outline"
