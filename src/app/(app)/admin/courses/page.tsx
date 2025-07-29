@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library, Building } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library, Building, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -83,6 +83,7 @@ interface CourseAdminView {
 interface User {
   id: number;
   username: string;
+  fullName: string | null;
   department: string | null;
 }
 
@@ -229,11 +230,13 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<number | null>(null);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+    const [filter, setFilter] = useState('');
     const { toast } = useToast();
     const { site: currentSite } = useSession();
 
     useEffect(() => {
         if (open && course) {
+            setFilter(''); // Reset filter when opening
             const fetchData = async () => {
                 setIsLoading(true);
                 try {
@@ -368,6 +371,15 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
         }
     };
 
+    const filteredUsers = useMemo(() => {
+        if (!filter) return allUsers;
+        const lowercasedFilter = filter.toLowerCase();
+        return allUsers.filter(user => 
+            user.username.toLowerCase().includes(lowercasedFilter) ||
+            (user.fullName && user.fullName.toLowerCase().includes(lowercasedFilter))
+        );
+    }, [allUsers, filter]);
+
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -378,25 +390,36 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
                         Enroll or un-enroll users from "{course?.title}". Changes are saved automatically.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleBulkEnrollment(true)}
-                        disabled={isBulkUpdating || isLoading || allUsers.length === 0}
-                    >
-                        {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Enroll All
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        className="w-full"
-                        onClick={() => handleBulkEnrollment(false)}
-                        disabled={isBulkUpdating || isLoading || allUsers.length === 0}
-                    >
-                        {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Un-enroll All
-                    </Button>
+                <div className="space-y-4">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search users..."
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                            className="pl-8"
+                        />
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleBulkEnrollment(true)}
+                            disabled={isBulkUpdating || isLoading || allUsers.length === 0}
+                        >
+                            {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enroll All
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            className="w-full"
+                            onClick={() => handleBulkEnrollment(false)}
+                            disabled={isBulkUpdating || isLoading || allUsers.length === 0}
+                        >
+                            {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Un-enroll All
+                        </Button>
+                    </div>
                 </div>
                 <div className="py-4">
                     {isLoading ? (
@@ -411,7 +434,7 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
                     ) : (
                         <ScrollArea className="h-72">
                             <div className="space-y-4 pr-6">
-                            {allUsers.length > 0 ? allUsers.map(user => (
+                            {filteredUsers.length > 0 ? filteredUsers.map(user => (
                                 <div key={user.id} className="flex items-center space-x-3">
                                     <Checkbox
                                         id={`user-${user.id}`}
@@ -420,11 +443,11 @@ function ManageEnrollmentsDialog({ course, open, onOpenChange }: { course: Cours
                                         disabled={isUpdating === user.id}
                                     />
                                     <Label htmlFor={`user-${user.id}`} className="flex-grow font-normal cursor-pointer">
-                                        {user.username} <span className="text-xs text-muted-foreground">{user.department}</span>
+                                        {user.fullName || user.username} <span className="text-xs text-muted-foreground">({user.username})</span>
                                     </Label>
                                     {isUpdating === user.id && <Loader2 className="h-4 w-4 animate-spin" />}
                                 </div>
-                            )) : <p className="text-sm text-muted-foreground text-center">No users available to enroll.</p>}
+                            )) : <p className="text-sm text-muted-foreground text-center">No users found.</p>}
                             </div>
                         </ScrollArea>
                     )}
