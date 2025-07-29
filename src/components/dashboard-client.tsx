@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -70,7 +69,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
   const completedCourses = courses.filter(course => course.progress === 100);
   
   const ActionButton = ({ course }: { course: Course }) => {
-    // Case 1: All lessons complete, ready for assessment.
+    // Case 1: All lessons complete, ready for assessment (progress is capped at 99%).
     if (course.progress === 99 && course.continueLessonId === null) {
       return (
         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">

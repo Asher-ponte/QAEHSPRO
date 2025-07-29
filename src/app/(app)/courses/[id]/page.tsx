@@ -359,10 +359,10 @@ export default function CourseDetailPage() {
                  {course.hasFinalAssessment && (
                      <div className="mt-4 border-t pt-4">
                          <Link href={hasAccessToCourse && course.allLessonsCompleted ? `/courses/${course.id}/assessment` : '#'} className={cn(
-                             "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md",
+                             "flex items-center justify-between gap-2 text-sm p-2 -m-2 rounded-md font-semibold",
                              (!hasAccessToCourse || !course.allLessonsCompleted) && "pointer-events-none opacity-50"
                          )}>
-                             <div className="flex items-center min-w-0 font-semibold">
+                             <div className="flex items-center min-w-0">
                                  <ClipboardCheck className="h-5 w-5 mr-3 text-muted-foreground" />
                                  <span className="break-words flex-1">Final Assessment</span>
                              </div>

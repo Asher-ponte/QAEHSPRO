@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight, ChevronsLeft, ChevronsRight, FileText as FileTextIcon } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, Clapperboard, Loader2, XCircle, ArrowRight, ChevronsLeft, ChevronsRight, FileText as FileTextIcon, ClipboardCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -266,9 +266,9 @@ const LessonContent = ({
             );
         case 'document':
             return (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                     {lesson.imagePath && (
-                        <div className="lg:col-span-1">
+                        <div className="md:col-span-1">
                             <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                                 <Image
                                     src={lesson.imagePath}
@@ -282,7 +282,7 @@ const LessonContent = ({
                     )}
                     <div className={cn(
                         "space-y-6",
-                        lesson.imagePath ? "lg:col-span-2" : "lg:col-span-3"
+                        lesson.imagePath ? "md:col-span-1" : "md:col-span-2"
                     )}>
                         {lesson.documentPath && (
                             <Dialog>
@@ -516,7 +516,7 @@ export default function LessonPage() {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {buttonText}
                 {!isLastLesson && <ArrowRight className="ml-2 h-4 w-4" />}
-                {isLastLesson && hasFinalAssessment && <ArrowRight className="ml-2 h-4 w-4" />}
+                {isLastLesson && hasFinalAssessment && <ClipboardCheck className="ml-2 h-4 w-4" />}
                 {isLastLesson && !hasFinalAssessment && <CheckCircle className="ml-2 h-4 w-4" />}
             </Button>
         );
