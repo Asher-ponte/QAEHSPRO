@@ -6,6 +6,8 @@ import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
 import { z } from 'zod';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { getCertificateDataForValidation } from '@/lib/certificate';
+import { format } from 'date-fns';
 
 const finalAssessmentTestSchema = z.object({
   userId: z.number(),
@@ -75,26 +77,44 @@ export async function POST(request: NextRequest) {
             }
         });
         
-        const scorePercentage = (score / dbQuestions.length) * 100;
-        const passed = scorePercentage >= course.final_assessment_passing_rate;
+        const passed = score === dbQuestions.length;
 
-        const insertResult = await db.query<ResultSetHeader>(
-            'INSERT INTO final_assessment_attempts (user_id, course_id, site_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [testUser.id, courseId, course.site_id, score, dbQuestions.length, passed, new Date()]
+        const [insertResult] = await db.query<ResultSetHeader>(
+            'INSERT INTO final_assessment_attempts (user_id, course_id, score, total, passed, attempt_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [testUser.id, courseId, score, dbQuestions.length, passed, new Date()]
         );
         
         let certificateInsertId = null;
+        let certificateData = null;
+        let certificateNumber = 'SIMULATED';
+
         if (passed) {
-            // Simulate certificate creation
-            const certResult = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type) VALUES (?, ?, ?, ?, 'completion')`, [testUser.id, courseId, course.site_id, new Date()]);
-            certificateInsertId = certResult[0].insertId;
+             const date = new Date();
+             const datePrefix = format(date, 'yyyyMMdd');
+             const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+             const count = countRows[0]?.count ?? 0;
+             const nextSerial = count + 1;
+             certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+        
+            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type, certificate_number) VALUES (?, ?, ?, ?, 'completion', ?)`, [testUser.id, courseId, course.site_id, date, certificateNumber]);
+            certificateInsertId = certResult.insertId;
+            
+            // Now, fetch the full data payload for this new (temporary) certificate
+            const { data, error } = await getCertificateDataForValidation(certificateNumber, course.site_id);
+             if (error) {
+                console.error("Debug certificate fetch failed:", error);
+                // Don't fail the whole test, just note the error.
+                certificateData = { error: "Failed to fetch certificate data after creation.", details: error };
+            } else {
+                certificateData = data;
+            }
         }
 
         // We will rollback the transaction so this test doesn't permanently affect user data.
         await db.query('ROLLBACK');
 
         return NextResponse.json({
-            message: "Simulation successful. Database changes were rolled back.",
+            message: "Simulation successful. All changes were rolled back.",
             simulation: {
                 userId: testUser.id,
                 courseId,
@@ -102,12 +122,13 @@ export async function POST(request: NextRequest) {
                 score,
                 totalQuestions: dbQuestions.length,
                 passingRateRequired: course.final_assessment_passing_rate,
-                scorePercentage,
+                scorePercentage: (score / dbQuestions.length) * 100,
                 passed,
                 correctlyAnsweredIndices,
-                assessmentAttemptInsertId: insertResult[0].insertId,
+                assessmentAttemptInsertId: insertResult.insertId,
                 certificateCreated: passed,
                 simulatedCertificateId: certificateInsertId,
+                generatedCertificateData: certificateData, // Add the fetched data to the response
             }
         });
 

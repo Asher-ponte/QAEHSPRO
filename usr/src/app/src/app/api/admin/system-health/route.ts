@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
         runTest('Enrollments Schema', 'Schema Integrity', () => checkSchema(db, 'enrollments', ['user_id', 'course_id'])),
         runTest('User Progress Schema', 'Schema Integrity', () => checkSchema(db, 'user_progress', ['user_id', 'lesson_id', 'completed'])),
         runTest('Final Assessment Attempts Schema', 'Schema Integrity', () => checkSchema(db, 'final_assessment_attempts', ['id', 'user_id', 'course_id', 'score', 'passed'])),
-        runTest('Certificates Schema', 'Schema Integrity', () => checkSchema(db, 'certificates', ['id', 'user_id', 'course_id', 'certificate_number', 'completion_date'])),
+        runTest('Certificates Schema', 'Schema Integrity', () => checkSchema(db, 'certificates', ['id', 'user_id', 'course_id', 'certificate_number', 'completion_date', 'site_id'])),
     ];
     
     const e2eTests = [
