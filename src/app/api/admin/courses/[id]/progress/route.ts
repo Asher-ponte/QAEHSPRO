@@ -1,4 +1,5 @@
 
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getCurrentSession } from '@/lib/session';
@@ -37,7 +38,6 @@ export async function GET(
         if (isNaN(effectiveCourseId)) {
             return NextResponse.json({ error: 'Invalid Course ID provided.'}, { status: 400 });
         }
-
 
         // Get total number of lessons for the course
         const [totalLessonsRows] = await db.query<RowDataPacket[]>(`
@@ -86,10 +86,22 @@ export async function GET(
         completedLessonsRows.forEach(row => {
             completedLessonsMap.set(row.user_id, row.count);
         });
+        
+        const [passedAssessmentRows] = await db.query<RowDataPacket[]>(
+            `SELECT user_id FROM final_assessment_attempts WHERE user_id IN (?) AND course_id = ? AND passed = 1`,
+            [enrolledUserIds, effectiveCourseId]
+        );
+        const passedAssessmentUserIds = new Set(passedAssessmentRows.map(row => row.user_id));
+
 
         const progressData = enrolledUsers.map(user => {
             const completedLessons = completedLessonsMap.get(user.id) || 0;
-            const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            let progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            
+            // If the user has passed the final assessment, their progress is 100%.
+            if (passedAssessmentUserIds.has(user.id)) {
+                progress = 100;
+            }
 
             return {
                 id: user.id,
