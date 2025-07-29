@@ -1,4 +1,6 @@
 
+'use server'
+
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getCurrentSession } from '@/lib/session';
@@ -15,7 +17,7 @@ export async function GET(
 
   try {
     const db = await getDb();
-    const { id: courseIdStr, lessonId: currentLessonIdStr } = params
+    const { id: courseIdStr, lessonId: currentLessonIdStr } = params;
     const currentLessonId = parseInt(currentLessonIdStr, 10);
     const courseId = parseInt(courseIdStr, 10);
     
