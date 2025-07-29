@@ -1,12 +1,11 @@
-
 import { NextResponse, type NextRequest } from 'next/server';
 
-export const config = {
-  matcher: [
-    '/((?!api/|_next/|_static/|images/|favicon.ico|logo.png|certificate/).*)',
-  ],
-};
+export function middleware(req: NextRequest) {
+  // If the request is for an API route, do nothing.
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
 
-export default async function middleware(req: NextRequest) {
+  // For all other routes, continue as normal.
   return NextResponse.next();
 }
