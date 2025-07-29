@@ -38,6 +38,10 @@ export async function GET(
         if (isNaN(effectiveCourseId)) {
             return NextResponse.json({ error: 'Invalid Course ID provided.'}, { status: 400 });
         }
+        
+        const [courseRows] = await db.query<RowDataPacket[]>(`SELECT final_assessment_content FROM courses WHERE id = ?`, [effectiveCourseId]);
+        const courseData = courseRows[0];
+        const hasFinalAssessment = !!courseData?.final_assessment_content;
 
         // Get total number of lessons for the course
         const [totalLessonsRows] = await db.query<RowDataPacket[]>(`
@@ -60,7 +64,7 @@ export async function GET(
             return NextResponse.json([]);
         }
 
-        if (totalLessons === 0) {
+        if (totalLessons === 0 && !hasFinalAssessment) {
             return NextResponse.json(enrolledUsers.map(u => ({
                 id: u.id,
                 username: u.username,
@@ -96,11 +100,18 @@ export async function GET(
 
         const progressData = enrolledUsers.map(user => {
             const completedLessons = completedLessonsMap.get(user.id) || 0;
-            let progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            let progress = 0;
             
-            // If the user has passed the final assessment, their progress is 100%.
-            if (passedAssessmentUserIds.has(user.id)) {
-                progress = 100;
+            if (hasFinalAssessment) {
+                if (passedAssessmentUserIds.has(user.id)) {
+                    progress = 100;
+                } else {
+                    // Cap at 99 if all lessons are done but assessment isn't
+                    const lessonProgress = totalLessons > 0 ? Math.floor((completedLessons / totalLessons) * 100) : 0;
+                    progress = Math.min(99, lessonProgress);
+                }
+            } else {
+                 progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
             }
 
             return {
