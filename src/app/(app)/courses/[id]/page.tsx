@@ -318,12 +318,12 @@ export default function CourseDetailPage() {
           <CardHeader>
             <CardTitle>Course Content</CardTitle>
             {statusInfo && (
-                <CardDescription>
+                <div className="text-sm text-muted-foreground">
                    <Badge variant={statusInfo.variant} className="mt-2">
                         <Clock className="mr-1.5 h-3 w-3" />
                         {statusInfo.text}
                    </Badge>
-                </CardDescription>
+                </div>
             )}
           </CardHeader>
           <CardContent>
@@ -407,6 +407,4 @@ export default function CourseDetailPage() {
     </div>
   )
 }
-
-    
 
