@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { useForm, useFieldArray, type Control, useWatch, useFormContext } from "react-hook-form"
@@ -33,6 +32,7 @@ import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
 import { PdfUpload } from "@/components/pdf-upload"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { StrictDroppable } from "@/components/strict-droppable"
 
 interface SignatoryOption {
     id: number;
@@ -434,7 +434,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
     return (
         <div className="space-y-4 pl-4 border-l ml-4">
              <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId={`lessons-${moduleIndex}`}>
+                <StrictDroppable droppableId={`lessons-${moduleIndex}`}>
                     {(provided) => (
                         <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
                             {fields.map((field, lessonIndex) => {
@@ -581,7 +581,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                             {provided.placeholder}
                         </div>
                     )}
-                </Droppable>
+                </StrictDroppable>
             </DragDropContext>
              <Button
                 type="button"
