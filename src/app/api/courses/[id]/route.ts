@@ -69,10 +69,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         completedLessonIds = new Set(progressResults.map((r: any) => r.lesson_id));
     }
     
-    const [certRows] = await db.query<RowDataPacket[]>('SELECT id FROM certificates WHERE user_id = ? AND course_id = ?', [userId, courseId]);
-    const isCourseCompleted = certRows.length > 0;
-    const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
     const hasFinalAssessment = !!course.final_assessment_content;
+    let hasPassedAssessment = false;
+    if (hasFinalAssessment) {
+        const [assessmentRows] = await db.query<RowDataPacket[]>('SELECT id FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? AND passed = 1', [userId, courseId]);
+        hasPassedAssessment = assessmentRows.length > 0;
+    }
+
+    const allLessonsCompleted = allLessonIds.length > 0 && allLessonIds.length === completedLessonIds.size;
+    const isCourseCompleted = hasFinalAssessment ? hasPassedAssessment : allLessonsCompleted;
 
     let transactionStatus: { status: string, reason: string | null } | null = null;
     if (user.type === 'External') {

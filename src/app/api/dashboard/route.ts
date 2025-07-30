@@ -99,17 +99,16 @@ export async function GET() {
         const hasPassedAssessment = passedAssessmentIds.has(course.id);
 
         let progress = 0;
-        if (totalLessons > 0) {
-            progress = Math.floor((completedLessonsCount / totalLessons) * 100);
-        }
-        
-        // If course has an assessment and it's passed, it's 100% complete.
-        if (hasFinalAssessment && hasPassedAssessment) {
-            progress = 100;
-        } 
-        // If all lessons are done, but the assessment isn't passed yet, cap at 99%.
-        else if (hasFinalAssessment && progress === 100 && !hasPassedAssessment) {
-            progress = 99;
+        if (hasFinalAssessment) {
+            if (hasPassedAssessment) {
+                progress = 100;
+            } else {
+                // Cap lesson progress at 99% if there's an assessment to take
+                const lessonProgress = totalLessons > 0 ? Math.floor((completedLessonsCount / totalLessons) * 100) : 0;
+                progress = Math.min(99, lessonProgress);
+            }
+        } else {
+             progress = totalLessons > 0 ? Math.floor((completedLessonsCount / totalLessons) * 100) : 0;
         }
 
         const firstUncompletedLesson = courseLessons.find(l => !completedLessonIds.has(l.id));
@@ -117,7 +116,8 @@ export async function GET() {
         
         // If all lessons are complete and there's an assessment to be taken, nullify the lesson ID.
         // The UI will use this null value to show the "Start Final Assessment" button.
-        if (hasFinalAssessment && completedLessonsCount === totalLessons && !hasPassedAssessment) {
+        const allLessonsCompleted = totalLessons > 0 && completedLessonsCount === totalLessons;
+        if (hasFinalAssessment && allLessonsCompleted && !hasPassedAssessment) {
             continueLessonId = null;
         }
 
