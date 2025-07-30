@@ -532,7 +532,7 @@ function LessonFields({ moduleIndex, control }: { moduleIndex: number, control: 
                                                                                     />
                                                                                 </FormControl>
                                                                                 <FormDescription>
-                                                                                    Optional image to display with the lesson content.
+                                                                                    Recommended: 16:9 aspect ratio (e.g., 1280x720px).
                                                                                 </FormDescription>
                                                                                 <FormMessage />
                                                                             </FormItem>
