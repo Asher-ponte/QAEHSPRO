@@ -1,5 +1,3 @@
-
-
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -425,6 +423,7 @@ export default function LessonPage() {
             
             if (data.redirectToAssessment) {
                 toast({
+                    variant: "success",
                     title: "All Lessons Completed!",
                     description: "Proceeding to the final assessment.",
                 });
@@ -433,6 +432,7 @@ export default function LessonPage() {
             }
             
             toast({
+                variant: "success",
                 title: pageData.lesson.type === 'quiz' ? "Quiz Passed!" : "Lesson Completed!",
                 description: "You can now proceed to the next lesson.",
             });

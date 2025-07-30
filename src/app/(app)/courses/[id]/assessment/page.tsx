@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -298,6 +297,7 @@ export default function AssessmentPage() {
 
             if (result.passed && result.certificateId) {
                 toast({
+                    variant: "success",
                     title: "Assessment Passed!",
                     description: "Redirecting to your new certificate...",
                 });
@@ -335,6 +335,7 @@ export default function AssessmentPage() {
                 throw new Error(errorData.error || "Failed to reset course progress.");
             }
             toast({
+                variant: "success",
                 title: "Course Progress Reset",
                 description: "You can now start the course from the beginning."
             });
