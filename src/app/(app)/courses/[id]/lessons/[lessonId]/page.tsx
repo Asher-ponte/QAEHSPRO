@@ -59,6 +59,7 @@ interface LessonPageData {
     nextLessonId: number | null;
     previousLessonId: number | null;
     hasFinalAssessment: boolean;
+    allLessonsCompleted: boolean;
 }
 
 interface QuizQuestion {
@@ -452,14 +453,11 @@ export default function LessonPage() {
     
     const handleNextClick = () => {
         if (!pageData) return;
-        if (lesson.completed) {
-            if (pageData.nextLessonId) {
-                router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
-            } else if (pageData.hasFinalAssessment) {
-                 router.push(`/courses/${pageData.course.id}/assessment`);
-            }
-        } else {
-            handleMarkAsComplete();
+
+        if (pageData.allLessonsCompleted && pageData.hasFinalAssessment) {
+            router.push(`/courses/${pageData.course.id}/assessment`);
+        } else if (pageData.nextLessonId) {
+            router.push(`/courses/${pageData.course.id}/lessons/${pageData.nextLessonId}`);
         }
     };
 
@@ -484,7 +482,7 @@ export default function LessonPage() {
         );
     }
     
-    const { lesson, course, progress, nextLessonId, previousLessonId, hasFinalAssessment } = pageData;
+    const { lesson, course, progress, nextLessonId, previousLessonId, hasFinalAssessment, allLessonsCompleted } = pageData;
 
     const getIcon = () => {
         switch (lesson.type) {
@@ -496,30 +494,67 @@ export default function LessonPage() {
     }
 
     const NavButton = () => {
+        const isLoading = isCompleting || isQuizSubmitting;
+
+        // Quiz must be passed to continue
         if (lesson.type === 'quiz' && !lesson.completed) {
             return <Button disabled>Pass Quiz to Continue</Button>;
         }
 
-        const isLastLesson = !nextLessonId;
-        const isLoading = isCompleting;
+        // All lessons done and there's a final assessment
+        if (allLessonsCompleted && hasFinalAssessment) {
+            return (
+                <Button onClick={handleNextClick} disabled={isLoading}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Start Final Assessment
+                    <ClipboardCheck className="ml-2 h-4 w-4" />
+                </Button>
+            );
+        }
 
-        let buttonText = 'Next Lesson';
-        if (isLastLesson && hasFinalAssessment) buttonText = 'Start Final Assessment';
-        else if (isLastLesson) buttonText = 'Course Complete';
+        // There is a next lesson to go to
+        if (nextLessonId) {
+            // If current lesson isn't complete, button marks it complete and navigates.
+            if (!lesson.completed) {
+                return (
+                    <Button onClick={handleMarkAsComplete} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Complete & Continue
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            }
+            // If current lesson is already complete, just navigate.
+            return (
+                <Button onClick={handleNextClick} disabled={isLoading}>
+                    Next Lesson
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+            );
+        }
+        
+        // This is the last lesson and there's no final assessment
+        if (!nextLessonId && !hasFinalAssessment) {
+             // If not yet complete, show completion button
+            if (!lesson.completed) {
+                 return (
+                    <Button onClick={handleMarkAsComplete} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Complete Course
+                        <CheckCircle className="ml-2 h-4 w-4" />
+                    </Button>
+                )
+            }
+            // If already complete, button is disabled
+            return (
+                 <Button disabled>
+                    Course Complete
+                    <CheckCircle className="ml-2 h-4 w-4" />
+                </Button>
+            );
+        }
 
-        if (!lesson.completed) buttonText = 'Complete & Continue';
-
-        const isDisabled = isLoading || (lesson.completed && isLastLesson && !hasFinalAssessment);
-
-        return (
-            <Button onClick={handleNextClick} disabled={isDisabled}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {buttonText}
-                {!isLastLesson && <ArrowRight className="ml-2 h-4 w-4" />}
-                {isLastLesson && hasFinalAssessment && <ClipboardCheck className="ml-2 h-4 w-4" />}
-                {isLastLesson && !hasFinalAssessment && <CheckCircle className="ml-2 h-4 w-4" />}
-            </Button>
-        );
+        return null; // Should not be reached
     };
 
     return (

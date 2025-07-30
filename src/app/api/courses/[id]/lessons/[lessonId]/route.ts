@@ -1,4 +1,5 @@
 
+
 'use server'
 
 import { NextResponse, type NextRequest } from 'next/server'
@@ -130,6 +131,7 @@ export async function GET(
     const previousLessonId = currentLessonIndex > 0 ? allLessonsOrderedIds[currentLessonIndex - 1] : null;
     const nextLessonId = currentLessonIndex < totalLessons - 1 ? allLessonsOrderedIds[currentLessonIndex + 1] : null;
     const hasFinalAssessment = !!courseData.final_assessment_content;
+    const allLessonsCompleted = totalLessons > 0 && completedLessonsCount >= totalLessons;
     
     // Assemble the final response
     const responseData = {
@@ -142,6 +144,7 @@ export async function GET(
         previousLessonId,
         nextLessonId,
         hasFinalAssessment,
+        allLessonsCompleted,
     };
 
     return NextResponse.json(responseData);

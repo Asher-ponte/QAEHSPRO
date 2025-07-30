@@ -1,4 +1,5 @@
 
+
 'use server'
 
 import { NextResponse, type NextRequest } from 'next/server'
@@ -63,7 +64,9 @@ export async function POST(
         const completedCount = completedLessonsRows[0]?.count ?? 0;
         
         let redirectToAssessment = false;
-        if (totalLessons > 0 && completedCount >= totalLessons) {
+        const allLessonsCompleted = totalLessons > 0 && completedCount >= totalLessons;
+
+        if (allLessonsCompleted) {
             const [courseInfoRows] = await db.query<any[]>('SELECT final_assessment_content FROM courses WHERE id = ?', [courseId]);
             const courseInfo = courseInfoRows[0];
             const hasFinalAssessment = !!courseInfo?.final_assessment_content;
