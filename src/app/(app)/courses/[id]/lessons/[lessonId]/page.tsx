@@ -276,7 +276,7 @@ const LessonContent = ({
                                     alt={lesson.title}
                                     sizes="100vw"
                                     fill
-                                    className="object-cover"
+                                    className="object-contain"
                                 />
                             </div>
                         </div>

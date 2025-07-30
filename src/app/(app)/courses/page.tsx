@@ -162,7 +162,7 @@ export default function CoursesPage() {
                           alt={course.title}
                           width={600}
                           height={400}
-                          className="rounded-t-lg object-cover aspect-video"
+                          className="rounded-t-lg object-contain aspect-video"
                           data-ai-hint="course cover"
                       />
                     </Link>

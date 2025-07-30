@@ -387,7 +387,7 @@ export default function CourseDetailPage() {
                     alt={course.title}
                     sizes="100vw"
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     data-ai-hint="course cover"
                     />
                      {isExternalUser && isPaidCourse && (
@@ -407,4 +407,3 @@ export default function CourseDetailPage() {
     </div>
   )
 }
-

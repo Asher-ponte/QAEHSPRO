@@ -199,7 +199,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                     alt={course.title}
                                     sizes="100vw"
                                     fill
-                                    className="rounded-md object-cover"
+                                    className="rounded-md object-contain"
                                     data-ai-hint="course thumbnail"
                                 />
                             </div>
@@ -240,7 +240,7 @@ export function DashboardClient({ stats, courses }: DashboardClientProps) {
                                     alt={course.title}
                                     sizes="100vw"
                                     fill
-                                    className="rounded-md object-cover"
+                                    className="rounded-md object-contain"
                                     data-ai-hint="course thumbnail"
                                 />
                             </div>
