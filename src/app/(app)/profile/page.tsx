@@ -177,7 +177,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Full Name</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g. John Doe" {...field} />
+                                                    <Input placeholder="e.g. John Doe" {...field} autoComplete="name" />
                                                 </FormControl>
                                                 <FormDescription>
                                                     This name will be displayed on your certificates of completion.
@@ -193,7 +193,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Username</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g. jdoe" {...field} />
+                                                    <Input placeholder="e.g. jdoe" {...field} autoComplete="username" />
                                                 </FormControl>
                                                 <FormDescription>This is how you will log in.</FormDescription>
                                                 <FormMessage />
@@ -207,7 +207,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Email Address</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g., you@company.com" {...field} value={field.value ?? ''} />
+                                                    <Input placeholder="e.g., you@company.com" {...field} value={field.value ?? ''} autoComplete="email" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -220,7 +220,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Phone Number</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="Your phone number" {...field} value={field.value ?? ''} />
+                                                    <Input placeholder="Your phone number" {...field} value={field.value ?? ''} autoComplete="tel" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -258,7 +258,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Current Password</FormLabel>
                                                 <FormControl>
-                                                    <PasswordInput {...field} />
+                                                    <PasswordInput {...field} autoComplete="current-password" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -271,7 +271,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>New Password</FormLabel>
                                                 <FormControl>
-                                                    <PasswordInput {...field} />
+                                                    <PasswordInput {...field} autoComplete="new-password" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -284,7 +284,7 @@ export default function ProfilePage() {
                                             <FormItem>
                                                 <FormLabel>Confirm New Password</FormLabel>
                                                 <FormControl>
-                                                    <PasswordInput {...field} />
+                                                    <PasswordInput {...field} autoComplete="new-password" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

@@ -109,7 +109,7 @@ function LoginForm() {
                     <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                        <Input placeholder="e.g., Demo User" {...field} />
+                        <Input placeholder="e.g., Demo User" {...field} autoComplete="username" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -122,7 +122,7 @@ function LoginForm() {
                     <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                        <PasswordInput placeholder="••••••••" {...field} />
+                        <PasswordInput placeholder="••••••••" {...field} autoComplete="current-password" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -211,7 +211,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Full Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., John Smith" {...field} />
+                                        <Input placeholder="e.g., John Smith" {...field} autoComplete="name" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -224,7 +224,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Username</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., johnsmith" {...field} />
+                                        <Input placeholder="e.g., johnsmith" {...field} autoComplete="username" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -237,7 +237,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Password</FormLabel>
                                     <FormControl>
-                                        <PasswordInput placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} autoComplete="new-password" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -250,7 +250,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Confirm Password</FormLabel>
                                     <FormControl>
-                                        <PasswordInput placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} autoComplete="new-password" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -263,7 +263,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Email Address</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="Email Address" {...field} />
+                                        <Input type="email" placeholder="Email Address" {...field} autoComplete="email" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -276,7 +276,7 @@ function SignUpForm() {
                                 <FormItem>
                                     <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Phone Number" {...field} />
+                                        <Input placeholder="Phone Number" {...field} autoComplete="tel" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

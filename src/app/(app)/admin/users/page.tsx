@@ -227,7 +227,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Full Name (for certificates)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Jane Smith" {...field} />
+                                        <Input placeholder="e.g., Jane Smith" {...field} autoComplete="name" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -240,7 +240,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Username (for login)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., janesmith" {...field} />
+                                        <Input placeholder="e.g., janesmith" {...field} autoComplete="username" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -253,7 +253,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Password</FormLabel>
                                     <FormControl>
-                                        <PasswordInput placeholder="••••••••" {...field} />
+                                        <PasswordInput placeholder="••••••••" {...field} autoComplete="new-password" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -266,7 +266,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Email Address</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="Email Address" {...field} />
+                                        <Input type="email" placeholder="Email Address" {...field} autoComplete="email" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -279,7 +279,7 @@ function UserForm({ onFormSubmit, children }: { onFormSubmit: () => void, childr
                                 <FormItem>
                                     <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Phone Number" {...field} />
+                                        <Input placeholder="Phone Number" {...field} autoComplete="tel" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -446,7 +446,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>Full Name (for certificates)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Jane Smith" {...field} />
+                                        <Input placeholder="e.g., Jane Smith" {...field} autoComplete="name" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -459,7 +459,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>Username (for login)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., janesmith" {...field} />
+                                        <Input placeholder="e.g., janesmith" {...field} autoComplete="username" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -472,7 +472,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>New Password</FormLabel>
                                     <FormControl>
-                                        <PasswordInput {...field} />
+                                        <PasswordInput {...field} autoComplete="new-password" />
                                     </FormControl>
                                     <FormDescription>
                                         Leave blank to keep the current password.
@@ -488,7 +488,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>Email Address</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="Email Address" {...field} value={field.value ?? ""} />
+                                        <Input type="email" placeholder="Email Address" {...field} value={field.value ?? ""} autoComplete="email" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -501,7 +501,7 @@ function EditUserForm({ user, onFormSubmit, open, onOpenChange }: { user: User |
                                 <FormItem>
                                     <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Phone Number" {...field} value={field.value ?? ""} />
+                                        <Input placeholder="Phone Number" {...field} value={field.value ?? ""} autoComplete="tel" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
