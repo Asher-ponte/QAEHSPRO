@@ -1,4 +1,5 @@
 
+
 'use server';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
@@ -80,11 +81,13 @@ async function syncCourseToDb(db: any, targetSiteId: string, masterCourseData: a
         await db.query(
             `UPDATE courses SET 
                 description = ?, category = ?, imagePath = ?, venue = ?, 
-                startDate = ?, endDate = ?, is_internal = ?, is_public = ?
+                startDate = ?, endDate = ?, is_internal = ?, is_public = ?,
+                final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
              WHERE id = ?`,
             [
                 masterCourseData.description, masterCourseData.category, masterCourseData.imagePath, masterCourseData.venue,
                 masterCourseData.startDate, masterCourseData.endDate, masterCourseData.is_internal, masterCourseData.is_public,
+                masterCourseData.final_assessment_content, masterCourseData.final_assessment_passing_rate, masterCourseData.final_assessment_max_attempts,
                 targetCourseId
             ]
         );
@@ -97,12 +100,12 @@ async function syncCourseToDb(db: any, targetSiteId: string, masterCourseData: a
         }
         
         for (const [moduleIndex, moduleData] of masterCourseData.modules.entries()) {
-            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
+            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, \`order\`) VALUES (?, ?, ?)', [targetCourseId, moduleData.title, moduleIndex + 1]);
             const moduleId = moduleResult.insertId;
             if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                await db.query('INSERT INTO lessons (module_id, title, type, content, `order`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
+                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonData.content, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
             }
         }
 
