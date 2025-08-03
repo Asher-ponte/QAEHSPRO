@@ -4,461 +4,126 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
-import { z } from 'zod';
 import { getCurrentSession } from '@/lib/session';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+import type { RowDataPacket } from 'mysql2';
 
-function transformQuestionsToDbFormat(questions: any[]) {
-    if (!questions || !Array.isArray(questions)) return null;
-    return JSON.stringify(questions.map(q => ({
-        text: q.text,
-        options: q.options.map((opt: { text: string }, index: number) => ({
-            text: opt.text,
-            isCorrect: index === q.correctOptionIndex,
-        })),
-    })));
-}
-
-function transformDbToQuestionsFormat(content: string | null): any[] {
-    if (!content) return [];
-    try {
-        const dbQuestions = JSON.parse(content);
-        if (!Array.isArray(dbQuestions)) return [];
-        
-        return dbQuestions.map((q: any) => ({
-            text: q.text,
-            options: q.options.map((opt: any) => ({ text: opt.text })),
-            correctOptionIndex: q.options.findIndex((opt: any) => opt.isCorrect),
-        }));
-    } catch (e) {
-        console.error("Failed to parse DB questions format:", e);
-        return [];
+async function hasAccess(db: any, user: any, courseId: number) {
+    if (user.role === 'Admin') return true;
+    
+    // Check for direct enrollment
+    const [enrollmentRows] = await db.query<RowDataPacket[]>('SELECT user_id FROM enrollments WHERE user_id = ? AND course_id = ?', [user.id, courseId]);
+    if (enrollmentRows.length > 0) {
+        return true;
     }
-}
-
-
-const assessmentQuestionOptionSchema = z.object({
-  id: z.number().optional(),
-  text: z.string(),
-});
-
-const assessmentQuestionSchema = z.object({
-  id: z.number().optional(),
-  text: z.string(),
-  options: z.array(assessmentQuestionOptionSchema).min(2, "Must have at least two options."),
-  correctOptionIndex: z.coerce.number().min(0, "A correct option must be selected."),
-});
-
-const lessonSchema = z.object({
-  id: z.number().optional(),
-  title: z.string(),
-  type: z.enum(["video", "document", "quiz"]),
-  content: z.string().optional().nullable(),
-  imagePath: z.string().optional().nullable(),
-  documentPath: z.string().optional().nullable(),
-  questions: z.array(assessmentQuestionSchema).optional(),
-});
-
-const moduleSchema = z.object({
-  id: z.number().optional(),
-  title: z.string(),
-  lessons: z.array(lessonSchema),
-});
-
-const courseUpdateSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  category: z.string(),
-  imagePath: z.string().optional().nullable(),
-  venue: z.string().optional().nullable(),
-  startDate: z.string().optional().nullable(),
-  endDate: z.string().optional().nullable(),
-  is_internal: z.boolean().default(true),
-  is_public: z.boolean().default(false),
-  price: z.coerce.number().optional().nullable(),
-  modules: z.array(moduleSchema),
-  signatoryIds: z.array(z.number()).default([]),
-
-  final_assessment_questions: z.array(assessmentQuestionSchema).optional(),
-  final_assessment_passing_rate: z.coerce.number().min(0).max(100).optional().nullable(),
-  final_assessment_max_attempts: z.coerce.number().min(1).optional().nullable(),
-
-  publishToSiteIds: z.array(z.string()).optional(),
-}).refine(data => {
-    if (data.startDate && data.endDate) {
-        return new Date(data.endDate) >= new Date(data.startDate);
-    }
-    return true;
-}, {
-    message: "End date must be on or after the start date.",
-    path: ["endDate"],
-}).refine(data => {
-    if (data.is_public && (data.price === null || data.price === undefined || data.price < 0)) {
-        return false;
-    }
-    return true;
-}, {
-    message: "Price must be a positive number for public courses.",
-    path: ["price"],
-}).refine(data => {
-    return data.is_internal || data.is_public;
-}, {
-    message: "A course must be available to at least one audience (Internal or Public).",
-    path: ["is_public"], 
-}).refine(data => {
-    if ((data.final_assessment_questions?.length ?? 0) > 0) {
-        return data.final_assessment_passing_rate !== null && data.final_assessment_passing_rate !== undefined && data.final_assessment_max_attempts !== null && data.final_assessment_max_attempts !== undefined;
-    }
-    return true;
-}, {
-    message: "Passing Rate and Max Attempts are required when there are assessment questions.",
-    path: ["final_assessment_passing_rate"],
-});
-
-const createCourseInDb = async (db: any, payload: z.infer<typeof courseUpdateSchema>, siteIdForCourse: string) => {
-    await db.query('START TRANSACTION');
-    try {
-        // Price should only be set for the external branch.
-        const coursePriceForThisBranch = siteIdForCourse === 'external' ? payload.price : null;
-
-        const finalAssessmentContent = (payload.final_assessment_questions && payload.final_assessment_questions.length > 0) 
-            ? transformQuestionsToDbFormat(payload.final_assessment_questions) 
-            : null;
-
-        const [courseResult] = await db.query<ResultSetHeader>(
-            `INSERT INTO courses (
-                site_id, title, description, category, imagePath, venue, startDate, endDate, 
-                is_internal, is_public, price, 
-                final_assessment_content, final_assessment_passing_rate, final_assessment_max_attempts
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                siteIdForCourse, payload.title, payload.description, payload.category, payload.imagePath, 
-                payload.venue, payload.startDate, payload.endDate, payload.is_internal, payload.is_public, 
-                coursePriceForThisBranch, 
-                finalAssessmentContent, payload.final_assessment_passing_rate, payload.final_assessment_max_attempts
-            ]
+    
+    // For external users, also check for a valid transaction
+    if (user.type === 'External') {
+        const [transactionRows] = await db.query<RowDataPacket[]>(
+            `SELECT id FROM transactions WHERE user_id = ? AND course_id = ? AND status IN ('pending', 'completed')`,
+            [user.id, courseId]
         );
-        const courseId = courseResult.insertId;
-        if (!courseId) throw new Error('Failed to create course');
-        
-        // Signatories for new branch copies should come from the main branch
-        const signatoryIds = payload.signatoryIds || [];
-        if (signatoryIds.length > 0) {
-            for (const signatoryId of signatoryIds) {
-                await db.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [courseId, signatoryId]);
-            }
+        if (transactionRows.length > 0) {
+            return true;
         }
-
-        for (const [moduleIndex, moduleData] of payload.modules.entries()) {
-            const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, \`order\`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
-            const moduleId = moduleResult.insertId;
-            if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
-
-            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                 const lessonContent = lessonData.type === 'quiz' && lessonData.questions
-                    ? transformQuestionsToDbFormat(lessonData.questions)
-                    : lessonData.content ?? null;
-
-                await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
-            }
-        }
-        await db.query('COMMIT');
-    } catch (e) {
-        await db.query('ROLLBACK');
-        throw e; // rethrow
     }
-};
 
+    return false;
+}
 
 export async function GET(
     request: NextRequest, 
     { params }: { params: { id: string } }
 ) {
     const { user, siteId } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    if (!user || !siteId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const db = await getDb();
+    const courseId = parseInt(params.id, 10);
+
+    if (isNaN(courseId)) {
+        return NextResponse.json({ error: 'Invalid course ID' }, { status: 400 });
+    }
+    
+    const canAccess = await hasAccess(db, user, courseId);
+    if (!canAccess) {
+        return NextResponse.json({ error: 'You are not enrolled in this course.' }, { status: 403 });
     }
 
     try {
-        const db = await getDb();
-        const { id: courseId } = params;
-
-        if (!courseId) {
-            return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
-        }
-
         const [courseRows] = await db.query<RowDataPacket[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
-        const course = courseRows[0] as any;
+        const course = courseRows[0];
+
         if (!course) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
 
-        const [modulesAndLessons] = await db.query<any[]>(`
-            SELECT 
-                m.id as module_id, 
-                m.title as module_title, 
-                l.id as lesson_id,
-                l.title as lesson_title,
-                l.type as lesson_type,
-                l.content as lesson_content,
-                l.imagePath as lesson_imagePath,
-                l.documentPath as lesson_documentPath
+        const [modulesAndLessons] = await db.query<RowDataPacket[]>(`
+            SELECT m.id as module_id, m.title, l.id as lesson_id, l.title as lesson_title, l.type as lesson_type,
+                   (SELECT COUNT(*) > 0 FROM user_progress up WHERE up.lesson_id = l.id AND up.user_id = ? AND up.completed = 1) as completed
             FROM modules m
             LEFT JOIN lessons l ON m.id = l.module_id
             WHERE m.course_id = ?
             ORDER BY m.\`order\` ASC, l.\`order\` ASC
-        `, [courseId]);
-        
+        `, [user.id, courseId]);
+
         const modulesMap = new Map<number, any>();
         for (const row of modulesAndLessons) {
-             if (!modulesMap.has(row.module_id)) {
+            if (!modulesMap.has(row.module_id)) {
                 modulesMap.set(row.module_id, {
                     id: row.module_id,
-                    title: row.module_title,
+                    title: row.title,
                     lessons: []
                 });
             }
             if (row.lesson_id) {
-                const lesson: any = {
+                modulesMap.get(row.module_id).lessons.push({
                     id: row.lesson_id,
                     title: row.lesson_title,
                     type: row.lesson_type,
-                    imagePath: row.lesson_imagePath ?? null,
-                    documentPath: row.lesson_documentPath ?? null,
-                    content: row.lesson_content ?? null,
-                };
-
-                if (lesson.type === 'quiz' && lesson.content) {
-                    lesson.questions = transformDbToQuestionsFormat(lesson.content);
-                    lesson.content = null; // Don't send the raw content for quizzes
-                }
-
-                modulesMap.get(row.module_id).lessons.push(lesson);
+                    completed: !!row.completed
+                });
             }
         }
-        course.modules = Array.from(modulesMap.values());
         
-        const [assignedSignatories] = await db.query<any[]>('SELECT signatory_id FROM course_signatories WHERE course_id = ?', [courseId]);
-        const signatoryIds = assignedSignatories.map(s => s.signatory_id);
+        // Check if user has passed the final assessment
+        const [passedAssessmentRows] = await db.query<RowDataPacket[]>(
+            `SELECT course_id FROM final_assessment_attempts WHERE user_id = ? AND course_id = ? AND passed = 1`,
+            [user.id, courseId]
+        );
+        const hasPassedAssessment = passedAssessmentRows.length > 0;
         
-        const finalAssessmentQuestions = transformDbToQuestionsFormat(course.final_assessment_content);
+        const totalLessons = modulesAndLessons.filter(ml => ml.lesson_id).length;
+        const completedLessons = modulesAndLessons.filter(ml => ml.completed).length;
+        const allLessonsCompleted = totalLessons > 0 && completedLessons >= totalLessons;
+
+        let transactionStatus = null;
+        if (user.type === 'External') {
+            const [transactionRows] = await db.query<RowDataPacket[]>(`SELECT status, rejection_reason FROM transactions WHERE user_id = ? AND course_id = ? ORDER BY transaction_date DESC LIMIT 1`, [user.id, courseId]);
+            if (transactionRows.length > 0) {
+                transactionStatus = { status: transactionRows[0].status, reason: transactionRows[0].rejection_reason };
+            }
+        }
 
         return NextResponse.json({
-            ...course,
-            is_internal: !!course.is_internal,
+            id: course.id,
+            title: course.title,
+            description: course.description,
+            imagePath: course.imagePath,
+            startDate: course.startDate,
+            endDate: course.endDate,
             is_public: !!course.is_public,
-            imagePath: course.imagePath ?? null,
-            venue: course.venue ?? null,
-            signatoryIds,
-            final_assessment_questions: finalAssessmentQuestions,
+            price: course.price,
+            modules: Array.from(modulesMap.values()),
+            isCompleted: hasPassedAssessment,
+            hasFinalAssessment: !!course.final_assessment_content,
+            allLessonsCompleted: allLessonsCompleted,
+            transactionStatus: transactionStatus,
         });
 
     } catch (error) {
-        console.error("Failed to fetch course for editing:", error);
-        return NextResponse.json({ error: 'Failed to fetch course due to a server error' }, { status: 500 });
-    }
-}
-
-
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
-    const { user, siteId, isSuperAdmin } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !siteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-    
-    let db;
-    try {
-        const courseId = parseInt(params.id, 10);
-        if (isNaN(courseId)) {
-            return NextResponse.json({ error: 'Course ID must be a number' }, { status: 400 });
-        }
-
-        const data = await request.json();
-        const parsedData = courseUpdateSchema.safeParse(data);
-
-        if (!parsedData.success) {
-            return NextResponse.json({ error: 'Invalid input', details: parsedData.error.flatten() }, { status: 400 });
-        }
-        
-        const { 
-            title, description, category, modules, imagePath, venue, startDate, endDate, 
-            is_internal, is_public, price, signatoryIds, 
-            final_assessment_questions, final_assessment_passing_rate, final_assessment_max_attempts,
-            publishToSiteIds
-        } = parsedData.data;
-        
-        const finalAssessmentContent = (final_assessment_questions && final_assessment_questions.length > 0)
-            ? transformQuestionsToDbFormat(final_assessment_questions)
-            : null;
-        
-        db = await getDb();
-        await db.query('START TRANSACTION');
-        
-        const [originalCourseRows] = await db.query<RowDataPacket[]>(`SELECT site_id FROM courses WHERE id = ?`, [courseId]);
-        const originalSiteId = originalCourseRows[0]?.site_id;
-        
-        // Price should only be set if the course is public.
-        // It's saved on the `external` branch version, not the `main` branch one.
-        const effectivePrice = is_public && originalSiteId === 'external' ? price : null;
-
-        await db.query(
-            `UPDATE courses SET 
-                title = ?, description = ?, category = ?, imagePath = ?, venue = ?, startDate = ?, endDate = ?, 
-                is_internal = ?, is_public = ?, price = ?, 
-                final_assessment_content = ?, final_assessment_passing_rate = ?, final_assessment_max_attempts = ?
-             WHERE id = ?`,
-            [
-                title, description, category, imagePath, venue, startDate, endDate, is_internal, is_public, effectivePrice,
-                finalAssessmentContent, final_assessment_passing_rate, final_assessment_max_attempts,
-                courseId
-            ]
-        );
-        
-        await db.query('DELETE FROM course_signatories WHERE course_id = ?', [courseId]);
-        if (signatoryIds && signatoryIds.length > 0) {
-            for (const signatoryId of signatoryIds) { 
-                await db.query('INSERT INTO course_signatories (course_id, signatory_id) VALUES (?, ?)', [courseId, signatoryId]);
-            }
-        }
-
-        const [existingModuleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
-        const existingModuleIds = new Set(existingModuleRows.map(m => m.id));
-        const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id as number));
-        for (const existingId of existingModuleIds) {
-            if (!payloadModuleIds.has(existingId)) { 
-                await db.query('DELETE FROM lessons WHERE module_id = ?', [existingId]);
-                await db.query('DELETE FROM modules WHERE id = ?', [existingId]); 
-            }
-        }
-
-        for (const [moduleIndex, moduleData] of modules.entries()) {
-            let moduleId = moduleData.id;
-            if (moduleId && existingModuleIds.has(moduleId)) {
-                await db.query('UPDATE modules SET title = ?, \`order\` = ? WHERE id = ?', [moduleData.title, moduleIndex + 1, moduleId]);
-            } else {
-                const [moduleResult] = await db.query<ResultSetHeader>('INSERT INTO modules (course_id, title, `order`) VALUES (?, ?, ?)', [courseId, moduleData.title, moduleIndex + 1]);
-                moduleId = moduleResult.insertId;
-                if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
-            }
-
-            const [existingLessonRows] = await db.query<any[]>('SELECT id FROM lessons WHERE module_id = ?', [moduleId]);
-            const existingLessonIds = new Set(existingLessonRows.map(l => l.id));
-            const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
-            for (const existingId of existingLessonIds) {
-                if (!payloadLessonIds.has(existingId)) { await db.query('DELETE FROM lessons WHERE id = ?', [existingId]); }
-            }
-
-            for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
-                const lessonContent = lessonData.type === 'quiz' && lessonData.questions
-                    ? transformQuestionsToDbFormat(lessonData.questions)
-                    : lessonData.content ?? null;
-
-                if (lessonData.id && existingLessonIds.has(lessonData.id)) {
-                     await db.query('UPDATE lessons SET title = ?, type = ?, content = ?, \`order\` = ?, imagePath = ?, documentPath = ? WHERE id = ?', [lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath, lessonData.id]);
-                } else {
-                    await db.query('INSERT INTO lessons (module_id, title, type, content, \`order\`, imagePath, documentPath) VALUES (?, ?, ?, ?, ?, ?, ?)', [moduleId, lessonData.title, lessonData.type, lessonContent, lessonIndex + 1, lessonData.imagePath, lessonData.documentPath]);
-                }
-            }
-        }
-        
-        // --- Handle Publishing to New Branches ---
-        const replicationErrors: string[] = [];
-        if (isSuperAdmin && publishToSiteIds && publishToSiteIds.length > 0) {
-            for (const targetSiteId of publishToSiteIds) {
-                try {
-                    await createCourseInDb(db, parsedData.data, targetSiteId);
-                } catch (error) {
-                     const errorMessage = `Failed to create course copy in branch '${targetSiteId}': ${error instanceof Error ? error.message : 'Unknown error'}`;
-                     console.error(errorMessage);
-                     replicationErrors.push(errorMessage);
-                }
-            }
-        }
-        
-        await db.query('COMMIT');
-        
-        if (replicationErrors.length > 0) {
-            return NextResponse.json({
-                success: true,
-                message: 'Main course updated, but failed to publish to some new branches.',
-                details: replicationErrors.join('\n')
-            }, { status: 207 });
-        }
-       
-        const [updatedCourseRows] = await db.query<any[]>('SELECT * FROM courses WHERE id = ?', [courseId]);
-        return NextResponse.json({
-            ...updatedCourseRows[0],
-            message: 'Course updated successfully.'
-        }, { status: 200 });
-
-    } catch (error) {
-        if (db) {
-            await db.query('ROLLBACK').catch(console.error);
-        }
-        console.error("Failed to update course:", error);
-        return NextResponse.json({ error: 'Failed to update course due to a server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
-    }
-}
-
-
-export async function DELETE(
-    request: NextRequest, 
-    { params }: { params: { id: string } }
-) {
-    const { user, siteId: sessionSiteId, isSuperAdmin } = await getCurrentSession();
-    if (user?.role !== 'Admin' || !sessionSiteId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    let db;
-    try {
-        db = await getDb();
-        const courseId = parseInt(params.id, 10);
-        if (isNaN(courseId)) {
-            return NextResponse.json({ error: 'Course ID must be a number' }, { status: 400 });
-        }
-
-        await db.query('START TRANSACTION');
-        
-        const [moduleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
-        if (moduleRows.length > 0) {
-            const moduleIds = moduleRows.map(m => m.id);
-            const [lessonRows] = await db.query<any[]>(`SELECT id FROM lessons WHERE module_id IN (?)`, [moduleIds]);
-            if (lessonRows.length > 0) {
-                const lessonIds = lessonRows.map(l => l.id);
-                await db.query(`DELETE FROM user_progress WHERE lesson_id IN (?)`, [lessonIds]);
-                await db.query(`DELETE FROM quiz_attempts WHERE lesson_id IN (?)`, [lessonIds]);
-            }
-            await db.query(`DELETE FROM lessons WHERE module_id IN (?)`, [moduleIds]);
-        }
-        
-        await db.query('DELETE FROM modules WHERE course_id = ?', [courseId]);
-        await db.query('DELETE FROM enrollments WHERE course_id = ?', [courseId]);
-        await db.query('DELETE FROM final_assessment_attempts WHERE course_id = ?', [courseId]);
-        await db.query('DELETE FROM course_signatories WHERE course_id = ?', [courseId]);
-        // Do not delete certificates, they are a historical record. But we need to unlink them.
-        await db.query('UPDATE certificates SET course_id = NULL WHERE course_id = ?', [courseId]);
-        
-        const [result] = await db.query<ResultSetHeader>('DELETE FROM courses WHERE id = ?', [courseId]);
-
-        if (result.affectedRows === 0) {
-             await db.query('ROLLBACK');
-             return NextResponse.json({ error: 'Course not found or already deleted' }, { status: 404 });
-        }
-        
-        await db.query('COMMIT');
-
-        return NextResponse.json({ success: true, message: `Course ${courseId} and all its related data deleted successfully.` });
-
-    } catch (error) {
-        if (db) {
-            await db.query('ROLLBACK').catch(console.error);
-        }
-        console.error("Failed to delete course:", error);
-        const details = error instanceof Error ? error.message : "An unknown error occurred.";
-        return NextResponse.json({ error: 'Failed to delete course due to a server error.', details }, { status: 500 });
+        console.error("Failed to fetch course details:", error);
+        return NextResponse.json({ error: 'Failed to fetch course details' }, { status: 500 });
     }
 }
