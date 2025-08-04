@@ -1,0 +1,62 @@
+
+"use client"
+
+import React from "react";
+import { format } from "date-fns";
+
+interface UserProgress {
+    id: number;
+    username: string;
+    fullName: string;
+    department: string;
+    progress: number;
+}
+
+interface AttendanceReportProps {
+    courseTitle: string;
+    users: UserProgress[];
+}
+
+export const AttendanceReport: React.FC<AttendanceReportProps> = ({ courseTitle, users }) => {
+    return (
+        <div id="attendance-report" className="bg-white text-black p-8 font-sans w-[210mm]">
+            <div className="text-center mb-8">
+                <h1 className="text-2xl font-bold uppercase">{courseTitle}</h1>
+                <h2 className="text-lg font-semibold">Attendance Sheet</h2>
+                <p className="text-sm">Date: {format(new Date(), "MMMM d, yyyy")}</p>
+            </div>
+            <table className="w-full border-collapse text-sm">
+                <thead>
+                    <tr className="bg-gray-200">
+                        <th className="border p-2 text-left w-12">No.</th>
+                        <th className="border p-2 text-left">Full Name</th>
+                        <th className="border p-2 text-left">Department</th>
+                        <th className="border p-2 text-left w-48">Signature</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {users.map((user, index) => (
+                        <tr key={user.id}>
+                            <td className="border p-2 text-center">{index + 1}</td>
+                            <td className="border p-2">{user.fullName || user.username}</td>
+                            <td className="border p-2">{user.department || 'N/A'}</td>
+                            <td className="border p-2"></td>
+                        </tr>
+                    ))}
+                    {/* Add blank rows if less than 20 users */}
+                    {Array.from({ length: Math.max(0, 20 - users.length) }).map((_, index) => (
+                         <tr key={`blank-${index}`}>
+                            <td className="border p-2 text-center">{users.length + index + 1}</td>
+                            <td className="border p-2"></td>
+                            <td className="border p-2"></td>
+                            <td className="border p-2"></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            <div className="mt-8 text-xs text-gray-500">
+                <p>Generated on: {format(new Date(), "PPpp")}</p>
+            </div>
+        </div>
+    );
+};

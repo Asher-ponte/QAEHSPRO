@@ -4,7 +4,9 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from "react"
 import Link from "next/link"
-import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library, Building, Search } from "lucide-react"
+import { PlusCircle, Edit, Trash2, MoreHorizontal, ArrowLeft, Loader2, Users, BarChart, CheckCircle, RefreshCcw, DollarSign, Library, Building, Search, FileDown } from "lucide-react"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -64,6 +66,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useSession } from "@/hooks/use-session"
 import type { Site } from "@/lib/sites"
+import { AttendanceReport } from "@/components/attendance-report"
 
 interface CourseAdminView {
   id: number;
@@ -533,6 +536,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     const [selectedSiteId, setSelectedSiteId] = useState(course?.siteId || currentSite?.id);
     const [progressData, setProgressData] = useState<UserProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [filter, setFilter] = useState('');
     const [showNotCompleted, setShowNotCompleted] = useState(false);
     const [showRetrainingDialog, setShowRetrainingDialog] = useState(false);
@@ -598,7 +602,6 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
         }
     }, [open, course, selectedSiteId, toast]);
 
-
     const { completedCount, notCompletedCount } = useMemo(() => {
         if (!progressData.length) return { completedCount: 0, notCompletedCount: 0 };
         const completed = progressData.filter(p => p.progress === 100).length;
@@ -627,6 +630,41 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
             (user.department?.toLowerCase() || '').includes(lowercasedFilter)
         );
     }, [progressData, filter, showNotCompleted]);
+    
+    const handleGenerateReport = async () => {
+        if (!course || progressData.length === 0) return;
+        setIsGeneratingPdf(true);
+        
+        const reportElement = document.getElementById('attendance-report');
+        if (!reportElement) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Report element not found.' });
+            setIsGeneratingPdf(false);
+            return;
+        }
+
+        try {
+            const canvas = await html2canvas(reportElement, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            
+            const imgWidth = pdfWidth - 20; // with margin
+            const imgHeight = imgWidth / ratio;
+            
+            pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+            pdf.save(`Attendance-${course.title.replace(/ /g, '_')}.pdf`);
+            
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'PDF Error', description: 'Could not generate attendance report.' });
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
 
     const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || course?.siteName || currentSite?.name || '';
     const canRetrain = (isSuperAdmin || user?.role === 'Admin') && selectedSiteId !== 'external';
@@ -643,6 +681,14 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         }
                     </DialogDescription>
                 </DialogHeader>
+                
+                {/* Hidden report for PDF generation */}
+                <div className="absolute -left-[9999px] top-0">
+                    <AttendanceReport 
+                        courseTitle={course?.title || ''}
+                        users={progressData}
+                    />
+                </div>
 
                 <div className="py-4 space-y-4">
                      {isSuperAdmin && (
@@ -748,14 +794,18 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         </ScrollArea>
                     )}
                 </div>
-                <DialogFooter className="sm:justify-between">
-                    <div>
+                <DialogFooter className="sm:justify-between items-center gap-2">
+                    <div className="flex gap-2">
                         {canRetrain && (
                             <Button variant="destructive" onClick={() => setShowRetrainingDialog(true)}>
                                 <RefreshCcw className="mr-2 h-4 w-4" />
-                                Initiate Re-Training
+                                Re-Training
                             </Button>
                         )}
+                        <Button variant="secondary" onClick={handleGenerateReport} disabled={isGeneratingPdf || progressData.length === 0}>
+                            {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                            Generate Report
+                        </Button>
                     </div>
                     <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
