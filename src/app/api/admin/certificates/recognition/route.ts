@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
         const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
 
         const [certResult] = await db.query<ResultSetHeader>(
-            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, null, date.toISOString(), certificateNumber, 'recognition', reason, effectiveSiteId]
+            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, null, date.toISOString(), certificateNumber, 'recognition', reason]
         );
         const certificateId = certResult.insertId;
         if (!certificateId) {

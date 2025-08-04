@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
         simulationLog.steps.push({ name: 'Generate Certificate Number', status: 'success', data: { certificateNumber } });
         
         const [certResult] = await db.query<ResultSetHeader>(
-            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, null, date, certificateNumber, 'recognition', reason, siteId]
+            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason) VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, null, date, certificateNumber, 'recognition', reason]
         );
         const certificateId = certResult.insertId;
         if (!certificateId) throw new Error("Failed to insert certificate record.");
