@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
         await db.query('START TRANSACTION');
         
         const datePrefix = format(date, 'yyyyMMdd');
-        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+        // Add `FOR UPDATE` to lock the rows being counted, preventing race conditions.
+        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
         const count = countRows[0]?.count ?? 0;
         const nextSerial = count + 1;
         const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;

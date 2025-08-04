@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         if (passed) {
              const date = new Date();
              const datePrefix = format(date, 'yyyyMMdd');
-             const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ?`, [`QAEHS-${datePrefix}-%`]);
+             const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
              const count = countRows[0]?.count ?? 0;
              const nextSerial = count + 1;
              certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
