@@ -321,11 +321,17 @@ export async function PUT(
             }
         }
 
-        const [existingModuleRows] = await db.query<any[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
+        const [existingModuleRows] = await db.query<RowDataPacket[]>('SELECT id FROM modules WHERE course_id = ?', [courseId]);
         const existingModuleIds = new Set(existingModuleRows.map(m => m.id));
         const payloadModuleIds = new Set(modules.filter(m => m.id).map(m => m.id as number));
         for (const existingId of existingModuleIds) {
             if (!payloadModuleIds.has(existingId)) { 
+                const [lessonIdsToDelete] = await db.query<RowDataPacket[]>('SELECT id FROM lessons WHERE module_id = ?', [existingId]);
+                const lessonIds = lessonIdsToDelete.map(l => l.id);
+                if (lessonIds.length > 0) {
+                     await db.query('DELETE FROM quiz_attempts WHERE lesson_id IN (?)', [lessonIds]);
+                     await db.query('DELETE FROM user_progress WHERE lesson_id IN (?)', [lessonIds]);
+                }
                 await db.query('DELETE FROM lessons WHERE module_id = ?', [existingId]);
                 await db.query('DELETE FROM modules WHERE id = ?', [existingId]); 
             }
@@ -341,11 +347,15 @@ export async function PUT(
                 if (!moduleId) throw new Error(`Failed to create module: ${moduleData.title}`);
             }
 
-            const [existingLessonRows] = await db.query<any[]>('SELECT id FROM lessons WHERE module_id = ?', [moduleId]);
+            const [existingLessonRows] = await db.query<RowDataPacket[]>('SELECT id FROM lessons WHERE module_id = ?', [moduleId]);
             const existingLessonIds = new Set(existingLessonRows.map(l => l.id));
             const payloadLessonIds = new Set(moduleData.lessons.filter(l => l.id).map(l => l.id as number));
             for (const existingId of existingLessonIds) {
-                if (!payloadLessonIds.has(existingId)) { await db.query('DELETE FROM lessons WHERE id = ?', [existingId]); }
+                if (!payloadLessonIds.has(existingId)) { 
+                    await db.query('DELETE FROM quiz_attempts WHERE lesson_id = ?', [existingId]);
+                    await db.query('DELETE FROM user_progress WHERE lesson_id = ?', [existingId]);
+                    await db.query('DELETE FROM lessons WHERE id = ?', [existingId]); 
+                }
             }
 
             for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
