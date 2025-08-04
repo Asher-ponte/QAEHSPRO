@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
         await db.query('START TRANSACTION');
 
-        const [userRows] = await db.query<RowDataPacket[]>('SELECT id FROM users WHERE id = ?', [userId]);
+        const [userRows] = await db.query<RowDataPacket[]>('SELECT id, site_id FROM users WHERE id = ?', [userId]);
         if (userRows.length === 0) {
             await db.query('ROLLBACK');
             return NextResponse.json({ error: `User with ID ${userId} does not exist.` }, { status: 404 });
@@ -96,11 +96,14 @@ export async function POST(request: NextRequest) {
              const nextSerial = count + 1;
              certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
         
-            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, site_id, completion_date, type, certificate_number) VALUES (?, ?, ?, ?, 'completion', ?)`, [testUser.id, courseId, course.site_id, date, certificateNumber]);
+            const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, completion_date, type, certificate_number) VALUES (?, ?, ?, 'completion', ?)`, [testUser.id, courseId, date, certificateNumber]);
             certificateInsertId = certResult.insertId;
             
+            // The user's site_id is needed for the validation function.
+            const validationSiteId = course.site_id || testUser.site_id;
+
             // Now, fetch the full data payload for this new (temporary) certificate
-            const { data, error } = await getCertificateDataForValidation(certificateNumber, course.site_id);
+            const { data, error } = await getCertificateDataForValidation(certificateNumber, validationSiteId);
              if (error) {
                 console.error("Debug certificate fetch failed:", error);
                 // Don't fail the whole test, just note the error.
