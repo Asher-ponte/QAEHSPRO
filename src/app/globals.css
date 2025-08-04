@@ -24,11 +24,11 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 24.6 95% 53.1%; /* Custom Orange */
-    --chart-1: 221.2 83.2% 58%;
-    --chart-2: 145.1 63.2% 44.9%;
-    --chart-3: 215 70% 65%;
-    --chart-4: 45 93% 57%;
-    --chart-5: 45 93% 57%;
+    --chart-1: 220 70% 50%; /* Blue */
+    --chart-2: 160 60% 45%; /* Green */
+    --chart-3: 30 80% 55%;  /* Orange */
+    --chart-4: 280 65% 60%; /* Purple */
+    --chart-5: 350 75% 65%; /* Pink */
     --radius: 0.5rem;
     --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 210 40% 98%;
@@ -59,11 +59,11 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 24.6 95% 53.1%; /* Custom Orange */
-    --chart-1: 221.2 83.2% 68%;
-    --chart-2: 145.1 63.2% 54.9%;
-    --chart-3: 215 70% 75%;
-    --chart-4: 45 93% 67%;
-    --chart-5: 45 93% 67%;
+    --chart-1: 220 70% 65%; /* Lighter Blue */
+    --chart-2: 160 60% 55%; /* Lighter Green */
+    --chart-3: 30 80% 65%;  /* Lighter Orange */
+    --chart-4: 280 65% 70%; /* Lighter Purple */
+    --chart-5: 350 75% 75%; /* Lighter Pink */
     --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 98%;

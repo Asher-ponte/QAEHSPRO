@@ -58,21 +58,21 @@ const enrollmentChartConfig = {
 const completionRateChartConfig = {
   "Completion Rate": {
     label: "Completion Rate (%)",
-    color: "hsl(var(--chart-3))",
+    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig
 
 const performanceChartConfig = {
   "Average Score": {
     label: "Avg. Score (%)",
-    color: "hsl(var(--chart-4))",
+    color: "hsl(var(--chart-3))",
   },
 } satisfies ChartConfig
 
 const monthlyCompletionsChartConfig = {
   Completions: {
     label: "Completions",
-    color: "hsl(var(--chart-2))",
+    color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig
 
@@ -101,16 +101,14 @@ function AnalyticsSkeleton() {
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
                 <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
             </div>
-            <div className="grid gap-4">
-                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="lg:col-span-2"><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
+                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
+                 <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
             </div>
         </div>
     )
@@ -161,7 +159,6 @@ export default function ViewAnalyticsPage() {
                 const responseData = await res.json();
                 
                 if (!res.ok) {
-                    // This handles general API failures (e.g., 500 server error)
                     const errorDetails = responseData.details ? `: ${responseData.details}` : '';
                     throw new Error(`${responseData.error || "Failed to fetch analytics data"}${errorDetails}`);
                 }
@@ -255,47 +252,24 @@ export default function ViewAnalyticsPage() {
                         ))}
                     </div>
                 )}
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Course Completions Over Time</CardTitle>
-                        <CardDescription>Tracks monthly course completions to identify learning trends.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="min-h-[350px]">
-                        {data.monthlyCompletionData.error ? (
-                            <ChartError title="Monthly Completions" error={data.monthlyCompletionData.error} />
-                        ) : (
-                            <ChartContainer config={monthlyCompletionsChartConfig} className="min-h-[300px] w-full">
-                                <LineChart accessibilityLayer data={data.monthlyCompletionData.data ?? []} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                                    <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-                                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                                    <Line dataKey="Completions" type="natural" stroke="var(--color-Completions)" strokeWidth={2} dot={{ fill: "var(--color-Completions)" }} activeDot={{ r: 6 }} />
-                                </LineChart>
-                            </ChartContainer>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Card>
+                
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Card className="lg:col-span-2">
                         <CardHeader>
-                            <CardTitle>Top 5 Most Enrolled Courses</CardTitle>
-                            <CardDescription>Identifies the most popular courses to understand content demand.</CardDescription>
+                            <CardTitle>Monthly Course Completions</CardTitle>
+                            <CardDescription>Tracks course completions to identify learning trends.</CardDescription>
                         </CardHeader>
-                        <CardContent className="min-h-[350px]">
-                            {data.courseEnrollmentData.error ? (
-                                <ChartError title="Most Enrolled Courses" error={data.courseEnrollmentData.error} />
+                        <CardContent className="h-[24rem] pt-6">
+                            {data.monthlyCompletionData.error ? (
+                                <ChartError title="Monthly Completions" error={data.monthlyCompletionData.error} />
                             ) : (
-                                <ChartContainer config={enrollmentChartConfig} className="min-h-[300px] w-full">
-                                    <BarChart accessibilityLayer data={data.courseEnrollmentData.data ?? []} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={10} angle={-45} textAnchor="end" height={60} interval={0} className="text-xs" />
-                                        <YAxis />
-                                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                                        <Bar dataKey="Enrollments" fill="var(--color-Enrollments)" radius={4}>
-                                          <LabelList position="top" offset={4} className="fill-foreground" fontSize={12} />
-                                        </Bar>
-                                    </BarChart>
+                                <ChartContainer config={monthlyCompletionsChartConfig} className="w-full h-full">
+                                    <LineChart accessibilityLayer data={data.monthlyCompletionData.data ?? []} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                                        <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} />
+                                        <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                                        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                                        <Line dataKey="Completions" type="monotone" stroke="var(--color-Completions)" strokeWidth={3} dot={false} />
+                                    </LineChart>
                                 </ChartContainer>
                             )}
                         </CardContent>
@@ -303,20 +277,20 @@ export default function ViewAnalyticsPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Top 5 Course Completion Rates</CardTitle>
-                            <CardDescription>Shows which courses are most effective at retaining learners.</CardDescription>
+                            <CardTitle>Top Enrolled Courses</CardTitle>
+                            <CardDescription>The most popular courses by enrollment.</CardDescription>
                         </CardHeader>
-                        <CardContent className="min-h-[350px]">
-                            {data.courseCompletionRateData.error ? (
-                                <ChartError title="Course Completion Rates" error={data.courseCompletionRateData.error} />
+                        <CardContent className="h-[24rem] pt-6">
+                            {data.courseEnrollmentData.error ? (
+                                <ChartError title="Most Enrolled Courses" error={data.courseEnrollmentData.error} />
                             ) : (
-                                <ChartContainer config={completionRateChartConfig} className="min-h-[300px] w-full">
-                                    <BarChart accessibilityLayer data={data.courseCompletionRateData.data ?? []} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={10} angle={-45} textAnchor="end" height={60} interval={0} className="text-xs" />
-                                        <YAxis domain={[0, 100]} unit="%" />
-                                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />} />
-                                        <Bar dataKey="Completion Rate" fill="var(--color-Completion-Rate)" radius={4}>
-                                           <LabelList position="top" offset={4} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
+                                <ChartContainer config={enrollmentChartConfig} className="w-full h-full">
+                                    <BarChart accessibilityLayer data={data.courseEnrollmentData.data ?? []} layout="vertical" margin={{ left: -20, right: 30 }}>
+                                        <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={10} width={120} className="text-xs" interval={0} />
+                                        <XAxis type="number" hide />
+                                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                                        <Bar dataKey="Enrollments" fill="var(--color-Enrollments)" radius={5}>
+                                          <LabelList position="right" offset={8} className="fill-foreground" fontSize={12} />
                                         </Bar>
                                     </BarChart>
                                 </ChartContainer>
@@ -325,45 +299,67 @@ export default function ViewAnalyticsPage() {
                     </Card>
                 </div>
                 
-                <div className="grid gap-4 md:grid-cols-2">
+                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Highest Completion Rates</CardTitle>
+                            <CardDescription>Courses most effective at retaining learners.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[24rem] pt-6">
+                            {data.courseCompletionRateData.error ? (
+                                <ChartError title="Course Completion Rates" error={data.courseCompletionRateData.error} />
+                            ) : (
+                                <ChartContainer config={completionRateChartConfig} className="w-full h-full">
+                                    <BarChart accessibilityLayer data={data.courseCompletionRateData.data ?? []} layout="vertical" margin={{ left: -20, right: 40 }}>
+                                        <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={10} width={120} className="text-xs" interval={0} />
+                                        <XAxis type="number" hide domain={[0, 100]} />
+                                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />} />
+                                        <Bar dataKey="Completion Rate" fill="var(--color-Completion-Rate)" radius={5}>
+                                           <LabelList position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
+                                        </Bar>
+                                    </BarChart>
+                                </ChartContainer>
+                            )}
+                        </CardContent>
+                    </Card>
                     <Card>
                         <CardHeader>
                             <CardTitle>Lowest Performing Courses</CardTitle>
-                            <CardDescription>Highlights courses where content may need clarification or improvement.</CardDescription>
+                            <CardDescription>Courses where learners struggle the most.</CardDescription>
                         </CardHeader>
-                        <CardContent className="min-h-[350px]">
+                        <CardContent className="h-[24rem] pt-6">
                              {data.quizPerformanceData.error ? (
                                 <ChartError title="Lowest Performing Courses" error={data.quizPerformanceData.error} />
                              ) : (
-                                <ChartContainer config={performanceChartConfig} className="min-h-[300px] w-full">
-                                    <BarChart accessibilityLayer data={data.quizPerformanceData.data ?? []} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={10} angle={-45} textAnchor="end" height={60} interval={0} className="text-xs" />
-                                        <YAxis domain={[0, 100]} unit="%" />
+                                <ChartContainer config={performanceChartConfig} className="w-full h-full">
+                                    <BarChart accessibilityLayer data={data.quizPerformanceData.data ?? []} layout="vertical" margin={{ left: -20, right: 40 }}>
+                                        <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={10} width={120} className="text-xs" interval={0} />
+                                        <XAxis type="number" hide domain={[0, 100]} />
                                         <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />} />
-                                        <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
-                                           <LabelList position="top" offset={4} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
+                                        <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={5}>
+                                           <LabelList position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
                                         </Bar>
                                     </BarChart>
                                 </ChartContainer>
                              )}
                         </CardContent>
                     </Card>
-                    <Card>
+                     <Card>
                         <CardHeader>
                             <CardTitle>Users Needing Improvement</CardTitle>
-                            <CardDescription>Identifies users who may need additional support or intervention.</CardDescription>
+                            <CardDescription>Learners who may need additional support.</CardDescription>
                         </CardHeader>
-                        <CardContent className="min-h-[350px]">
+                        <CardContent className="h-[24rem] pt-6">
                             {data.userPerformanceData.error ? (
                                 <ChartError title="Users Needing Improvement" error={data.userPerformanceData.error} />
                             ) : (
-                                <ChartContainer config={performanceChartConfig} className="min-h-[300px] w-full">
-                                    <BarChart accessibilityLayer data={data.userPerformanceData.data ?? []} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={10} angle={-45} textAnchor="end" height={60} interval={0} className="text-xs" />
-                                        <YAxis domain={[0, 100]} unit="%" />
+                                <ChartContainer config={performanceChartConfig} className="w-full h-full">
+                                     <BarChart accessibilityLayer data={data.userPerformanceData.data ?? []} layout="vertical" margin={{ left: -20, right: 40 }}>
+                                        <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={10} width={120} className="text-xs" interval={0} />
+                                        <XAxis type="number" hide domain={[0, 100]} />
                                         <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />} />
-                                        <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={4}>
-                                           <LabelList position="top" offset={4} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
+                                        <Bar dataKey="Average Score" fill="var(--color-Average-Score)" radius={5}>
+                                           <LabelList position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => `${value}%`} />
                                         </Bar>
                                     </BarChart>
                                 </ChartContainer>
