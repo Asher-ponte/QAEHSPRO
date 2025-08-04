@@ -2,12 +2,15 @@
 "use client"
 
 import { type ReactNode, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
 import { SessionProvider } from "@/hooks/use-session"
 
 let appVersion: string | null = null;
 
 function AutoRefresh() {
+  const router = useRouter();
+
   useEffect(() => {
     // Fetch the initial version when the component mounts
     fetch('/api/version').then(res => res.json()).then(data => {
@@ -25,8 +28,8 @@ function AutoRefresh() {
         const serverVersion = data.version;
 
         if (appVersion && serverVersion && appVersion !== serverVersion) {
-          console.log('New version detected. Reloading page...');
-          window.location.reload();
+          console.log('New version detected. Refreshing data...');
+          router.refresh();
         }
       } catch (error) {
         console.error('Failed to check for new version:', error);
@@ -34,7 +37,7 @@ function AutoRefresh() {
     }, 60 * 1000); // Check every 60 seconds
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [router]);
 
   return null; // This component does not render anything
 }
