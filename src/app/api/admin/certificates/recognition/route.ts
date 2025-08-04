@@ -55,16 +55,25 @@ export async function POST(request: NextRequest) {
 
         await db.query('START TRANSACTION');
         
-        const datePrefix = format(date, 'yyyyMMdd');
-        // Add `FOR UPDATE` to lock the rows being counted, preventing race conditions.
-        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
-        const count = countRows[0]?.count ?? 0;
-        const nextSerial = count + 1;
-        const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+        const dateForSerial = format(date, 'yyyy-MM-dd');
+
+        // Atomically create or increment the serial number for the given day
+        await db.query(
+            `INSERT INTO certificate_serials (prefix, serial_date, last_serial) VALUES ('QAEHS', ?, 1) ON DUPLICATE KEY UPDATE last_serial = last_serial + 1`,
+            [dateForSerial]
+        );
+        const [serialRows] = await db.query<RowDataPacket[]>(
+            `SELECT last_serial FROM certificate_serials WHERE prefix = 'QAEHS' AND serial_date = ?`,
+            [dateForSerial]
+        );
+        const nextSerial = serialRows[0].last_serial;
+
+        const certificateNumber = `QAEHS-${format(date, 'yyyyMMdd')}-${String(nextSerial).padStart(4, '0')}`;
+
 
         const [certResult] = await db.query<ResultSetHeader>(
-            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, null, date.toISOString(), certificateNumber, 'recognition', reason]
+            `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type, reason) VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, null, date, certificateNumber, 'recognition', reason]
         );
         const certificateId = certResult.insertId;
         if (!certificateId) {

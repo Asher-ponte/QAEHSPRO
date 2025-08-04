@@ -47,11 +47,11 @@ export async function POST(request: NextRequest) {
         simulationLog.steps.push({ name: 'Verify Signatories Exist', status: 'success', data: { found: signatoryRows.length } });
         
         const date = new Date();
-        const datePrefix = format(date, 'yyyyMMdd');
-        const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
-        const count = countRows[0]?.count ?? 0;
-        const nextSerial = count + 1;
-        const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+        const dateForSerial = format(date, 'yyyy-MM-dd');
+        await db.query(`INSERT INTO certificate_serials (prefix, serial_date, last_serial) VALUES ('QAEHS', ?, 1) ON DUPLICATE KEY UPDATE last_serial = last_serial + 1`, [dateForSerial]);
+        const [serialRows] = await db.query<RowDataPacket[]>(`SELECT last_serial FROM certificate_serials WHERE prefix = 'QAEHS' AND serial_date = ?`, [dateForSerial]);
+        const nextSerial = serialRows[0].last_serial;
+        const certificateNumber = `QAEHS-${format(date, 'yyyyMMdd')}-${String(nextSerial).padStart(4, '0')}`;
         simulationLog.steps.push({ name: 'Generate Certificate Number', status: 'success', data: { certificateNumber } });
         
         const [certResult] = await db.query<ResultSetHeader>(

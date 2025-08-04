@@ -107,11 +107,19 @@ export async function POST(
             } else {
                 const today = new Date();
                 const completionDateFormatted = format(today, 'yyyy-MM-dd HH:mm:ss');
-                const datePrefix = format(today, 'yyyyMMdd');
-                const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
-                const count = countRows[0]?.count ?? 0;
-                const nextSerial = count + 1;
-                const certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+                const dateForSerial = format(today, 'yyyy-MM-dd');
+                
+                await db.query(
+                    `INSERT INTO certificate_serials (prefix, serial_date, last_serial) VALUES ('QAEHS', ?, 1) ON DUPLICATE KEY UPDATE last_serial = last_serial + 1`,
+                    [dateForSerial]
+                );
+                const [serialRows] = await db.query<RowDataPacket[]>(
+                    `SELECT last_serial FROM certificate_serials WHERE prefix = 'QAEHS' AND serial_date = ?`,
+                    [dateForSerial]
+                );
+                const nextSerial = serialRows[0].last_serial;
+
+                const certificateNumber = `QAEHS-${format(today, 'yyyyMMdd')}-${String(nextSerial).padStart(4, '0')}`;
 
                 const [certResult] = await db.query<ResultSetHeader>(
                     `INSERT INTO certificates (user_id, course_id, completion_date, certificate_number, type) VALUES (?, ?, ?, ?, 'completion')`,

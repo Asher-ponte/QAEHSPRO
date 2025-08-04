@@ -90,11 +90,13 @@ export async function POST(request: NextRequest) {
 
         if (passed) {
              const date = new Date();
-             const datePrefix = format(date, 'yyyyMMdd');
-             const [countRows] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) as count FROM certificates WHERE certificate_number LIKE ? FOR UPDATE`, [`QAEHS-${datePrefix}-%`]);
-             const count = countRows[0]?.count ?? 0;
-             const nextSerial = count + 1;
-             certificateNumber = `QAEHS-${datePrefix}-${String(nextSerial).padStart(4, '0')}`;
+             const dateForSerial = format(date, 'yyyy-MM-dd');
+             
+             await db.query(`INSERT INTO certificate_serials (prefix, serial_date, last_serial) VALUES ('QAEHS', ?, 1) ON DUPLICATE KEY UPDATE last_serial = last_serial + 1`, [dateForSerial]);
+             const [serialRows] = await db.query<RowDataPacket[]>(`SELECT last_serial FROM certificate_serials WHERE prefix = 'QAEHS' AND serial_date = ?`, [dateForSerial]);
+             const nextSerial = serialRows[0].last_serial;
+             
+             certificateNumber = `QAEHS-${format(date, 'yyyyMMdd')}-${String(nextSerial).padStart(4, '0')}`;
         
             const [certResult] = await db.query<ResultSetHeader>(`INSERT INTO certificates (user_id, course_id, completion_date, type, certificate_number) VALUES (?, ?, ?, 'completion', ?)`, [testUser.id, courseId, date, certificateNumber]);
             certificateInsertId = certResult.insertId;
