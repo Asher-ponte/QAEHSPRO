@@ -265,6 +265,19 @@ const LessonContent = ({
                 </div>
             );
         case 'document':
+             // If a PDF is attached, display it as the primary content.
+            if (lesson.documentPath) {
+                return (
+                    <div className="w-full aspect-[4/5] sm:aspect-video rounded-lg overflow-hidden border">
+                         <iframe 
+                            src={lesson.documentPath} 
+                            className="w-full h-full"
+                            title={`PDF Viewer for ${lesson.title}`}
+                        />
+                    </div>
+                )
+            }
+            // Fallback to showing rich text and image if no PDF is present.
             return (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                     {lesson.imagePath && (
@@ -284,28 +297,6 @@ const LessonContent = ({
                         "space-y-6",
                         lesson.imagePath ? "md:col-span-1" : "md:col-span-2"
                     )}>
-                        {lesson.documentPath && (
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline">
-                                        <FileTextIcon className="mr-2 h-4 w-4" />
-                                        View Attached PDF
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
-                                    <DialogHeader className="p-4 border-b">
-                                        <DialogTitle>PDF Viewer</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="flex-1">
-                                        <iframe 
-                                            src={lesson.documentPath} 
-                                            className="w-full h-full"
-                                            title={`PDF Viewer for ${lesson.title}`}
-                                        />
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-                        )}
                         {lesson.content && (
                             <article
                                 className="prose dark:prose-invert max-w-none"
