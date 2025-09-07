@@ -469,6 +469,7 @@ interface UserProgress {
     fullName: string;
     department: string;
     progress: number;
+    completionDate: string | null;
 }
 
 function RetrainingDialog({ course, siteId, siteName, open, onOpenChange, onInitiate }: { course: CourseAdminView | null; siteId: string; siteName: string; open: boolean; onOpenChange: (open: boolean) => void; onInitiate: () => void; }) {
@@ -1212,6 +1213,3 @@ export default function ManageCoursesPage() {
     </div>
   )
 }
-
-
-    

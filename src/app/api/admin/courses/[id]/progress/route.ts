@@ -70,7 +70,8 @@ export async function GET(
                 username: u.username,
                 fullName: u.fullName || u.username,
                 department: u.department || 'N/A',
-                progress: 0
+                progress: 0,
+                completionDate: null,
             })));
         }
         
@@ -97,6 +98,15 @@ export async function GET(
         );
         const passedAssessmentUserIds = new Set(passedAssessmentRows.map(row => row.user_id));
 
+        const [certificateRows] = await db.query<RowDataPacket[]>(
+            `SELECT user_id, completion_date FROM certificates WHERE user_id IN (?) AND course_id = ? AND type = 'completion'`,
+            [enrolledUserIds, effectiveCourseId]
+        );
+        const completionDateMap = new Map<number, string>();
+        certificateRows.forEach(row => {
+            completionDateMap.set(row.user_id, row.completion_date);
+        });
+
 
         const progressData = enrolledUsers.map(user => {
             const completedLessons = completedLessonsMap.get(user.id) || 0;
@@ -120,6 +130,7 @@ export async function GET(
                 fullName: user.fullName || user.username,
                 department: user.department || 'N/A',
                 progress: progress,
+                completionDate: completionDateMap.get(user.id) || null,
             };
         });
 
