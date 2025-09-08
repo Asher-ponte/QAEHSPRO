@@ -16,10 +16,14 @@ export async function GET(
     let effectiveSiteId = sessionSiteId;
     const requestedSiteId = request.nextUrl.searchParams.get('siteId');
 
+    // Super admin can specify any site.
     if (isSuperAdmin && requestedSiteId) {
         effectiveSiteId = requestedSiteId;
-    } else if (requestedSiteId && !isSuperAdmin) {
+    // A branch admin can ONLY request for their OWN site.
+    } else if (requestedSiteId && !isSuperAdmin && requestedSiteId !== sessionSiteId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    } else if (requestedSiteId) {
+        effectiveSiteId = requestedSiteId;
     }
 
     try {

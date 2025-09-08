@@ -31,8 +31,11 @@ async function processEnrollment(request: NextRequest, isEnrolling: boolean) {
         let effectiveSiteId = sessionSiteId;
         if (isSuperAdmin && targetSiteId) {
             effectiveSiteId = targetSiteId;
-        } else if (targetSiteId && !isSuperAdmin) {
+        // A branch admin can ONLY specify their OWN siteId.
+        } else if (targetSiteId && !isSuperAdmin && targetSiteId !== sessionSiteId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        } else if (targetSiteId) {
+            effectiveSiteId = targetSiteId;
         }
         
         const db = await getDb();
@@ -41,7 +44,7 @@ async function processEnrollment(request: NextRequest, isEnrolling: boolean) {
             const [courseRows] = await db.query<RowDataPacket[]>('SELECT id FROM courses WHERE id = ? AND site_id = ? LIMIT 1', [courseId, effectiveSiteId]);
             const course = courseRows[0];
             if (!course) {
-                return NextResponse.json({ error: 'Course not found.' }, { status: 404 });
+                return NextResponse.json({ error: 'Course not found in the specified branch.' }, { status: 404 });
             }
             await db.query(
                 'INSERT IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',

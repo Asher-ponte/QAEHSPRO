@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json(allUsers);
     } else {
-      // Client admin gets users from their own branch, ignoring any requestedSiteId param
+      // Branch admin can request users, but ONLY for their own site.
+      // We ignore any `requestedSiteId` and force it to their session site.
       const [users] = await db.query<RowDataPacket[]>('SELECT id, username, fullName, department, position, role, type, email, phone FROM users WHERE site_id = ? ORDER BY username', [sessionSiteId]);
       return NextResponse.json(users);
     }
