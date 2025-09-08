@@ -540,6 +540,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [filter, setFilter] = useState('');
     const [showNotCompleted, setShowNotCompleted] = useState(false);
+    const [reportOnlyCompleted, setReportOnlyCompleted] = useState(false);
     const [showRetrainingDialog, setShowRetrainingDialog] = useState(false);
     const { toast } = useToast();
 
@@ -551,6 +552,7 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
             setFilter('');
             setProgressData([]);
             setShowNotCompleted(false);
+            setReportOnlyCompleted(false);
             setIsLoading(true);
         }
     }, [open, course, currentSite]);
@@ -631,41 +633,65 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
             (user.department?.toLowerCase() || '').includes(lowercasedFilter)
         );
     }, [progressData, filter, showNotCompleted]);
+
+    const reportUsers = useMemo(() => {
+        if (reportOnlyCompleted) {
+            return progressData.filter(p => p.progress === 100);
+        }
+        return progressData;
+    }, [progressData, reportOnlyCompleted]);
     
     const handleGenerateReport = async () => {
-        if (!course || progressData.length === 0) return;
+        if (!course || reportUsers.length === 0) return;
         setIsGeneratingPdf(true);
         
-        const reportElement = document.getElementById('attendance-report');
-        if (!reportElement) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Report element not found.' });
+        // Temporarily show the report to render it for html2canvas
+        const reportContainer = document.getElementById('report-container');
+        if (!reportContainer) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Report container element not found.' });
             setIsGeneratingPdf(false);
             return;
         }
+        reportContainer.style.display = 'block';
 
         try {
-            const canvas = await html2canvas(reportElement, { scale: 2, useCORS: true });
-            const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageElements = Array.from(document.getElementsByClassName('attendance-report-page'));
             
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            const ratio = canvasWidth / canvasHeight;
+            for (let i = 0; i < pageElements.length; i++) {
+                const element = pageElements[i] as HTMLElement;
+                const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+                const imgData = canvas.toDataURL('image/png');
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const canvasWidth = canvas.width;
+                const canvasHeight = canvas.height;
+                const ratio = canvasWidth / canvasHeight;
+                
+                let imgWidth = pdfWidth - 20; // with margin
+                let imgHeight = imgWidth / ratio;
+                if (imgHeight > pdfHeight - 20) {
+                    imgHeight = pdfHeight - 20;
+                    imgWidth = imgHeight * ratio;
+                }
+                
+                if (i > 0) {
+                    pdf.addPage();
+                }
+                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+            }
             
-            const imgWidth = pdfWidth - 20; // with margin
-            const imgHeight = imgWidth / ratio;
-            
-            pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
             pdf.save(`Attendance-${course.title.replace(/ /g, '_')}.pdf`);
             
         } catch (error) {
             toast({ variant: 'destructive', title: 'PDF Error', description: 'Could not generate attendance report.' });
         } finally {
+            reportContainer.style.display = 'none';
             setIsGeneratingPdf(false);
         }
     };
+
 
     const selectedSiteName = sites.find(s => s.id === selectedSiteId)?.name || course?.siteName || currentSite?.name || '';
     const canRetrain = (isSuperAdmin || user?.role === 'Admin') && selectedSiteId !== 'external';
@@ -684,10 +710,10 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                 </DialogHeader>
                 
                 {/* Hidden report for PDF generation */}
-                <div className="absolute -left-[9999px] top-0">
+                <div id="report-container" className="absolute -left-[9999px] top-0 w-[210mm]">
                     <AttendanceReport 
                         courseTitle={course?.title || ''}
-                        users={progressData}
+                        users={reportUsers}
                     />
                 </div>
 
@@ -795,7 +821,11 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                         </ScrollArea>
                     )}
                 </div>
-                <DialogFooter className="sm:justify-between items-center gap-2">
+                <DialogFooter className="flex-wrap !justify-between items-center gap-4">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="report-completed-only" checked={reportOnlyCompleted} onCheckedChange={(checked) => setReportOnlyCompleted(!!checked)} />
+                        <Label htmlFor="report-completed-only">Report completed users only</Label>
+                    </div>
                     <div className="flex gap-2">
                         {canRetrain && (
                             <Button variant="destructive" onClick={() => setShowRetrainingDialog(true)}>
@@ -803,12 +833,12 @@ function ViewProgressDialog({ course, open, onOpenChange }: { course: CourseAdmi
                                 Re-Training
                             </Button>
                         )}
-                        <Button variant="secondary" onClick={handleGenerateReport} disabled={isGeneratingPdf || progressData.length === 0}>
+                        <Button variant="secondary" onClick={handleGenerateReport} disabled={isGeneratingPdf || reportUsers.length === 0}>
                             {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                             Generate Report
                         </Button>
+                         <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
                     </div>
-                    <Button type="button" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
                 
                  {canRetrain && selectedSiteId && (
