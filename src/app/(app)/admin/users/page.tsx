@@ -709,18 +709,23 @@ export default function ManageUsersPage() {
   };
 
   const filteredUsers = useMemo(() => {
-    if (!isSuperAdmin) return users;
     return users.filter(user => {
         const fullNameMatch = user.fullName ? user.fullName.toLowerCase().includes(filters.fullName.toLowerCase()) : filters.fullName === '';
         const usernameMatch = user.username.toLowerCase().includes(filters.username.toLowerCase());
-        const siteMatch = filters.siteName === 'all' || user.siteName === filters.siteName;
+        const siteMatch = !isSuperAdmin || filters.siteName === 'all' || user.siteName === filters.siteName;
         const departmentMatch = user.department ? user.department.toLowerCase().includes(filters.department.toLowerCase()) : filters.department === '';
         const positionMatch = user.position ? user.position.toLowerCase().includes(filters.position.toLowerCase()) : filters.position === '';
         const roleMatch = filters.role === 'all' || user.role === filters.role;
         const typeMatch = filters.type === 'all' || user.type === filters.type;
-        return fullNameMatch && usernameMatch && siteMatch && departmentMatch && positionMatch && roleMatch && typeMatch;
+
+        if (isSuperAdmin) {
+            return fullNameMatch && usernameMatch && siteMatch && departmentMatch && positionMatch && roleMatch && typeMatch;
+        }
+        
+        // For non-super-admins, implicitly filter by their site
+        return user.siteId === site?.id;
     });
-  }, [users, filters, isSuperAdmin]);
+  }, [users, filters, isSuperAdmin, site]);
 
   const filtersAreActive = useMemo(() => {
     return (
